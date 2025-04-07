@@ -121,6 +121,26 @@ def verify_files(file: str, format: str = "vcf"):
 # ===========================================================================================
 # Read VCF
 # ===========================================================================================
+
+def convert(a: object) -> object:
+    """ Convert variable to appropriate type """
+    try:
+        # If the variable contains a '/' or '|' character, it is a genotype information, return the variable as is
+        # Else return the variable as an evaluated expression
+        return a if sum(list(map(lambda x: x in a,('/','|')))) else eval(a)
+    except Exception:
+        # If the variable cannot be evaluated, return the variable as is
+        return a
+
+
+def format_to_values(format: str, values: str|list[str]) -> dict:
+    """ map FORMAT string to respective SAMPLE values """
+
+    # Split the format string into a list of fields
+    format = format.split(":")
+    values = values.split(":")
+    return {f: convert(v) for f, v in zip(format,values)}
+    
 def samtools_vaf(line_dict):
     """
     Functions to get VAF in different file format

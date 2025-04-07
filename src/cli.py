@@ -1,6 +1,6 @@
 from __init__ import __version__
 from argparse import ArgumentParser
-from afo import combine
+from src.vusion import combine
 from sys import argv
 
 class Program:

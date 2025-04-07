@@ -41,6 +41,7 @@ DICTIONNARY :
 
 import copy
 import errors
+from hashlib import sha256
 from loguru import logger
 import os
 import pandas as pd
@@ -58,7 +59,7 @@ callsets = {}  # dictionary of unique variant calls
 VCF_HEADER = ''
 thresholds = [10, 30, 40, 60, 70, 80, 20, 30, 50, 1]
 
-known_callers: frozenset = ('ST', 'VS', 'VD', 'PL', 'HC', 'CS', 'HS','FL')
+known_callers: frozenset = ('ST', 'VS', 'VD', 'PL', 'HC', 'CS', 'HS', 'FL')
 # known variant callers are:
 # samtools			(ST)
 # varscan			(VS)
@@ -117,22 +118,16 @@ def combine(params):
             logger.error(f"{vcf} is not a valid VCF.")
             raise SystemExit
         
-        vcfs[input[0]] = input[1]
+        vcfs[input[0]] = {"vcf": input[1], "index": None}
 
-    logger.success()
+        logger.debug(f"Variant Callers inputed: {input[0]}")
 
     # Load reference genome dict ie. list of ordered contig names / length
     contigs: list[pd.Series] = []
 
-    {"contigs": [],
-                     "length": [],
-                     "index": [],
-                     "pbline": [],
-                     "byteline": []}
-
     with open(params.reference, mode='r') as ref:
         logger.debug(f"Parsing {params.reference}")
-        for line in ref.readlines():
+        for line in ref:
             contigs.append(pd.Series(data=line.strip().split('\t')))
 
     contigs: pd.DataFrame = pd.DataFrame(data=contigs, columns=["contig", "length", "index", "pbline", "byteline"])
@@ -144,6 +139,19 @@ def combine(params):
 
     # Check if all mandatory option are given and modify variable depending of given options
     SBM = 0.95
+    MAX_THRESHOLD = 100.0
+    MIN_THRESHOLD = 0.0
+    HEADER = {
+        "CHROM": 0,
+        "POS": 1,
+        "ID": 2,
+        "REF": 3,
+        "ALT": 4,
+        "QUAL": 5,
+        "FILTER": 6,
+        "INFO": 7,
+        "FORMAT": 8,
+    }
 
     if params.disable_strand_bias:
         SBM = 2
@@ -156,177 +164,164 @@ def combine(params):
         if len(thresholds) != 10:
             logger.error(f"Invalid number of values in --threshold option.")
             raise SystemExit
+        
         #Check that all values can be converted to floats
         try:
             thresholds = list(map(float, thresholds)) 
         except ValueError:
-            logger.error("Invalid value in threshold option.")
+            logger.error("Invalid values in threshold option.")
             raise SystemExit
-        # Check that last value is lower than 100 and higher or equal to 0
-        if (thresholds[-1] >= 100) or (thresholds[-1] <= 0):
-            print('\nError ! Option --thresholds last value cannot be equal or higher than 100, or lower than 0 \n')
-            sys.exit(1)
-        # Check that 6 first given threshold are unique, listed i ascending order and not over 100
-        if not (thresholds[0:6] == sorted(thresholds[0:6])) or not (len(thresholds[0:6]) == len(set(thresholds[0:6])))\
-                or (thresholds[5] >= 100):
-            print('\nError ! Option --thresholds 6 first values must be unique and listed in ascending order'\
-                ' and lower than 100\n')
-            sys.exit(1)
-        # Check that second group of threshold is also ordered
-        if not (thresholds[6:9] == sorted(thresholds[6:9])) or not (len(thresholds[6:9]) == len(set(thresholds[6:9] )))\
-                or (thresholds[8] >= 100):
-            print('\nError ! Option --thresholds values 7, 8 and 9 must be unique and listed in ascending order'\
-                ' and lower than 100\n')
-            sys.exit(1)
+        
+        if not any(list(map(lambda value: value >= MIN_THRESHOLD and value <= MAX_THRESHOLD, thresholds))):
+            logger.error("Option --thresholds values cannot be equal or higher than 100, or lower than 0.")
+            raise SystemExit
+
+        # Check that 6 first given threshold are unique
+        if len(thresholds[0:6]) != len(set(thresholds[0:6])):
+            logger.error("Option --thresholds six first values must be unique.")
+            raise SystemExit
+
+        # Check that second group of threshold values are unique
+        if len(thresholds[6:9]) != len(set(thresholds[6:9])):
+            logger.error("Option --thresholds values 7, 8 and 9 must be unique.")
+            raise SystemExit
+        
+        thresholds[0:6] = sorted(thresholds[0:6])
+        thresholds[6:9] = sorted(thresholds[6:9])
 
         logger.debug(f"Threshold: {thresholds}")
 
-        #####################################################################################################################
+    # rejected variants (if any; will be written to $opt{trash_file})
+    rejected = {}
 
-        # rejected variants (if any; will be written to $opt{trash_file})
-        rejected = {}
-        readline = []
-        vcf_data = []
-        for caller in vcfs:
-            # Check caller and set the subparse function to the corresponding function to get VAF
-            if caller == 'ST':
-                subparse = functions.samtools_vaf
-                TRC = functions.st_coverage
-                ARC = functions.st_arc
-                RRC = functions.st_rrc
-            if caller == 'VS':
-                subparse = functions.varscan_vaf
-                TRC = functions.varscan_coverage
-                ARC = functions.varscan_arc
-                RRC = functions.varscan_rrc
-            if caller == 'VD':
-                subparse = functions.vardict_vaf
-                TRC = functions.vardict_coverage
-                ARC = functions.vardict_arc
-                RRC = functions.vardict_rrc
-            if caller == 'PL':
-                subparse = functions.pindel_vaf
-                TRC = functions.pindel_coverage
-                ARC = functions.pindel_arc
-            if caller == 'HC':
-                subparse = functions.haplotypecaller_vaf
-                TRC = functions.haplotypecaller_coverage
-                ARC = functions.haplotypecaller_arc
-            if caller == 'FL':
-                subparse = functions.FLT3R_vaf
-                TRC = functions.FLT3_coverage
-                ARC = functions.FLT3_arc
+    for caller in vcfs:
+        # Check caller and set the subparse function to the corresponding function to get VAF
+        if caller == 'ST':
+            subparse = functions.samtools_vaf
+            TRC = functions.st_coverage
+            ARC = functions.st_arc
+            RRC = functions.st_rrc
+        if caller == 'VS':
+            subparse = functions.varscan_vaf
+            TRC = functions.varscan_coverage
+            ARC = functions.varscan_arc
+            RRC = functions.varscan_rrc
+        if caller == 'VD':
+            subparse = functions.vardict_vaf
+            TRC = functions.vardict_coverage
+            ARC = functions.vardict_arc
+            RRC = functions.vardict_rrc
+        if caller == 'PL':
+            subparse = functions.pindel_vaf
+            TRC = functions.pindel_coverage
+            ARC = functions.pindel_arc
+        if caller == 'HC':
+            subparse = functions.haplotypecaller_vaf
+            TRC = functions.haplotypecaller_coverage
+            ARC = functions.haplotypecaller_arc
+        if caller == 'FL':
+            subparse = functions.FLT3R_vaf
+            TRC = functions.FLT3_coverage
+            ARC = functions.FLT3_arc
 
+        vcf = open(vcfs[caller]["vcf"], 'r')
+        for line in vcf:
+            # Reminder of what info will containe
+            # vcf line structure is like [CHROM POS ID REF ALT QUAL FILTER INFO FORMAT SAMPLE]
+            datas = line.strip().split('\t')
+            # Skip header
+            if line[0] == '#':
+                continue
+            # In haplotype caller skip some weird exceptions
+            # If sample part is empty
+            # If AD:DP is not in FORMAT (variant depth and total depth info)
+            # If total depth is 0
+            if caller == 'HC' and (
+                len(datas[9])==0 or
+                not 'AD:DP' in datas[8]
+                or datas[9].split(':')[2] == '0'
+            ):
+                continue
+            # In pindel skip exceptions
+            # If it is writen INV instead of variant allele
+            # If coverage information is 0
+            if caller == 'PL' and (
+                int(datas[9].split(':')[1].split(',')[0])==0 or
+                'INV' in datas[4]
+            ):
+                continue
 
-            VCF_INPUT = open(vcfs[caller], 'r')
-            for line in VCF_INPUT:
-                # Reminder of what info will containe
-                # vcf line structure is like [CHROM POS ID REF ALT QUAL FILTER INFO FORMAT SAMPLE]
-                info = line.strip().split('\t')
-                # Skip header
-                if line[0] == '#':
-                    continue
-                # In haplotype caller skip some weird exceptions
-                # If sample part is empty
-                # If AD:DP is not in FORMAT (variant depth and total depth info)
-                # If total depth is 0
-                if caller == 'HC' and (
-                    len(info[9])==0 or
-                    not 'AD:DP' in info[8]
-                    or info[9].split(':')[2] == '0'
-                ):
-                    continue
-                # In pindel skip exceptions
-                # If it is writen INV instead of variant allele
-                # If coverage information is 0
-                if caller == 'PL' and (
-                    int(info[9].split(':')[1].split(',')[0])==0 or
-                    'INV' in info[4]
-                ):
-                    continue
+            # Create a variant unique id, with chromosome, POSITION,
+            # reference and alternative allele
+            hash: str = sha256(
+                        string=f"{(datas[0]).removeprefix('chr')}:{datas[1]}:{datas[3]}:{'|'.join(datas[4])}".encode()
+                    ).hexdigest()
 
-                # Create a variant unique id, with chromosome, POSITION,
-                # reference and alternative allele
-                VARIANT_UNIQUE_KEY = ':'.join([info[0], info[1], info[3], info[4]])
+            if not hash in callsets:
+                callsets[hash] = {}
 
-                if VARIANT_UNIQUE_KEY not in callsets:
-                    callsets[VARIANT_UNIQUE_KEY] = {}
-                # if caller not in callsets[VARIANT_UNIQUE_KEY]:
-                #     callsets[VARIANT_UNIQUE_KEY][caller] = {}
-                #
-                if 'VC' not in callsets[VARIANT_UNIQUE_KEY]:
-                    callsets[VARIANT_UNIQUE_KEY]['VC'] = {
-                    'VAF': {},
-                    'GT': {},
-                    'FILTER': {},
-                    'INFO': {},
-                    'FORMAT': {},
-                    'SAMPLE': {},
-                    'TRC': {},
-                    'ARC':{},
-                    'RRC':{}
-                }
+            if 'VC' not in callsets[hash]:
+                callsets[hash]['VC'] = {
+                'VAF': {},
+                'GT': {},
+                'FILTER': {},
+                'INFO': {},
+                'FORMAT': {},
+                'SAMPLE': {},
+                'TRC': {},
+                'ARC':{},
+                'RRC':{}
+            }
 
-                if caller == 'FL' : # Less informations with FLiT3r
-                    # callsets[VARIANT_UNIQUE_KEY]['VC']['FILTER'][caller] = info[6]
-                    # callsets[VARIANT_UNIQUE_KEY]['VC']['INFO'][caller] = info[7]
-                    callsets[VARIANT_UNIQUE_KEY]['VC']['FORMAT'][caller] = info[5]
-                    callsets[VARIANT_UNIQUE_KEY]['VC']['SAMPLE'][caller] = info[6]
-                else:
-                    callsets[VARIANT_UNIQUE_KEY]['VC']['FILTER'][caller] = info[6]
-                    callsets[VARIANT_UNIQUE_KEY]['VC']['INFO'][caller] = info[7]
-                    callsets[VARIANT_UNIQUE_KEY]['VC']['FORMAT'][caller] = info[8]
-                    callsets[VARIANT_UNIQUE_KEY]['VC']['SAMPLE'][caller] = info[9]
+            if caller == 'FL' : # Less informations with FLiT3r
+                callsets[hash]['VC']['FORMAT'][caller] = datas[HEADER["FORMAT"]]
+                callsets[hash]['VC']['SAMPLE'][caller] = datas[HEADER["SAMPLE"]]
+            else:
+                callsets[hash]['VC']['FILTER'][caller] = datas[HEADER['FILTER']]
+                callsets[hash]['VC']['INFO'][caller] = datas[HEADER['INFO']]
+                callsets[hash]['VC']['FORMAT'][caller] = datas[HEADER["FORMAT"]].split(':')
+                callsets[hash]['VC']['SAMPLE'][caller] = datas[HEADER["SAMPLE"]].split(':')
 
-                    # Save genotype to raise warning if all callers don't report same GT.
-                    # First manage case when Vardict return 1/0 instead of 0/1
-                    # callsets[VARIANT_UNIQUE_KEY]['VC']['GT'] = []
-                    # GT = callsets[VARIANT_UNIQUE_KEY][caller]['SAMPLE'].split(':')[0]
-                    GT = info[9].split(':')[0]
-                    if GT == '1/0':
-                        GT = '0/1'
-                    #callsets[VARIANT_UNIQUE_KEY]['VC']['GT'].append(GT)
-                    callsets[VARIANT_UNIQUE_KEY]['VC']['GT'][caller] = GT
+                # Save genotype to raise warning if all callers don't report same GT.
+                # First manage case when Vardict return 1/0 instead of 0/1
+                # callsets[hash]['VC']['GT'] = []
+                # GT = callsets[hash][caller]['SAMPLE'].split(':')[0]
+                GT = datas[9].split(':')[0]
+                if GT == '1/0':
+                    GT = '0/1'
+                #callsets[hash]['VC']['GT'].append(GT)
+                callsets[hash]['VC']['GT'][caller] = GT
 
 
-                callsets[VARIANT_UNIQUE_KEY]['VC']['VAF'][caller] = 100 * subparse(info)
+            callsets[hash]['VC']['VAF'][caller] = 100 * subparse(datas)
 
-                # 231010 - Previously used during rescue;
-                # this is no longer the case as we now rely on the average VAF to determine the FILTER
-                # if not 'FILTER' in callsets[VARIANT_UNIQUE_KEY]['VC']:
-                #     callsets[VARIANT_UNIQUE_KEY]['VC']['FILTER'] = 0
-                # if not info[6] == 'PASS':
-                #     if not info[6] == '.':
-                #         callsets[VARIANT_UNIQUE_KEY]['VC']['FILTER'] += 1
-
-
-
-                # Store TRC, ARC and RRC for each VC
-                callsets[VARIANT_UNIQUE_KEY]['VC']['TRC'][caller] = TRC(info)
-                if caller in ['VS','VD','ST']:
-                    callsets[VARIANT_UNIQUE_KEY]['VC']['ARC'][caller] = ARC(info)[0]
-                    callsets[VARIANT_UNIQUE_KEY]['VC']['RRC'][caller] = RRC(info)[0]
-                    VALUE_STRAND = ['TRC-','TRC+','ARC+','ARC-','RRC+','RRC-']
-                    for value in VALUE_STRAND:
-                        if value not in callsets[VARIANT_UNIQUE_KEY]['VC']:
-                            callsets[VARIANT_UNIQUE_KEY]['VC'][value] = {}
-                    i = 1
-                    for strand in ['+','-']:
-                        callsets[VARIANT_UNIQUE_KEY]['VC']['TRC'+strand][caller] = (
-                            RRC(info)[i] +
-                            ARC(info)[i]
-                        )
-                        callsets[VARIANT_UNIQUE_KEY]['VC']['ARC'+strand][caller] = ARC(info)[i]
-                        callsets[VARIANT_UNIQUE_KEY]['VC']['RRC'+strand][caller] = RRC(info)[i]
-                        i +=1
-                else:
-                    callsets[VARIANT_UNIQUE_KEY]['VC']['ARC'][caller] = ARC(info)
-                    callsets[VARIANT_UNIQUE_KEY]['VC']['RRC'][caller] = (
-                        float(TRC(info))-
-                        float(ARC(info))
+            # Store TRC, ARC and RRC for each VC
+            callsets[hash]['VC']['TRC'][caller] = TRC(datas)
+            if caller in ['VS','VD','ST']:
+                callsets[hash]['VC']['ARC'][caller] = ARC(datas)[0]
+                callsets[hash]['VC']['RRC'][caller] = RRC(datas)[0]
+                VALUE_STRAND = ['TRC-','TRC+','ARC+','ARC-','RRC+','RRC-']
+                for value in VALUE_STRAND:
+                    if value not in callsets[hash]['VC']:
+                        callsets[hash]['VC'][value] = {}
+                i = 1
+                for strand in ['+','-']:
+                    callsets[hash]['VC']['TRC'+strand][caller] = (
+                        RRC(datas)[i] +
+                        ARC(datas)[i]
                     )
+                    callsets[hash]['VC']['ARC'+strand][caller] = ARC(datas)[i]
+                    callsets[hash]['VC']['RRC'+strand][caller] = RRC(datas)[i]
+                    i +=1
+            else:
+                callsets[hash]['VC']['ARC'][caller] = ARC(datas)
+                callsets[hash]['VC']['RRC'][caller] = (
+                    float(TRC(datas))-
+                    float(ARC(datas))
+                )
+        vcf.close()
 
-            VCF_INPUT.close()
+#####################################################################################################################
 
         # 1/ define VarType (VT) ie. SNV, MNV, INS/DEL, INV or CSV (Complex Structural Variant)
         # 2/ revert vt norm left-alignment for parsimonious DEL
