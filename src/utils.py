@@ -121,25 +121,6 @@ def verify_files(file: str, format: str = "vcf"):
 # ===========================================================================================
 # Read VCF
 # ===========================================================================================
-
-def convert(a: object) -> object:
-    """ Convert variable to appropriate type """
-    try:
-        # If the variable contains a '/' or '|' character, it is a genotype information, return the variable as is
-        # Else return the variable as an evaluated expression
-        return a if sum(list(map(lambda x: x in a,('/','|')))) else eval(a)
-    except Exception:
-        # If the variable cannot be evaluated, return the variable as is
-        return a
-
-
-def format_to_values(format: str, values: str|list[str]) -> dict:
-    """ map FORMAT string to respective SAMPLE values """
-
-    # Split the format string into a list of fields
-    format = format.split(":")
-    values = values.split(":")
-    return {f: convert(v) for f, v in zip(format,values)}
     
 def samtools_vaf(line_dict):
     """
@@ -498,7 +479,7 @@ def merge_variant_dict(dicts):
 # ===========================================================================================
 # Functions on variants
 # ===========================================================================================
-def define_variant_type(sequence, seq_len):
+def define_variant_type(ref: str, alt: str):
     """
     define VarType (VT) ie. SNV, MNV, INS/DEL, INV or CSV (Complex Structural Variant)
     Parameters:
@@ -506,14 +487,17 @@ def define_variant_type(sequence, seq_len):
     - seq_len : a dictionnary containing the length of the reference and the alternative allele
     Return : the variant type
     """
-    if seq_len['ref'] == 1 and seq_len['alt'] == 1:
+    OLD_CHARS = "ACGTacgt"
+    REPLACE_CHARS = "TGCAtgca"
+    rev = alt.translate(str.maketrans(OLD_CHARS,REPLACE_CHARS))[::-1]
+    if len(ref) == 1 and len(alt) == 1:
         variant_type = 'SNV'
-    elif seq_len['ref'] == 1 and seq_len['alt'] > 1 :
+    elif len(ref) == 1 and len(alt) > 1 :
         variant_type = 'INS'
-    elif seq_len['ref'] > 1 and seq_len['alt'] == 1:
+    elif len(ref) > 1 and len(alt) == 1:
         variant_type = 'DEL'
-    elif seq_len['ref'] == seq_len['alt']:
-        if sequence['ref'] == sequence['rev'] :
+    elif len(ref) == len(alt):
+        if ref == rev :
             variant_type = 'INV'
         else:
             # mostly coming from <VD> and both annotated as <Complex>
