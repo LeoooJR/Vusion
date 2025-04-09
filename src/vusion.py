@@ -39,8 +39,10 @@ DICTIONNARY :
                     'BRR', 'BRE', 'SBP', 'SBM', 'LOW', 'VCI', 'VCN','PIL']}}
 """
 
+import callers
 import copy
 import errors
+import files
 from hashlib import sha256
 from loguru import logger
 import os
@@ -55,40 +57,53 @@ def combine(params):
 
     # ===========================================================================================
     # Initiate variables
-    # 231010 - CT replaced by final_metrics
     # ===========================================================================================
     callsets = {}  # dictionary of unique variant calls
     VCF_HEADER = ''
-    thresholds = [10, 30, 40, 60, 70, 80, 20, 30, 50, 1]
+    SBM = 0.95
+    MAX_THRESHOLD = 100.0
+    MIN_THRESHOLD = 0.0
+    HEADER = {
+        "CHROM": 0,
+        "POS": 1,
+        "ID": 2,
+        "REF": 3,
+        "ALT": 4,
+        "QUAL": 5,
+        "FILTER": 6,
+        "INFO": 7,
+        "FORMAT": 8,
+        "SAMPLE": 9
+    }
 
-    known_callers: frozenset = {'ST', 'VS', 'VD', 'PL', 'HC', 'CS', 'HS', 'FL'}
-    # known variant callers are:
-    # samtools			(ST)
-    # varscan			(VS)
-    # vardict			(VD)
-    # pindel			(PL)
-    # haplotypecaller	(HC)
-    # smCounter2		(SM; DEPRECATED)
-    # control & hotspot (CS & HS) ## when --hotspot option is set;
-    # CtlSet & HotSpot should both originate from CombineVCF2final_metrics
+    # rejected variants (if any; will be written to $opt{trash_file})
+    rejected = {}
+    rev = {}
+    INV_MNV_CSV = {}
+    FLiT3r = {}
+    readpile = {}
+    ITD = {}
+    #  thresholds = [10, 30, 40, 60, 70, 80, 20, 30, 50, 1]
+
+    repository = callers.VariantCallerRepository()
 
     # Check reference genome index
     try:
-        functions.verify_files(file=params.reference, format="fai")
+        fasta_index = files.FastaIndex(path=params.reference, lazy=False)
     except errors.FastaIndexError:
         logger.error(f"{params.reference} is not a valid FASTA index.")
-        raise SystemExit
+        raise SystemExit(f"{params.reference} is not a valid FASTA index.")
     
     logger.success(f"Fasta index {params.reference} has been successfully checked.")
     
     # Check pileup
     try:
-        functions.verify_files(file=params.pileup, format="pileup")
+        pileup = files.Pileup(path=params.pileup, lazy=True)
     except errors.PileupError:
-        logger.error(f"{params.reference} is not a valid PILEUP.")
-        raise SystemExit
+        logger.error(f"{params.pileup} is not a valid PILEUP.")
+        raise SystemExit(f"{params.pileup} is not a valid PILEUP.")
     
-    logger.success(f"Pileup {params.reference} has been successfully checked.")
+    logger.success(f"Pileup {params.pileup} has been successfully checked.")
 
     # Check VCFs
     vcfs: dict = {}
@@ -108,16 +123,16 @@ def combine(params):
             logger.error(f"Error was raised by: {input[1]}.")
             raise SystemExit("Wrong type of argument in --vcf option.")
         except ValueError:
-            if input[0] not in known_callers:
+            if repository.is_supported(input[0]):
                 logger.error(f"{input[0]} caller is not supported in --vcf option.")
                 raise SystemExit("Caller not supported in --vcf options.")
             
         try:
-            functions.verify_files(file=input[1], format="vcf")
+            vcfs[input[0]] = {"vcf": files.VCF(path=vcf, caller=repository.get_VC(input[0]), lazy=True)}
         except errors.VCFError as e:
             logger.error(f"{vcf} is not a valid VCF.")
             logger.error(f"Error: {e}")
-            raise SystemExit
+            raise SystemExit("{vcf} is not a valid VCF.")
         
         vcfs[input[0]] = {"vcf": input[1], "index": None}
 
@@ -127,32 +142,16 @@ def combine(params):
     contigs: list[pd.Series] = []
 
     with open(params.reference, mode='r') as ref:
-        logger.debug(f"Parsing {params.reference}")
+        logger.debug(f"Parsing {params.reference}.")
         for line in ref:
             if line:
                 contigs.append(pd.Series(data=line.strip().split('\t')))
                 
     contigs: pd.DataFrame = pd.DataFrame(data=contigs)
     contigs.columns=["contig", "length", "index", "pbline", "byteline"]
-
-    contigs = contigs.astype({"contig": "string"})
+    contigs = contigs.astype({"contig": "string", "pbline": 'uint8', "byteline": "uint8"})
 
     # Check if all mandatory option are given and modify variable depending of given options
-    SBM = 0.95
-    MAX_THRESHOLD = 100.0
-    MIN_THRESHOLD = 0.0
-    HEADER = {
-        "CHROM": 0,
-        "POS": 1,
-        "ID": 2,
-        "REF": 3,
-        "ALT": 4,
-        "QUAL": 5,
-        "FILTER": 6,
-        "INFO": 7,
-        "FORMAT": 8,
-        "SAMPLE": 9
-    }
 
     if params.disable_strand_bias:
         SBM = 2
@@ -161,46 +160,38 @@ def combine(params):
 
         thresholds = params.thresholds.split(',')
 
-        # Check that we have 10 values in threshold
+        # Check that we have 10 values in thresholds
         if len(thresholds) != 10:
             logger.error(f"Invalid number of values in --threshold option.")
-            raise SystemExit
+            raise SystemExit(f"Invalid number of values in --threshold option.")
         
         #Check that all values can be converted to floats
         try:
             thresholds = list(map(float, thresholds)) 
         except ValueError:
-            logger.error("Invalid values in threshold option.")
-            raise SystemExit
+            logger.error("Invalid values in thresholds option.")
+            raise SystemExit("Invalid values in thresholds option.")
         
         if not any(list(map(lambda value: value >= MIN_THRESHOLD and value <= MAX_THRESHOLD, thresholds))):
             logger.error("Option --thresholds values cannot be equal or higher than 100, or lower than 0.")
-            raise SystemExit
+            raise SystemExit("Option --thresholds values cannot be equal or higher than 100, or lower than 0.")
 
         # Check that 6 first given threshold are unique
         if len(thresholds[0:6]) != len(set(thresholds[0:6])):
             logger.error("Option --thresholds six first values must be unique.")
-            raise SystemExit
+            raise SystemExit("Option --thresholds six first values must be unique.")
 
         # Check that second group of threshold values are unique
         if len(thresholds[6:9]) != len(set(thresholds[6:9])):
             logger.error("Option --thresholds values 7, 8 and 9 must be unique.")
-            raise SystemExit
+            raise SystemExit("Option --thresholds values 7, 8 and 9 must be unique.")
         
         thresholds[0:6] = sorted(thresholds[0:6])
         thresholds[6:9] = sorted(thresholds[6:9])
 
-        logger.debug(f"Threshold: {thresholds}")
+        logger.debug(f"Thresholds: {thresholds}")
 
-    # rejected variants (if any; will be written to $opt{trash_file})
-    rejected = {}
-    rev = {}
-    INV_MNV_CSV = {}
-    FLiT3r = {}
-    readpile = {}
-    ITD = {}
-
-    pileup = open(params.pileup, mode='r')
+#####################################################################################################################
 
     for caller in vcfs:
         # Check caller and set the subparse function to the corresponding function to get VAF
@@ -398,10 +389,6 @@ def combine(params):
                             readpile[position_index] = {}
 
                         readpile[position_index][hash] = alt
-
-                        # --------------------------------
-                        # process pileup data
-                        # --------------------------------
                     
                 elif call["VT"] in ['INV','MNV','CSV']:
 
@@ -414,8 +401,6 @@ def combine(params):
                     if not hash in FLiT3r:
 
                         FLiT3r[hash] = call
-
-    pileup.close()
 
     # ===========================================================================================
     # Process exceptions without Pileup : INV,MNV and CSV
@@ -689,8 +674,6 @@ def combine(params):
                 else:
                     del callsets[variant_key]
                     BRR = NEW_BRR
-
-#####################################################################################################################
 
     # ===========================================================================================
     # Process Rejected dic

@@ -1,43 +1,4 @@
-class VariantCallerRepository():
-
-    def __init__(self):
-        
-        self.BT = BCFTools()
-        self.VS = Varscan()
-        self.VD = Vardict()
-        self.PL = Pindel()
-        self.HS = Haplotypecaller()
-        self.FL = Filt3r()
-        self.DV = DeepVariant()
-
-    def get_BT(self):
-
-        return self.BT
-    
-    def get_VS(self):
-
-        return self.VS
-    
-    def get_VD(self):
-
-        return self.VD
-    
-    def get_PL(self):
-
-        return self.PL
-    
-    def get_HS(self):
-
-        return self.HS
-    
-    def get_FL(self):
-
-        return self.FL
-    
-    def get_DV(self):
-
-        return self.DV
-    
+import errors
 
 class VariantCaller():
 
@@ -45,6 +6,74 @@ class VariantCaller():
 
         pass
 
+class VariantCallerRepository():
+
+    # known variant callers are:
+    # samtools			(ST)
+    # varscan			(VS)
+    # vardict			(VD)
+    # pindel			(PL)
+    # haplotypecaller	(HC)
+    # smCounter2		(SM; DEPRECATED)
+    # control & hotspot (CS & HS) ## when --hotspot option is set;
+    # CtlSet & HotSpot should both originate from CombineVCF2final_metrics
+
+    def __init__(self):
+
+        self.callers = {"BT": BCFTools(),
+                        "VS": Varscan(),
+                        "VD": Vardict(),
+                        "PL": Pindel(),
+                        "HS": Haplotypecaller(),
+                        "FL": Flit3r(),
+                        "DV": DeepVariant()}
+        
+        # self.BT = BCFTools()
+        # self.VS = Varscan()
+        # self.VD = Vardict()
+        # self.PL = Pindel()
+        # self.HS = Haplotypecaller()
+        # self.FL = Flit3r()
+        # self.DV = DeepVariant()
+
+    def get_VC(self, caller: str) -> VariantCaller:
+
+        try:
+            return self.callers[caller]
+        except ValueError:
+            raise errors.VariantCallerError(f"Variant Caller {caller} not supported.")
+
+    def get_BT(self) -> VariantCaller:
+
+        return self.callers["BT"]
+    
+    def get_VS(self) -> VariantCaller:
+
+        return self.callers["VS"]
+    
+    def get_VD(self) -> VariantCaller:
+
+        return self.callers["VD"]
+    
+    def get_PL(self) -> VariantCaller:
+
+        return self.callers["PL"]
+    
+    def get_HS(self) -> VariantCaller:
+
+        return self.callers["HS"]
+    
+    def get_FL(self) -> VariantCaller:
+
+        return self.callers["FL"]
+    
+    def get_DV(self) -> VariantCaller:
+
+        return self.callers["DV"]
+    
+    def is_supported(self, caller: str) -> bool:
+
+        return caller in self.callers
 
 class BCFTools(VariantCaller):
 
@@ -56,22 +85,41 @@ class BCFTools(VariantCaller):
     @staticmethod
     def VAF(variant: str) -> float:
 
-        pass
+        total_depth = float(variant[7].split('DP=')[1].split(';')[0])
+
+        alleles_depth = variant[7].split('DP4=')[1].split(';')[0]
+
+        variant_depth = float(alleles_depth.split(',')[2]) + float(alleles_depth.split(',')[3])
+
+        try:
+            vaf = variant_depth / total_depth
+        except ZeroDivisionError:
+            vaf = 0
+
+        return vaf
     
     @staticmethod
     def depth(variant: str) -> int:
 
-        pass
+        return float(variant[7].split('DP=')[1].split(';')[0])
     
     @staticmethod
     def rcc(variant: str) -> float:
 
-        pass
+        variant_depth = variant[7].split('DP4=')[1].split(';')[0]
+        rrc_plus = float(variant_depth.split(',')[0])
+        rrc_minus = float(variant_depth.split(',')[1])
+        rrc = rrc_plus + rrc_minus
+        return(rrc, rrc_plus, rrc_minus)
     
     @staticmethod
     def arc(variant: str) -> float:
 
-        pass
+        variant_depth = variant[7].split('DP4=')[1].split(';')[0]
+        arc_plus = float(variant_depth.split(',')[2])
+        arc_minus = float(variant_depth.split(',')[3])
+        arc = arc_plus + arc_minus
+        return(arc,arc_plus,arc_minus)
 
 
 class Varscan(VariantCaller):
@@ -190,7 +238,7 @@ class Haplotypecaller(VariantCaller):
 
 
 
-class Filt3r(VariantCaller):
+class Flit3r(VariantCaller):
 
     FORMAT = []
 

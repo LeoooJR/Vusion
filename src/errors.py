@@ -9,3 +9,7 @@ class FastaIndexError(ValueError):
 class PileupError(ValueError):
 
     pass
+
+class VariantCallerError(ValueError):
+
+    pass

@@ -1,10 +1,20 @@
 import callers
+import errors
+import os
 
 class GenomicFile():
 
     def __init__(self, path: str):
 
         self.path = path
+
+    def is_empty(path: str) -> bool:
+        """ Check if file is empty """
+        return os.path.getsize(path) == 0
+
+    def is_file(path: str) -> bool:
+        """ Check if path is a file """
+        return os.path.isfile(path)
 
 class VCF(GenomicFile):
 
@@ -25,13 +35,13 @@ class VCF(GenomicFile):
 
         super().__init__(path=path)
 
-        self.verify(self.path)
+        self.verify()
 
         self.caller: callers.VariantCaller = caller
 
         if not lazy:
 
-            self.parse(self.path)
+            self.parse()
 
     def get_header(self):
 
@@ -43,7 +53,38 @@ class VCF(GenomicFile):
 
     def verify(self):
 
-        pass
+        if not self.is_file(self.path):
+
+            raise errors.VCFError(f"Error: The file {self.path} does not exist.")
+
+        if self.is_empty(self.path):
+
+            raise errors.VCFError(f"Error: The file {self.path} is empty.")
+        
+        try:
+
+            with open(self.path, mode='r') as vcf:
+
+                line = vcf.readline()
+
+                if not line:
+
+                    raise errors.VCFError(f"Error: First line of {self.path} is empty.")
+                
+                else:
+
+                    # Check if first line start with "#"
+                    if line[0] != '#':
+
+                        raise errors.VCFError(f"Error: First line inconsistent with VCF header format")
+
+        except FileNotFoundError:
+
+            raise errors.VCFError(f"{self.path} is not a valid path")
+                
+        except IOError:
+
+            raise errors.VCFError(f"An error occurred while reading {self.path}")
 
     @staticmethod
     def convert(a: object) -> object:
@@ -61,7 +102,30 @@ class VCF(GenomicFile):
 
         # Split the values string into a list of fields
         values: list[str] = values.split(":")
+
         return {f: VCF.convert(v) for f, v in zip(self.caller.FORMAT, values)}
+    
+    def info_to_values(self, values: str) -> dict:
+
+        infos = list(map(lambda item: item.split('='), values.split(';')))
+
+        return {k: v for k, v in infos}
+    
+    def VAF(self, variant: str) -> float:
+
+        return self.caller.VAF(variant)
+
+    def depth(self, variant: str) -> int:
+
+        return self.caller.depth(variant)
+
+    def arc(self, variant: str) -> float:
+
+        return self.caller.arc(variant)
+
+    def rcc(self, variant: str) -> float:
+
+        return self.caller.rcc(variant)
 
 class Pileup(GenomicFile):
 
@@ -89,11 +153,11 @@ class Pileup(GenomicFile):
 
         super().__init__(path=path)
 
-        self.verify(self.path)
+        self.verify()
 
         if not lazy:
 
-            self.parse(self.path)
+            self.parse()
 
     def get_header(self):
 
@@ -105,6 +169,24 @@ class Pileup(GenomicFile):
 
     def verify(self):
 
+        if not self.is_file(self.path):
+
+            raise errors.PileupError(f"Error: The file {self.path} does not exist.")
+
+        if self.is_empty(self.path):
+
+            raise errors.PileupError(f"Error: The file {self.path} is empty.")
+        
+class VCFIndex(GenomicFile):
+
+    def __init__(self, path: str, lazy: bool = True):
+        super().__init__(path)
+
+        self.verify()
+
+    
+    def verify(self):
+
         pass
 
 class FastaIndex(GenomicFile):
@@ -113,16 +195,47 @@ class FastaIndex(GenomicFile):
 
         super().__init__(path)
 
-        self.verify(self.path)
+        self.verify()
 
         if not lazy:
 
-            self.parse(self.path)
+            self.parse()
 
     def parse(self):
 
         pass
 
-    def verify(self, path):
+    def verify(self):
 
-        pass
+        if not self.is_file(self.path):
+
+            raise errors.FastaIndexError(f"Error: The file {self.path} does not exist.")
+
+        if self.is_empty(self.path):
+
+            raise errors.FastaIndexError(f"Error: The file {self.path} is empty.")
+        
+        try:
+
+            with open(self.path, mode='r') as fasta:
+
+                line = fasta.readline()
+
+                if not line:
+                    
+                    raise errors.FastaIndexError(f"Error: First line of {self.path} is empty.")
+                
+                else:
+
+                    # Check if first line is composed of 5 columns
+                    if len(line.split('\t')) != 5:
+
+                        raise errors.FastaIndexError(f"Error: First line inconsistent with Fasta index format")
+        
+        except FileNotFoundError:
+
+            raise errors.FastaIndexError(f"{self.path} is not a valid path")
+
+        except IOError:
+
+            raise errors.FastaIndexError(f"An error occurred while reading {self.path}")

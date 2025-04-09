@@ -22,7 +22,7 @@ class Program:
             processed mpileup data file')
         self.parser.add_argument('-s', '--sample', type=str, dest="sample", metavar='', required=True, help='The sample identifier as\
             specified in both bam and vcf files')
-        self.parser.add_argument('-t', '--thresholds', type=str, dest="thresholds", metavar='', required=False, help='Threshold used for variant\
+        self.parser.add_argument('-t', '--thresholds', type=str, dest="thresholds", default="10,30,40,60,70,80,20,30,50,1", metavar='', required=False, help='Threshold used for variant\
             categorization in VCF callsets')
         self.parser.add_argument('-d', '--disable_strand_bias', action='store_true', required=False, help='Disable strand bias\
             based filtering of variants')
