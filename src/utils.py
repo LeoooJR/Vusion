@@ -339,14 +339,13 @@ def print_var(variant_id, variant_dict, variant_type):
     QUAL, FILTER, VAR, and GT
     - It set ID and QUAL at '.'as placeholders.
     """
-    variant_id_info = variant_id.split(':')
 
     line = '\t'.join([
-        variant_id_info[0],
-        variant_id_info[1],
+        variant_dict[variant_id]["VC"]["CHROM"],
+        variant_dict[variant_id]["VC"]["POS"],
         '.',
-        variant_id_info[2],
-        variant_id_info[3],
+        variant_dict[variant_id]["VC"]["REF"],
+        variant_dict[variant_id]["VC"]["ALT"],
         '.'
     ])
     line += '\t' + variant_dict[variant_id][variant_type]['FILTER']
@@ -404,11 +403,11 @@ def print_var4cartagenia(variant_id, variant_dict, variant_type):
     # Get CHROM, POS, REF and ALT
     # And set ID and QUAL at '.'
     line = '\t'.join([
-        variant_id_info[0],
-        variant_id_info[1],
+        variant_dict[variant_id]["VC"]["CHROM"],
+        variant_dict[variant_id]["VC"]["POS"],
         '.',
-        variant_id_info[2],
-        variant_id_info[3],
+        variant_dict[variant_id]["VC"]["REF"],
+        variant_dict[variant_id]["VC"]["ALT"],
         '.'
     ])
     line += '\t' + variant_dict[variant_id][variant_type]['FILTER']
@@ -426,34 +425,43 @@ def print_var4cartagenia(variant_id, variant_dict, variant_type):
     return line
 
 
-def order_var(variant_id_list, contigs):
+def order_var(variants: dict, contigs):
     """
     Order variant for VCF easy reading
 
     Parameters:
-    - variant_id_list (list): List of variant identifiers
-    - contigs (dict): Dictionary containing contig information
+    - variants (dict): variants
+    - contigs: contig IDs
 
     Returns:
     list: Returns a list of ordered variant identifiers based on contig information
     """
-    tmp_variant_id_list = list(variant_id_list)
-    variant_info_ordered_list = []
-    for contig in sorted(contigs):
-        tmp_variant_tuple = []
-        for key in tmp_variant_id_list:
-            variant_info = key.split(':')
-            if variant_info[0] == contigs[contig][0]:
-                tmp_variant_tuple.append(variant_info)
-        if len(tmp_variant_tuple) > 0:
-            variant_info_ordered_list.append(
-                sorted(tmp_variant_tuple, key=lambda variant: [int(variant[1]), variant[2]])
-            )
-    variant_id_ordered_list = []
-    for chr_list_of_variant in variant_info_ordered_list:
-        for variant in chr_list_of_variant:
-            variant_id_ordered_list.append(':'.join(variant))
-    return variant_id_ordered_list
+
+    # variant_info_ordered_list = []
+
+    # for contig in sorted(contigs):
+
+    #     tmp_variant_tuple = []
+
+    #     for key in variants:
+
+    #         variant_info = [variants[key]["VC"]["CHROM"], variants[key]["VC"]["POS"], variants[key]["VC"]["REF"], variants[key]["VC"]["ALT"]]
+            
+    #         if variants["VC"]["CHROM"] == contig:
+    #             tmp_variant_tuple.append(variant_info)
+
+    #     if len(tmp_variant_tuple) > 0:
+    #         variant_info_ordered_list.append(
+    #             sorted(tmp_variant_tuple, key=lambda variant: [int(variant[1]), variant[2]])
+    #         )
+
+    # variant_id_ordered_list = []
+    # for chr_list_of_variant in variant_info_ordered_list:
+    #     for variant in chr_list_of_variant:
+    #         variant_id_ordered_list.append(':'.join(variant))
+    # return variant_id_ordered_list
+
+    return [k for k, v in sorted(variants.items(), key=lambda item: [item[1]["VC"]["CHROM"], int(item[1]["VC"]["POS"])] )]
 
 
 # ===========================================================================================
@@ -819,7 +827,7 @@ def estimate_brc_r_e(dic,variant_key,pileup_line_info):
 
     if pileup_line_info[14] != 'None':
         # Get number of read with ins format is A:1,0
-        tmp_table_count = re.findall('\d+', pileup_line_info[14])
+        tmp_table_count = re.findall(r'\d+', pileup_line_info[14])
         for tmp_count in tmp_table_count:
             ins_read_counts += int(tmp_count)
     if dic[variant_key]['VT'] == 'INS':
@@ -871,7 +879,7 @@ def estimate_brc_r_e(dic,variant_key,pileup_line_info):
         del_alt_count = 0
         for del_info in del_read_count:
             tmp_del_info = del_info.split(':')
-            if (tmp_del_info[0] != '*') and (tmp_del_info[0] != variant_key.split(':')[2][1:]):
+            if (tmp_del_info[0] != '*') and (tmp_del_info[0] != (dic[variant_key]["VC"]["REF"])[1:]):
                 del_alt_count += (
                     int(tmp_del_info[1].split(',')[0]) +
                     int(tmp_del_info[1].split(',')[1])

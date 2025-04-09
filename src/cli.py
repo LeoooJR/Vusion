@@ -1,6 +1,6 @@
 from __init__ import __version__
 from argparse import ArgumentParser
-from src.vusion import combine
+from vusion import combine
 from sys import argv
 
 class Program:
@@ -11,7 +11,7 @@ class Program:
         
         self.parser = ArgumentParser(description='Combine multiple VCF files.')
         self.parser.add_argument('-v', "--version", action="version", version=f"AFO-VCF {__version__}")
-        self.parser.add_argument('-r', '--reference', type=str, dest="ref", metavar='', required=True, help='<reference.fasta.fai>\
+        self.parser.add_argument('-r', '--reference', type=str, dest="reference", metavar='', required=True, help='<reference.fasta.fai>\
             Path to reference genome fasta index file')
         self.parser.add_argument('-o', '--output', type=str, dest="output", metavar='', required=True, help='Path to the output directory')
         self.parser.add_argument('-V', '--vcf', type=str, dest="vcfs", action='append', required=True, help=' <VC,vcf_file> path to input \
@@ -20,7 +20,7 @@ class Program:
         from CombineVCF2Leaves')
         self.parser.add_argument('-p', '--pileup', dest="pileup", type=str, metavar='', required=True, help='Path to pileup\
             processed mpileup data file')
-        self.parser.add_argument('-id', '--sample', type=str, dest="sample", metavar='', required=True, help='The sample identifier as\
+        self.parser.add_argument('-s', '--sample', type=str, dest="sample", metavar='', required=True, help='The sample identifier as\
             specified in both bam and vcf files')
         self.parser.add_argument('-t', '--thresholds', type=str, dest="thresholds", metavar='', required=False, help='Threshold used for variant\
             categorization in VCF callsets')
@@ -32,8 +32,9 @@ class Program:
         # Si INDEL not in pileup and <l, will be considered as FP
         self.parser.add_argument(
             '-l',
-            '--len_delins',
+            '--length_indels',
             action='store',
+            dest="length_indels",
             required=False,
             default=1,
             type=float,
@@ -41,7 +42,6 @@ class Program:
                 Ex : 3:12580629:C:CT len(Ins) = 1 \
                 By default, minimum length is set to 1')
         self.parser.add_argument(
-            '-s',
             '--sbm_homozygous',
             action='store',
             required=False,
@@ -50,7 +50,7 @@ class Program:
             help='Define sbm limits for homozygous variants. \
                 By default, a strand bias is considered present if there is a 2/3 imbalance \
                 of reads on one strand and 1/3 on the other strand.')
-        self.parser.add_argument("--verbosity", type=bool, action="store_true", required=False, help="Should logs be printed to the shell.")
+        self.parser.add_argument("--verbosity", action="store_true", required=False, help="Should logs be printed to the shell.")
 
         self.parser.set_defaults(func=self.FUNC["combine"])
         

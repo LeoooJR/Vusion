@@ -1,4 +1,4 @@
-import src.callers
+import callers
 
 class GenomicFile():
 
@@ -21,13 +21,13 @@ class VCF(GenomicFile):
         "SAMPLE": 9
     }
 
-    def __init__(self, path: str, caller: src.callers.VariantCaller, lazy: bool = True):
+    def __init__(self, path: str, caller: callers.VariantCaller, lazy: bool = True):
 
         super().__init__(path=path)
 
         self.verify(self.path)
 
-        self.caller: src.callers.VariantCaller = caller
+        self.caller: callers.VariantCaller = caller
 
         if not lazy:
 
@@ -104,5 +104,25 @@ class Pileup(GenomicFile):
         pass
 
     def verify(self):
+
+        pass
+
+class FastaIndex(GenomicFile):
+
+    def __init__(self, path: str, lazy: bool = True):
+
+        super().__init__(path)
+
+        self.verify(self.path)
+
+        if not lazy:
+
+            self.parse(self.path)
+
+    def parse(self):
+
+        pass
+
+    def verify(self, path):
 
         pass
