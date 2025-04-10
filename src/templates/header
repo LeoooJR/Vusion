@@ -1,34 +1,24 @@
-'##fileformat=VCFv4.0\n'
-    for contig in contigs:
-        contig_id = contigs[contig][0]
-        contig_length = contigs[contig][1]
-        VCF_HEADER_PART1 += '##contig=<ID=' + contig_id + ',length=' + contig_length + '>'
-
-'##FILTER=<ID=PASS,Description="All filters passed">'
-'##FILTER=<ID=FAIL,Description="At least one filter failed">'
-'##INFO=<ID=VAR,Number=1,Type=String,Description="Type of the variant ie. SNV, MNV, INS, DEL, INV or CSV">'
-'##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">'
-'##FORMAT=<ID=VAR,Number=1,Type=String,Description="ALT is likely (L) or probably (P) subclonal (SC), heterozygous (HE) or homozygous (HO)">'
-'##FORMAT=<ID=BKG,Number=1,Type=String,Description="ALT is likely (L) or probably (P) clean (CL) or noisy (NO)">'
-'##FORMAT=<ID=TRC,Number=1,Type=Integer,Description="Total #reads covering the variant site">'
-
-    VCF_HEADER_PART2 = '##FORMAT=<ID=RRC,Number=3,Type=Integer,Description="#reads supporting the REF allele onto the (+) and (-) strand, and total #REF reads">'
-    VCF_HEADER_PART2 += '##FORMAT=<ID=ARC,Number=3,Type=Integer,Description="#reads supporting the ALT allele onto the (+) and (-) strand, and total #ALT reads">'
-
-VCF_HEADER_CARTAGENIA_PART2 = '##FORMAT=<ID=RRC,Number=1,Type=Integer,Description="#reads supporting the REF allele">'
-VCF_HEADER_CARTAGENIA_PART2 += '##FORMAT=<ID=ARC,Number=1,Type=Integer,Description="#reads supporting the ALT allele">'
-
-'##FORMAT=<ID=BRC,Number=1,Type=Integer,Description="#reads supporting neither REF nor ALT alleles">'
-'##FORMAT=<ID=ARR,Number=1,Type=Float,Description="ALT allele ratio (%)">'
-'##FORMAT=<ID=BRR,Number=1,Type=Float,Description="Background read ratio ie. BRC/TRC (%)">'
-'##FORMAT=<ID=BRE,Number=1,Type=Float,Description="Background read enrichment ie. BRR/(BRR+ARR) (%)">'
-'##FORMAT=<ID=SBP,Number=1,Type=Float,Description="Estimated strand bias p-value">'
-'##FORMAT=<ID=SBM,Number=1,Type=Float,Description="Estimated strand bias TS-metric">'
-'##FORMAT=<ID=LOW,Number=1,Type=Integer,Description="ARR is GE (resp. LT) ' + str(thresholds[-1]) + '% (0 resp. 1)">'
-
-'##FORMAT=<ID=VCI,Number=1,Type=String,Description="VC identifier(s) eg. ST, VS, etc.">'
-'##FORMAT=<ID=VCN,Number=1,Type=Integer,Description="#VC having called the variant">'
-'##FORMAT=<ID=PIL,Number=1,Type=String,Description="Describe if the variant has been found in the pileup or not">'
-'##FORMAT=<ID=RES,Number=1,Type=String,Description="Describe if the variant has been rescued or not">'
-
-'\t'.join(['#CHROM', 'POS', 'ID', 'REF', 'ALT', 'QUAL', 'FILTER', 'INFO', 'FORMAT',params.sample_id])
+##fileformat=VCFv4.0
+{% for index, contig in contigs.iterrows() -%}       
+    ##contig=<ID={{ contig["contig"] }},length={{ contig["length"] }}>
+{% endfor -%}
+##FILTER=<ID=PASS,Description="All filters passed">
+##FILTER=<ID=FAIL,Description="At least one filter failed">
+##INFO=<ID=VAR,Number=1,Type=String,Description="Type of the variant ie. SNV, MNV, INS, DEL, INV or CSV">
+##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
+##FORMAT=<ID=VAR,Number=1,Type=String,Description="ALT is likely (L) or probably (P) subclonal (SC), heterozygous (HE) or homozygous (HO)">
+##FORMAT=<ID=BKG,Number=1,Type=String,Description="ALT is likely (L) or probably (P) clean (CL) or noisy (NO)">
+##FORMAT=<ID=TRC,Number=1,Type=Integer,Description="Total #reads covering the variant site">
+##FORMAT=<ID=RRC,Number=3,Type=Integer,Description="#reads supporting the REF allele onto the (+) and (-) strand, and total #REF reads">
+##FORMAT=<ID=ARC,Number=3,Type=Integer,Description="#reads supporting the ALT allele onto the (+) and (-) strand, and total #ALT reads">
+##FORMAT=<ID=BRC,Number=1,Type=Integer,Description="#reads supporting neither REF nor ALT alleles">
+##FORMAT=<ID=ARR,Number=1,Type=Float,Description="ALT allele ratio (%)">
+##FORMAT=<ID=BRR,Number=1,Type=Float,Description="Background read ratio ie. BRC/TRC (%)">
+##FORMAT=<ID=BRE,Number=1,Type=Float,Description="Background read enrichment ie. BRR/(BRR+ARR) (%)">
+##FORMAT=<ID=SBP,Number=1,Type=Float,Description="Estimated strand bias p-value">
+##FORMAT=<ID=SBM,Number=1,Type=Float,Description="Estimated strand bias TS-metric">
+##FORMAT=<ID=LOW,Number=1,Type=Integer,Description="ARR is GE (resp. LT) {{ thresholds[-1] }} % (0 resp. 1)">
+##FORMAT=<ID=VCI,Number=1,Type=String,Description="VC identifier(s) eg. ST, VS, etc.">
+##FORMAT=<ID=VCN,Number=1,Type=Integer,Description="#VC having called the variant">
+##FORMAT=<ID=PIL,Number=1,Type=String,Description="Describe if the variant has been found in the pileup or not">
+##FORMAT=<ID=RES,Number=1,Type=String,Description="Describe if the variant has been rescued or not">

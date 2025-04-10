@@ -1,6 +1,73 @@
 import callers
 import errors
+import jinja2
 import os
+
+class GenomicWritter():
+
+    def __init__(self, file: str):
+        
+        self.file = file
+
+    def writeVCF(self, contigs: object, variants: object, samples: list[str], thresholds: list[float]):
+
+        def sort_variant(contigs: object , variants: dict) -> object:
+
+            return {k: v for k, v in sorted(variants.items(), key=lambda item: [item[1]["VC"]["CHROM"], int(item[1]["VC"]["POS"])] )}
+
+        FORMAT = [
+        'GT', 'VAR', 'BKG', 'TRC', 'RRC', 'ARC', 'BRC', 'ARR',
+        'BRR', 'BRE', 'SBP', 'SBM', 'LOW', 'VCI', 'VCN', 'PIL', 'RES'
+        ]
+
+        HEADER: list[str] = [
+        "CHROM",
+        "POS",
+        "ID",
+        "REF",
+        "ALT",
+        "QUAL",
+        "FILTER",
+        "INFO",
+        "FORMAT",
+        ]
+
+        HEADER.extend(samples)
+
+        INFOS: list[str] = ["VAR"]
+
+        ressources = os.path.join(os.path.dirname(os.path.abspath(__file__)),'templates')
+
+        env = jinja2.Environment(loader=jinja2.FileSystemLoader(ressources))
+
+        template = env.get_template("header")
+
+        with open(self.file, mode='w') as out:
+
+            out.writelines(template.render(contigs = contigs, thresholds = thresholds))
+
+            out.write(f"\n#{'\t'.join(HEADER)}\n")
+
+            variants = sort_variant(contigs=contigs, variants=variants)
+
+            for variant in variants:
+
+                out.write('\t'.join([variants[variant]["VC"]["CHROM"], # Chromosome field
+                        variants[variant]["VC"]["POS"], # Position field
+                        '.', # ID field
+                        variants[variant]["VC"]["REF"], # Reference field
+                        variants[variant]["VC"]["ALT"], # Alternate field
+                        '.',
+                        variants[variant]["final_metrics"]["FILTER"], # Filter field
+                        '='.join([INFOS[0],variants[variant]["VT"]]), # Info field
+                        ':'.join(FORMAT), # Format field
+                        ':'.join([str(variants[variant]["final_metrics"][f]) for f in FORMAT])])) # Sample values field
+                
+                out.write('\n')
+
+class GenomicReader():
+
+    pass
 
 class GenomicFile():
 
@@ -8,14 +75,17 @@ class GenomicFile():
 
         self.path = path
 
-    def is_empty(path: str) -> bool:
+    def is_empty(self) -> bool:
         """ Check if file is empty """
-        return os.path.getsize(path) == 0
+        return os.path.getsize(self.path) == 0
 
-    def is_file(path: str) -> bool:
+    def is_file(self) -> bool:
         """ Check if path is a file """
-        return os.path.isfile(path)
+        return os.path.isfile(self.path)
+    
+    def get_path(self):
 
+        return self.path
 class VCF(GenomicFile):
 
     HEADER: dict[str:int] = {
@@ -53,11 +123,11 @@ class VCF(GenomicFile):
 
     def verify(self):
 
-        if not self.is_file(self.path):
+        if not self.is_file():
 
             raise errors.VCFError(f"Error: The file {self.path} does not exist.")
 
-        if self.is_empty(self.path):
+        if self.is_empty():
 
             raise errors.VCFError(f"Error: The file {self.path} is empty.")
         
@@ -119,11 +189,11 @@ class VCF(GenomicFile):
 
         return self.caller.depth(variant)
 
-    def arc(self, variant: str) -> float:
+    def arc(self, variant: str) -> tuple[float]:
 
         return self.caller.arc(variant)
 
-    def rcc(self, variant: str) -> float:
+    def rcc(self, variant: str) -> tuple[float]:
 
         return self.caller.rcc(variant)
 
@@ -169,11 +239,11 @@ class Pileup(GenomicFile):
 
     def verify(self):
 
-        if not self.is_file(self.path):
+        if not self.is_file():
 
             raise errors.PileupError(f"Error: The file {self.path} does not exist.")
 
-        if self.is_empty(self.path):
+        if self.is_empty():
 
             raise errors.PileupError(f"Error: The file {self.path} is empty.")
         
@@ -207,11 +277,11 @@ class FastaIndex(GenomicFile):
 
     def verify(self):
 
-        if not self.is_file(self.path):
+        if not self.is_file():
 
             raise errors.FastaIndexError(f"Error: The file {self.path} does not exist.")
 
-        if self.is_empty(self.path):
+        if self.is_empty():
 
             raise errors.FastaIndexError(f"Error: The file {self.path} is empty.")
         

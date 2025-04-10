@@ -7,7 +7,7 @@ def main():
 
         Program().launch()
 
-    except Exception as e:
+    except SystemExit as e:
 
         print(f"Error: {e}", file=stderr)
         exit(1)

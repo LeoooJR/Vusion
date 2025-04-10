@@ -58,7 +58,6 @@ def combine(params):
     # ===========================================================================================
     # Initiate variables
     # ===========================================================================================
-    callsets = {}  # dictionary of unique variant calls
     VCF_HEADER = ''
     SBM = 0.95
     MAX_THRESHOLD = 100.0
@@ -123,26 +122,29 @@ def combine(params):
             logger.error(f"Error was raised by: {input[1]}.")
             raise SystemExit("Wrong type of argument in --vcf option.")
         except ValueError:
-            if repository.is_supported(input[0]):
+            if not repository.is_supported(input[0]):
                 logger.error(f"{input[0]} caller is not supported in --vcf option.")
                 raise SystemExit("Caller not supported in --vcf options.")
             
         try:
-            vcfs[input[0]] = {"vcf": files.VCF(path=vcf, caller=repository.get_VC(input[0]), lazy=True)}
-        except errors.VCFError as e:
-            logger.error(f"{vcf} is not a valid VCF.")
-            logger.error(f"Error: {e}")
-            raise SystemExit("{vcf} is not a valid VCF.")
-        
-        vcfs[input[0]] = {"vcf": input[1], "index": None}
+            vcfs[input[0]] = {"vcf": files.VCF(path=input[1], caller=repository.get_VC(input[0]), lazy=True), "index": None}
+        except (errors.VCFError, errors.VariantCallerError) as e:
+            if isinstance(e,errors.VCFError):
+                logger.error(f"{vcf} is not a valid VCF.")
+                logger.error(f"Error: {e}")
+                raise SystemExit(f"{vcf} is not a valid VCF.")
+            else:
+                logger.error(f"{input[0]} is not a supported variant caller.")
+                logger.error(f"Error: {e}")
+                raise SystemExit(f"{input[0]} is not a supported variant caller.")
 
         logger.debug(f"Variant Callers inputed: {input[0]}")
 
     # Load reference genome dict ie. list of ordered contig names / length
     contigs: list[pd.Series] = []
 
-    with open(params.reference, mode='r') as ref:
-        logger.debug(f"Parsing {params.reference}.")
+    with open(fasta_index.get_path(), mode='r') as ref:
+        logger.debug(f"Parsing {fasta_index.get_path()}.")
         for line in ref:
             if line:
                 contigs.append(pd.Series(data=line.strip().split('\t')))
@@ -191,47 +193,26 @@ def combine(params):
 
         logger.debug(f"Thresholds: {thresholds}")
 
-#####################################################################################################################
+    for _, caller in enumerate(vcfs):
 
-    for caller in vcfs:
-        # Check caller and set the subparse function to the corresponding function to get VAF
-        if caller == 'ST':
-            subparse = functions.samtools_vaf
-            TRC = functions.st_coverage
-            ARC = functions.st_arc
-            RRC = functions.st_rrc
-        if caller == 'VS':
-            subparse = functions.varscan_vaf
-            TRC = functions.varscan_coverage
-            ARC = functions.varscan_arc
-            RRC = functions.varscan_rrc
-        if caller == 'VD':
-            subparse = functions.vardict_vaf
-            TRC = functions.vardict_coverage
-            ARC = functions.vardict_arc
-            RRC = functions.vardict_rrc
-        if caller == 'PL':
-            subparse = functions.pindel_vaf
-            TRC = functions.pindel_coverage
-            ARC = functions.pindel_arc
-        if caller == 'HC':
-            subparse = functions.haplotypecaller_vaf
-            TRC = functions.haplotypecaller_coverage
-            ARC = functions.haplotypecaller_arc
-        if caller == 'FL':
-            subparse = functions.FLT3R_vaf
-            TRC = functions.FLT3_coverage
-            ARC = functions.FLT3_arc
+        if not _:
 
-        with open(vcfs[caller]["vcf"], mode='r') as vcf:
+            calls = {}  # dictionary of unique variant calls
+
+        with open(vcfs[caller]["vcf"].get_path(), mode='r') as vcf:
+
+            logger.debug(f"Processing {vcfs[caller]["vcf"].get_path()}")
 
             for line in vcf:
+
                 # Reminder of what info will containe
                 # vcf line structure is like [CHROM POS ID REF ALT QUAL FILTER INFO FORMAT SAMPLE]
                 datas = line.strip().split('\t')
+
                 # Skip header
                 if line[0] == '#':
                     continue
+
                 # In haplotype caller skip some weird exceptions
                 # If sample part is empty
                 # If AD:DP is not in FORMAT (variant depth and total depth info)
@@ -242,6 +223,7 @@ def combine(params):
                     or datas[9].split(':')[2] == '0'
                 ):
                     continue
+
                 # In pindel skip exceptions
                 # If it is writen INV instead of variant allele
                 # If coverage information is 0
@@ -251,88 +233,102 @@ def combine(params):
                 ):
                     continue
 
-                # Create a variant unique id, with chromosome, POSITION,
-                # reference and alternative allele
+                # Create a variant unique id from CHROM, POSITION, REF and ALT
                 hash: str = sha256(
                             string=f"{(datas[0]).removeprefix('chr')}:{datas[1]}:{datas[3]}:{'|'.join(datas[4])}".encode()
                         ).hexdigest()
+                
+                if not hash in calls:
 
-                call: dict = {}
-
-                call['VC'] = {
-                    'CHROM': datas[0],
-                    'POS': datas[1],
-                    'REF': datas[3],
-                    'ALT': datas[4],
-                    'VAF': {},
-                    'GT': {},
-                    'FILTER': {},
-                    'INFO': {},
-                    'FORMAT': {},
-                    'SAMPLE': {},
-                    'TRC': {},
-                    'ARC':{},
-                    'RRC':{}
-                }
+                    calls[hash] = {"VC": {'CHROM': datas[0],
+                                        'POS': datas[1],
+                                        'REF': datas[3],
+                                        'ALT': datas[4],
+                                        'VAF': {},
+                                        'GT': {},
+                                        'FILTER': {},
+                                        'INFO': {},
+                                        'FORMAT': {},
+                                        'SAMPLE': {},
+                                        'TRC': {},
+                                        'TRC-': {},
+                                        'TRC+': {},
+                                        'ARC':{},
+                                        'ARC-': {},
+                                        'ARC+': {},
+                                        'RRC':{},
+                                        'RRC-': {},
+                                        'RRC+': {},}}
+                
+                    ## 1/ define <VT>
+                    calls[hash]['VT'] = functions.define_variant_type(ref=datas[3], alt=datas[4])
 
                 if caller == 'FL' : # Less informations with FLiT3r
-                    call['VC']['FORMAT'][caller] = datas[HEADER["FORMAT"]]
-                    call['VC']['SAMPLE'][caller] = datas[HEADER["SAMPLE"]]
+                    calls[hash]['VC']['FORMAT'][caller] = datas[HEADER["FORMAT"]]
+                    calls[hash]['VC']['SAMPLE'][caller] = datas[HEADER["SAMPLE"]]
                 else:
-                    call['VC']['FILTER'][caller] = datas[HEADER['FILTER']]
-                    call['VC']['INFO'][caller] = datas[HEADER['INFO']]
-                    call['VC']['FORMAT'][caller] = datas[HEADER["FORMAT"]]
-                    call['VC']['SAMPLE'][caller] = datas[HEADER["SAMPLE"]]
+                    calls[hash]['VC']['FILTER'][caller] = datas[HEADER['FILTER']]
+                    calls[hash]['VC']['INFO'][caller] = datas[HEADER['INFO']]
+                    calls[hash]['VC']['FORMAT'][caller] = datas[HEADER["FORMAT"]]
+                    calls[hash]['VC']['SAMPLE'][caller] = datas[HEADER["SAMPLE"]]
 
-                    # Save genotype to raise warning if all callers don't report same GT.
-                    # First manage case when Vardict return 1/0 instead of 0/1
-                    # callsets[hash]['VC']['GT'] = []
-                    # GT = callsets[hash][caller]['SAMPLE'].split(':')[0]
                     GT = datas[9].split(':')[0]
-                    if GT == '1/0':
-                        GT = '0/1'
-                    #callsets[hash]['VC']['GT'].append(GT)
-                    call['VC']['GT'][caller] = GT
 
-                call['VC']['VAF'][caller] = 100 * subparse(datas)
+                    if caller == "VD":
+                        # Save genotype to raise warning if all callers don't report same GT.
+                        # First manage case when Vardict return 1/0 instead of 0/1
+                        
+                        if GT == '1/0':
+                            GT = '0/1'
+
+                    calls[hash]['VC']['GT'][caller] = GT
+
+                calls[hash]['VC']['VAF'][caller] = 100 * vcfs[caller]["vcf"].VAF(datas)
 
                 # Store TRC, ARC and RRC for each VC
-                call['VC']['TRC'][caller] = TRC(datas)
-                if caller in ['VS','VD','ST']:
-                    call['VC']['ARC'][caller] = ARC(datas)[0]
-                    call['VC']['RRC'][caller] = RRC(datas)[0]
-                    VALUE_STRAND = ['TRC-','TRC+','ARC+','ARC-','RRC+','RRC-']
-                    for value in VALUE_STRAND:
-                        if value not in call['VC']:
-                            call['VC'][value] = {}
-                    i = 1
-                    for strand in ['+','-']:
-                        call['VC']['TRC'+strand][caller] = (
-                            RRC(datas)[i] +
-                            ARC(datas)[i]
-                        )
-                        call['VC']['ARC'+strand][caller] = ARC(datas)[i]
-                        call['VC']['RRC'+strand][caller] = RRC(datas)[i]
-                        i +=1
+                calls[hash]['VC']['TRC'][caller] = vcfs[caller]["vcf"].depth(datas)
+
+                if caller in ['VS','VD','BT']:
+
+                    calls[hash]['VC']['ARC'][caller], calls[hash]['VC']['ARC+'][caller], calls[hash]['VC']['ARC-'][caller] = vcfs[caller]["vcf"].arc(datas)
+
+                    calls[hash]['VC']['RRC'][caller], calls[hash]['VC']['RRC+'][caller], calls[hash]['VC']['RRC-'][caller] = vcfs[caller]["vcf"].rcc(datas)
+
+                    calls[hash]['VC'][f"TRC+"][caller] = calls[hash]['VC']['ARC+'][caller] + calls[hash]['VC']['RRC+'][caller]
+                    calls[hash]['VC'][f"TRC-"][caller] = calls[hash]['VC']['ARC-'][caller] + calls[hash]['VC']['RRC-'][caller]
+
+                    # for id, strand in enumerate(['+','-'], start=1):
+
+                    #     calls[hash]['VC'][f'ARC{strand}'][caller] = calls[hash]['VC']['ARC'][caller][id]
+                    #     calls[hash]['VC'][f'RRC{strand}'][caller] = calls[hash]['VC']['RRC'][caller][id]
+
+                    #     calls[hash]['VC'][f"TRC{strand}"][caller] = (
+                    #         calls[hash]['VC']['RRC'][caller][id] +
+                    #         calls[hash]['VC']['ARC'][caller][id]
+                    #     )
+
                 else:
-                    call['VC']['ARC'][caller] = ARC(datas)
-                    call['VC']['RRC'][caller] = (
-                        float(TRC(datas))-
-                        float(ARC(datas))
+
+                    calls[hash]['VC']['ARC'][caller] = vcfs[caller]["vcf"].arc(datas)
+
+                    calls[hash]['VC']['RRC'][caller] = (
+                        calls[hash]['VC']['TRC'][caller] -
+                        calls[hash]['VC']['ARC'][caller]
                     )
 
-                ## 1/ define <VT>
-                call['VT'] = functions.define_variant_type(ref=datas[3], alt=datas[4])
-
+                # TBI (Must be done only once)
                 # 2/ revert vt norm of variants that should not have been left-aligned (if any)
-                if call['VT'] == 'DEL':
-                    for caller in call['VC']['VAF']:
+                if calls[hash]['VT'] == 'DEL':
+
+                    for caller in calls[hash]['VC']['VAF']:
+
                         ## from vt decompose
-                        if 'OLD_MULTIALLELIC' in call['VC']['INFO'][caller]:
+                        if 'OLD_MULTIALLELIC' in calls[hash]['VC']['INFO'][caller]:
                             continue
+
                         # from vt decompose
-                        if 'OLD_VARIANT' in call['VC']['INFO'][caller]:
-                            info_old_variant = call['VC']['INFO'][caller] \
+                        if 'OLD_VARIANT' in calls[hash]['VC']['INFO'][caller]:
+                            info_old_variant = calls[hash]['VC']['INFO'][caller] \
                                             .split('OLD_VARIANT=')[1] \
                                             .split(',')
                             for old_variant in info_old_variant:
@@ -341,66 +337,70 @@ def combine(params):
                                 if len(ov_alt) != 1:
                                     continue
                                 # Keep trace of old/new DEL descriptor
-                                hash: str = sha256(
+                                new_hash: str = sha256(
                                     string=f"{(datas[0]).removeprefix('chr')}:{datas[1]}:{ov_ref}:{'|'.join(ov_alt)}".encode()
                                 ).hexdigest()
                                 if not hash in rev:
                                     rev[hash] = []
-                                rev[hash].append(hash)
+                                rev[hash].append(new_hash)
                                 # DEL is parsimonious;
                                 # clone <hash_key> according to <OLD_VARIANT> description
                                 # call[new_hash] = callsets[hash].copy()
+                                # Update variant
+                                variant = calls.pop(hash)
+                                variant["VC"]["REF"] = ov_ref
+                                variant["VC"]["ALT"] = ov_alt
+                                calls[new_hash] = variant
+                                # Sync hash value
+                                hash = new_hash
                             break
 
-                if not (call["VT"] in ['INV','MNV','CSV'] or "FL" in call["VC"]["VAF"]):
+                # ETBI
 
-                    if not hash in callsets:
+                if not (calls[hash]["VT"] in ['INV','MNV','CSV'] or "FL" in calls[hash]["VC"]["VAF"]):
 
-                        callsets[hash] = call
+                    alt = calls[hash]["VC"]["ALT"]
 
-                        alt = datas[4]
+                    position = datas[1]
 
-                        # reset <ALT> allele descriptor for <INS> and <DEL>
-                        # A/AA = insA; AA/A = delA
-                        if callsets[hash]['VT'] == 'INS':
-                            var: str = 'ALT'
-                        elif callsets[hash]['VT'] == 'DEL':
-                            var: str = 'REF'
-                        else:
-                            var: str = ''
+                    # reset <ALT> allele descriptor for <INS> and <DEL>
+                    # A/AA = insA; AA/A = delA
+                    if calls[hash]['VT'] == 'INS':
 
-                        if var:
-                            alt = datas[4][1:] if var == "ALT" else datas[3][1:]
+                        alt = calls[hash]["VC"]["ALT"][1:]
 
+                    elif calls[hash]['VT'] == 'DEL':
+
+                        alt = calls[hash]["VC"]["REF"][1:]
                         # reset <POS> if <DEL>
                         # delA = p+1 in read pile
-                        if var == 'REF':
-                            position: int = str(int(datas[1]) + 1)
-                        else:
-                            position = datas[1]
+                        position: int = str(int(datas[1]) + 1)
+                                
 
-                        # 1/ link the pileup entry covering dictionary,
-                        # and then add the elements from the new dictionary to it. the variant call
-                        position_index: str = sha256(
-                                            string=f"{(datas[0]).removeprefix('chr')}:{position}".encode()
-                                        ).hexdigest()
+                    # 1/ link the pileup entry covering dictionary,
+                    # and then add the elements from the new dictionary to it. the variant call
+                    # Link the variant to a Pileup entry
+                    position_index: str = sha256(
+                                        string=f"{(datas[0]).removeprefix('chr')}:{position}".encode()
+                                    ).hexdigest()
                         
-                        if not position_index in readpile:
-                            readpile[position_index] = {}
+                    if not position_index in readpile:
+                            
+                        readpile[position_index] = {}
 
-                        readpile[position_index][hash] = alt
+                    readpile[position_index][hash] = alt
                     
-                elif call["VT"] in ['INV','MNV','CSV']:
+                elif calls[hash]["VT"] in ['INV','MNV','CSV']:
 
                     if not hash in INV_MNV_CSV:
 
-                        INV_MNV_CSV[hash] = call
+                        INV_MNV_CSV[hash] = calls.pop(hash)
                     
-                elif "FL" in call["VC"]["VAF"]:
+                elif "FL" in calls[hash]["VC"]["VAF"]:
 
                     if not hash in FLiT3r:
 
-                        FLiT3r[hash] = call
+                        FLiT3r[hash] = calls.pop(hash)
 
     # ===========================================================================================
     # Process exceptions without Pileup : INV,MNV and CSV
@@ -420,18 +420,19 @@ def combine(params):
     # process pileup data
     # --------------------------------
 
-    with open(params.pileup, mode='r') as pileup:
+    #####################################################################################################################
+
+    with open(pileup.get_path(), mode='r') as pileup:
+
         # Get header, make it upper case, split it on <tab>,
         # take only 3 first letter (so barcode become BAR)
         # Save the column POSITION for each header part (BAR is first column, CR second...)
         # This will be used for reading lines after
         header = pileup.readline().strip('\n').upper()
         header_dict = {}
-        POSITION = 0
 
-        for header_part in header.split('\t'):
-            header_dict[header_part[:3]] = POSITION
-            POSITION += 1
+        for id, header_part in enumerate(header.split('\t')):
+            header_dict[header_part[:3]] = id
 
         for n, line in enumerate(pileup, start=1):
 
@@ -467,8 +468,8 @@ def combine(params):
                             logger.warning("Uknown coverage value present in pileup file.")
                             logger.warning(f"Warning was raised by: {value} at line {n} column {column}.")
 
-                    if not 'final_metrics' in callsets[key]:
-                        callsets[key]['final_metrics'] = {}
+                    if not 'final_metrics' in calls[key]:
+                        calls[key]['final_metrics'] = {}
 
                     # manage DEL counts
                     if datas[-1] != 'None':
@@ -485,9 +486,9 @@ def combine(params):
                                 del_cov1, del_cov2 = deletion.split(':')[1].split(',')
                                 coverage += (int(del_cov1) + int(del_cov2))
 
-                    callsets[key]['final_metrics']['TRC'] = coverage["total"]
-                    callsets[key]['final_metrics']['TRC-'] = coverage['minus']
-                    callsets[key]['final_metrics']['TRC+'] = coverage['plus']
+                    calls[key]['final_metrics']['TRC'] = coverage["total"]
+                    calls[key]['final_metrics']['TRC-'] = coverage['minus']
+                    calls[key]['final_metrics']['TRC+'] = coverage['plus']
 
                     # Add <REF> strand-specific counts for each <ALT> at <CHR:POS>
                     # ie. the matched key in callset
@@ -495,21 +496,19 @@ def combine(params):
                     # ARC : Alternative Read Counts
                     for strand in ['-','+']:
 
-                        RRC_STRAND = f"RRC{strand}"
-
-                        callsets[key]['final_metrics'][RRC_STRAND] = datas[header_dict[datas[header_dict['REF']] + strand]]
+                        calls[key]['final_metrics'][f"RRC{strand}"] = datas[header_dict[datas[header_dict['REF']] + strand]]
 
                     # if <ALT> is an <INDEL>
                     VARIANT_COUNTS = 0
 
-                    if (callsets[key]['VT'] == 'DEL') or (callsets[key]['VT'] == 'INS'):
+                    if (calls[key]['VT'] == 'DEL') or (calls[key]['VT'] == 'INS'):
                     
                         if re.search(r"\b" + readpile[position_index][key] + r"\b:[0-9]+,[0-9]+" ,\
-                                    (datas[header_dict[callsets[key]['VT']]])):
+                                    (datas[header_dict[calls[key]['VT']]])):
                             
                             count1, count2 = re.findall(
                                 r"\b" + readpile[position_index][key] + r"\b:[0-9]+,[0-9]+",
-                                datas[header_dict[callsets[key]['VT']]]
+                                datas[header_dict[calls[key]['VT']]]
                                 )[0].split(':')[-1].split(',')
                             
                             VARIANT_COUNTS = int(count1) + int(count2)
@@ -517,25 +516,25 @@ def combine(params):
                             #Save indel count per strand in callset ARC+ and ARC-
                             for strand in ['+','-']:
                                 ARC_STRAND = 'ARC' + strand
-                                if not ARC_STRAND in callsets[key]['final_metrics']:
-                                    callsets[key]['final_metrics'][ARC_STRAND] = ''
+                                if not ARC_STRAND in calls[key]['final_metrics']:
+                                    calls[key]['final_metrics'][ARC_STRAND] = ''
                                 if strand == '+':
-                                    callsets[key]['final_metrics'][ARC_STRAND] = count1
+                                    calls[key]['final_metrics'][ARC_STRAND] = count1
                                 else:
-                                    callsets[key]['final_metrics'][ARC_STRAND] = count2
+                                    calls[key]['final_metrics'][ARC_STRAND] = count2
 
                     # any other <VarType>
                     else:
                         # keep 1st character of <ALT> string (approx. counts for non-SNV variants)
                         variant_first_char = readpile[position_index][key][0]
                         if variant_first_char == 'N':
-                            del callsets[key]
+                            del calls[key]
                             continue
                         for strand in ['+','-']:
                             ARC_STRAND = 'ARC' + strand
-                            if not ARC_STRAND in callsets[key]['final_metrics']:
-                                callsets[key]['final_metrics'][ARC_STRAND] = ''
-                            callsets[key]['final_metrics'][ARC_STRAND] = \
+                            if not ARC_STRAND in calls[key]['final_metrics']:
+                                calls[key]['final_metrics'][ARC_STRAND] = ''
+                            calls[key]['final_metrics'][ARC_STRAND] = \
                                 datas[header_dict[variant_first_char + strand]]
                             VARIANT_COUNTS += int(
                                 datas[header_dict[variant_first_char + strand]]
@@ -547,15 +546,15 @@ def combine(params):
                     # --------------------------------------------------------------
                     if VARIANT_COUNTS == 0:
 
-                        if (callsets[key]['VT'] == 'INS') and len(callsets[key]["VC"]["ALT"])-1 > params.length_indels:
+                        if (calls[key]['VT'] == 'INS') and len(calls[key]["VC"]["ALT"])-1 > params.length_indels:
 
-                            ITD[key] = callsets[key].copy()
+                            ITD[key] = calls[key].copy()
 
                         else:
 
-                            rejected[key] = callsets[key].copy()
+                            rejected[key] = calls[key].copy()
 
-                        del callsets[key]
+                        del calls[key]
 
                         continue
 
@@ -566,31 +565,31 @@ def combine(params):
                     # 231010 : Mean VAF only used withoutPileup -
                     # not usefull to compute meanVAF in pileup
                     #
-                    # callsets[key]['final_metrics']['VCR'] = format(
-                    #     (sum(callsets[key]['VC']['VAF'].values())/
-                    #     callsets[key]['final_metrics']['VCN']),
+                    # calls[key]['final_metrics']['VCR'] = format(
+                    #     (sum(calls[key]['VC']['VAF'].values())/
+                    #     calls[key]['final_metrics']['VCN']),
                     #     '.5f'
                     # )
-                    #round((sum(callsets[key]['VC']['VAF'].values())
-                    #/callsets[key]['final_metrics']['VCN']),5)
+                    #round((sum(calls[key]['VC']['VAF'].values())
+                    #/calls[key]['final_metrics']['VCN']),5)
 
                     # Save number of Variant Callers that found this variant
-                    callsets[key]['final_metrics']['VCN'] = len(callsets[key]['VC']['VAF'])
+                    calls[key]['final_metrics']['VCN'] = len(calls[key]['VC']['VAF'])
                     # keep trace of used VC identifier(s)
-                    callsets[key]['final_metrics']['VCI'] = ','.join(
-                        sorted(callsets[key]['VC']['VAF'].keys(), key=str.lower)
+                    calls[key]['final_metrics']['VCI'] = ','.join(
+                        sorted(calls[key]['VC']['VAF'].keys(), key=str.lower)
                     )
 
                     #format [R/A]RC for vcf
-                    callsets[key]['final_metrics']['ARC'],\
-                    callsets[key]['final_metrics']['RRC'] = \
-                        functions.format_rrc_arc(callsets,key)
+                    calls[key]['final_metrics']['ARC'],\
+                    calls[key]['final_metrics']['RRC'] = \
+                        functions.format_rrc_arc(calls,key)
 
                     # Compute VAF from pileup
-                    alt_read_count_plus = callsets[key]['final_metrics']['ARC+']
-                    alt_read_count_minus = callsets[key]['final_metrics']['ARC-']
-                    total_read_count = callsets[key]['final_metrics']['TRC']
-                    callsets[key]['final_metrics']['ARR'] = format(
+                    alt_read_count_plus = calls[key]['final_metrics']['ARC+']
+                    alt_read_count_minus = calls[key]['final_metrics']['ARC-']
+                    total_read_count = calls[key]['final_metrics']['TRC']
+                    calls[key]['final_metrics']['ARR'] = format(
                         (
                             (float(alt_read_count_plus) + float(alt_read_count_minus)) /
                             float(total_read_count)
@@ -599,30 +598,30 @@ def combine(params):
                     )
 
                     # Estimate GT
-                    callsets[key]['final_metrics']['VAR'] = \
-                        functions.categorize_variant_type(callsets,key,thresholds)
-                    callsets[key]['final_metrics']['GT'] = \
-                        functions.estimate_gt(callsets,key)
+                    calls[key]['final_metrics']['VAR'] = \
+                        functions.categorize_variant_type(calls,key,thresholds)
+                    calls[key]['final_metrics']['GT'] = \
+                        functions.estimate_gt(calls,key)
                     # If variant callers do not agree on genotype change VAR to WAR (warning)
-                    callsets[key]['final_metrics']['VAR'] = \
-                        functions.compare_gt(callsets,key)
+                    calls[key]['final_metrics']['VAR'] = \
+                        functions.compare_gt(calls,key)
 
-                    callsets[key]['final_metrics']['BRC'],\
-                    callsets[key]['final_metrics']['BRR'],\
-                    callsets[key]['final_metrics']['BRE'] = \
-                        functions.estimate_brc_r_e(callsets,key,datas)
+                    calls[key]['final_metrics']['BRC'],\
+                    calls[key]['final_metrics']['BRR'],\
+                    calls[key]['final_metrics']['BRE'] = \
+                        functions.estimate_brc_r_e(calls,key,datas)
 
-                    callsets[key]['final_metrics']['SBP'],callsets[key]['SBM'] = \
-                        functions.estimate_sbm(callsets,key,params.sbm_homozygous)
-                    callsets[key]['final_metrics']['LOW'] = \
-                        functions.vaf_user_threshold(callsets,key,thresholds)
-                    callsets[key]['final_metrics']['BKG'] = \
-                        functions.categorize_background_signal(callsets,key,thresholds)
-                    callsets[key]['final_metrics']['FILTER'] = \
-                        functions.format_float_descriptors(callsets,key,SBM)
+                    calls[key]['final_metrics']['SBP'],calls[key]['SBM'] = \
+                        functions.estimate_sbm(calls,key,params.sbm_homozygous)
+                    calls[key]['final_metrics']['LOW'] = \
+                        functions.vaf_user_threshold(calls,key,thresholds)
+                    calls[key]['final_metrics']['BKG'] = \
+                        functions.categorize_background_signal(calls,key,thresholds)
+                    calls[key]['final_metrics']['FILTER'] = \
+                        functions.format_float_descriptors(calls,key,SBM)
 
-                    callsets[key]['final_metrics']['PIL'] = 'Y'
-                    callsets[key]['final_metrics']['RES'] = 'N'
+                    calls[key]['final_metrics']['PIL'] = 'Y'
+                    calls[key]['final_metrics']['RES'] = 'N'
 
     # ===========================================================================================
     # Rescue INS not identified by pileup (probably ITD or long insertions), mostly coming from PL
@@ -635,44 +634,43 @@ def combine(params):
     # ===========================================================================================
     # Merge Pileup and noPileup dict
     # ===========================================================================================
-    callsets = functions.merge_variant_dict ([callsets,INV_MNV_CSV,ITD,FLiT3r])
+    calls = functions.merge_variant_dict ([calls,INV_MNV_CSV,ITD,FLiT3r])
 
-    print("Process done")
     # ===========================================================================================
-    # Clean callsets and rejected variants
+    # Clean calls and rejected variants
     # ===========================================================================================
     # Delete variants called outside of read pile (very unlikely)
     key_to_delete = []
-    for variant_key in callsets:
-        if not 'final_metrics' in callsets[variant_key]:
+    for variant_key in calls:
+        if not 'final_metrics' in calls[variant_key]:
             key_to_delete.append(variant_key)
     for bad_key in key_to_delete:
-        del callsets[bad_key]
+        del calls[bad_key]
 
     # Select best descriptor for parcimonious DEL
     for variant_key in rev:
         BRR = 1000
         # Check that $hash_key is not in rejected calls
-        if not variant_key in callsets:
+        if not variant_key in calls:
             if variant_key in rejected:
                 del rejected[variant_key]
         else:
-            BRR = float(callsets[variant_key]['final_metrics']['BRR'])
+            BRR = float(calls[variant_key]['final_metrics']['BRR'])
         for new_key in rev[variant_key]:
             NEW_BRR = 1000
             # Check that $hash_key is not in rejected calls
-            if not new_key in callsets:
+            if not new_key in calls:
                 if new_key in rejected:
                     del rejected[new_key]
             elif BRR == 1000:
-                NEW_BRR = float(callsets[new_key]['final_metrics']['BRR'])
+                NEW_BRR = float(calls[new_key]['final_metrics']['BRR'])
                 BRR = NEW_BRR
             else:
-                NEW_BRR = float(callsets[new_key]['final_metrics']['BRR'])
+                NEW_BRR = float(calls[new_key]['final_metrics']['BRR'])
                 if BRR <= NEW_BRR:
-                    del callsets[new_key]
+                    del calls[new_key]
                 else:
-                    del callsets[variant_key]
+                    del calls[variant_key]
                     BRR = NEW_BRR
 
     # ===========================================================================================
@@ -680,7 +678,6 @@ def combine(params):
     # ===========================================================================================
     rejected = functions.process_without_pileup(rejected,thresholds,SBM,params.sbm_homozygous)
 
-    print("Processed rejected variants")
     # ===========================================================================================
     # rescuing rejected calls w/ FILTER <PASS> (optional; if any)
     # ===========================================================================================
@@ -698,29 +695,26 @@ def combine(params):
 
         for key in rescued_keys:
             rejected[key]['final_metrics']['RES'] = 'Y'
-            callsets[key] = rejected[key].copy()
+            calls[key] = rejected[key].copy()
             del rejected[key]
 
-    print("Rejected Calls rescued")
     # ===========================================================================================
     # set vcf headers/fields for output files
     # ===========================================================================================
-    vcf_fields = [
-        'VAR', 'BKG', 'TRC', 'RRC', 'ARC', 'BRC', 'ARR',
-        'BRR', 'BRE', 'SBP', 'SBM', 'LOW','VCI','VCN','PIL','RES'
-    ]
+    # vcf_fields = [
+    #     'VAR', 'BKG', 'TRC', 'RRC', 'ARC', 'BRC', 'ARR',
+    #     'BRR', 'BRE', 'SBP', 'SBM', 'LOW','VCI','VCN','PIL','RES'
+    # ]
 
-    for variant_key in callsets:
-        # callsets[variant_key]['vcf_fields'] = vcf_fields
-        # Toutes les cles pointent vers la même liste en mémoire....
-        # ce qui implique que la modif de lune modifie aussi toutes les autres...
-        # copy.copy() : chaque cle pointe vers une copie disincte de vcf_fields,
-        # ce qui permet de les modifier sans affecter les autres cles
-        callsets[variant_key]['vcf_fields'] = copy.copy(vcf_fields)
-    for variant_key in rejected:
-        rejected[variant_key]['vcf_fields'] = copy.copy(vcf_fields)
-
-
+    # for variant_key in calls:
+    #     # calls[variant_key]['vcf_fields'] = vcf_fields
+    #     # Toutes les cles pointent vers la même liste en mémoire....
+    #     # ce qui implique que la modif de lune modifie aussi toutes les autres...
+    #     # copy.copy() : chaque cle pointe vers une copie disincte de vcf_fields,
+    #     # ce qui permet de les modifier sans affecter les autres cles
+    #     calls[variant_key]['vcf_fields'] = copy.copy(vcf_fields)
+    # for variant_key in rejected:
+    #     rejected[variant_key]['vcf_fields'] = copy.copy(vcf_fields)
 
     # ===========================================================================================
     # Generate the vcf header
@@ -729,86 +723,20 @@ def combine(params):
     # has 2 lines different in from normal header
     # Just merge then part one, two and 3 wih normal header, rejected header and cartagenia header
     # ===========================================================================================
-    VCF_HEADER_PART1 = '##fileformat=VCFv4.0\n'
 
-    for index, contig in contigs.iterrows():
-
-        VCF_HEADER_PART1 += '##contig=<ID=' + contig["contig"] + ',length=' + contig["length"] + '>\n'
-
-    VCF_HEADER_PART1 += '##FILTER=<ID=PASS,Description="All filters passed">\n'
-    VCF_HEADER_PART1 += '##FILTER=<ID=FAIL,Description="At least one filter failed">\n'
-    VCF_HEADER_PART1 += '##INFO=<ID=VAR,Number=1,Type=String,Description="Type of the variant '+ \
-    'ie. SNV, MNV, INS, DEL, INV or CSV">\n'
-    VCF_HEADER_PART1 += '##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">\n'
-    VCF_HEADER_PART1 += '##FORMAT=<ID=VAR,Number=1,Type=String,Description="ALT is likely (L) '+\
-    'or probably (P) subclonal (SC), heterozygous (HE) or homozygous (HO)">\n'
-    VCF_HEADER_PART1 += '##FORMAT=<ID=BKG,Number=1,Type=String,Description="ALT is likely (L) ' +\
-    'or probably (P) clean (CL) or noisy (NO)">\n'
-    VCF_HEADER_PART1 += '##FORMAT=<ID=TRC,Number=1,Type=Integer,Description="Total #reads covering the variant site">\n'
-
-    # ARC and RRC format is different in cartagenia
-    VCF_HEADER_PART2 = '##FORMAT=<ID=RRC,Number=3,Type=Integer,Description="#reads supporting the REF allele ' + \
-    'onto the (+) and (-) strand, and total #REF reads">\n'
-    VCF_HEADER_PART2 += '##FORMAT=<ID=ARC,Number=3,Type=Integer,Description="#reads supporting the ALT allele ' + \
-    'onto the (+) and (-) strand, and total #ALT reads">\n'
-    VCF_HEADER_CARTAGENIA_PART2 = '##FORMAT=<ID=RRC,Number=1,Type=Integer,Description="#reads '+ \
-    'supporting the REF allele">\n'
-    VCF_HEADER_CARTAGENIA_PART2 += '##FORMAT=<ID=ARC,Number=1,Type=Integer,Description="#reads ' +\
-    'supporting the ALT allele">\n'
-
-    VCF_HEADER_PART3 = '##FORMAT=<ID=BRC,Number=1,Type=Integer,Description="#reads ' +\
-    'supporting neither REF nor ALT alleles">\n'
-    VCF_HEADER_PART3 += '##FORMAT=<ID=ARR,Number=1,Type=Float,Description="ALT allele ratio (%)">\n'
-    VCF_HEADER_PART3 += '##FORMAT=<ID=BRR,Number=1,Type=Float,Description="Background '+ \
-    'read ratio ie. BRC/TRC (%)">\n'
-    VCF_HEADER_PART3 += '##FORMAT=<ID=BRE,Number=1,Type=Float,Description="Background ' +\
-    'read enrichment ie. BRR/(BRR+ARR) (%)">\n'
-    VCF_HEADER_PART3 += '##FORMAT=<ID=SBP,Number=1,Type=Float,Description="Estimated strand bias p-value">\n'
-    VCF_HEADER_PART3 += '##FORMAT=<ID=SBM,Number=1,Type=Float,Description="Estimated strand bias TS-metric">\n'
-    VCF_HEADER_PART3 += '##FORMAT=<ID=LOW,Number=1,Type=Integer,Description="ARR is GE '+\
-    '(resp. LT) ' + str(thresholds[-1]) + '% (0 resp. 1)">\n'
-
-    VCF_HEADER_PART4 = '##FORMAT=<ID=VCI,Number=1,Type=String,Description="VC identifier(s) eg. ST, VS, etc.">\n'
-    VCF_HEADER_PART4 += '##FORMAT=<ID=VCN,Number=1,Type=Integer,Description="#VC having called the variant">\n'
-    VCF_HEADER_PART4 += '##FORMAT=<ID=PIL,Number=1,Type=String,Description="Describe if the variant '+ \
-    'has been found in the pileup or not">\n'
-    VCF_HEADER_PART4 += '##FORMAT=<ID=RES,Number=1,Type=String,Description="Describe if the variant has been rescued or not">\n'
-
-    VCF_HEADER_PART5 = '\t'.join([
-        '#CHROM', 'POS', 'ID', 'REF', 'ALT', 'QUAL', 'FILTER', 'INFO', 'FORMAT',
-        params.sample]) + '\n'
-
-    VCF_HEADER = VCF_HEADER_PART1 + VCF_HEADER_PART2 + VCF_HEADER_PART3 + VCF_HEADER_PART4 + VCF_HEADER_PART5
-    VCF_HEADER_cartagenia = VCF_HEADER_PART1 + VCF_HEADER_CARTAGENIA_PART2 + VCF_HEADER_PART3 + VCF_HEADER_PART5
-
-    print("Writting VCF")
-
+    writter = files.GenomicWritter(file=params.output)
     # write rejected calls to file
-    with open(os.path.join(os.getcwd(), f"{params.sample}_failed.vcf"), mode='w',encoding='utf-8') as OUT_TRASH_FILE:
-        OUT_TRASH_FILE.write(VCF_HEADER)
-        print("Header written.")
-        ordered_variant_key = functions.order_var(rejected, contigs["contig"])
+    # with open(os.path.join(os.getcwd(), f"{params.sample}_failed.vcf"), mode='w',encoding='utf-8') as OUT_TRASH_FILE:
+    #     OUT_TRASH_FILE.write(VCF_HEADER)
+    #     ordered_variant_key = functions.order_var(rejected, contigs["contig"])
         
-        for variant_key in ordered_variant_key:
-            OUT_TRASH_FILE.write(functions.print_var(variant_key, rejected, 'final_metrics'))
+    #     for variant_key in ordered_variant_key:
+    #         OUT_TRASH_FILE.write(functions.print_var(variant_key, rejected, 'final_metrics'))
 
-    print("VCF for rejected variant has been written.")
-
+    
+    writter.writeVCF(contigs=contigs, variants=calls, samples=[params.sample], thresholds=thresholds)
     # write valid calls to file
-    with open(params.output, 'w',encoding='utf-8') as OUT_FILE:
-        OUT_FILE.write(VCF_HEADER)
-        for variant_key in functions.order_var(callsets, contigs["contig"]):
-            OUT_FILE.write(functions.print_var(variant_key, callsets, 'final_metrics'))
-
-    print("VCF for valid variant has been written.")
-
-    # print variant in Cartagenia compliant format
-    # (temporary quicky/dirty addon for test phase purpose)
-    cartagenia_file = params.output.split('.vcf')[0] + '_cartagenia.vcf'
-    with open(cartagenia_file, 'w',encoding='utf-8') as OUT_CARTAGENIA:
-        OUT_CARTAGENIA.write(VCF_HEADER_cartagenia)
-        for variant_key in functions.order_var(callsets, contigs["contig"]):
-
-            OUT_CARTAGENIA.write(
-                functions.print_var4cartagenia(variant_key, callsets, 'final_metrics')
-            )
+    # with open(params.output, 'w',encoding='utf-8') as OUT_FILE:
+    #     OUT_FILE.write(VCF_HEADER)
+    #     for variant_key in functions.order_var(calls, contigs["contig"]):
+    #         OUT_FILE.write(functions.print_var(variant_key, calls, 'final_metrics'))

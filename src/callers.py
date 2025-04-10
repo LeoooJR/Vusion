@@ -24,7 +24,7 @@ class VariantCallerRepository():
                         "VS": Varscan(),
                         "VD": Vardict(),
                         "PL": Pindel(),
-                        "HS": Haplotypecaller(),
+                        "HC": Haplotypecaller(),
                         "FL": Flit3r(),
                         "DV": DeepVariant()}
         
@@ -40,7 +40,7 @@ class VariantCallerRepository():
 
         try:
             return self.callers[caller]
-        except ValueError:
+        except KeyError:
             raise errors.VariantCallerError(f"Variant Caller {caller} not supported.")
 
     def get_BT(self) -> VariantCaller:
@@ -94,30 +94,32 @@ class BCFTools(VariantCaller):
         try:
             vaf = variant_depth / total_depth
         except ZeroDivisionError:
-            vaf = 0
+            vaf = 0.0
 
         return vaf
     
     @staticmethod
     def depth(variant: str) -> int:
 
-        return float(variant[7].split('DP=')[1].split(';')[0])
+        return int(variant[7].split('DP=')[1].split(';')[0])
     
     @staticmethod
-    def rcc(variant: str) -> float:
+    def rcc(variant: str) -> tuple[float]:
 
         variant_depth = variant[7].split('DP4=')[1].split(';')[0]
-        rrc_plus = float(variant_depth.split(',')[0])
-        rrc_minus = float(variant_depth.split(',')[1])
+        depths = variant_depth.split(',')
+        rrc_plus = float(depths[0])
+        rrc_minus = float(depths[1])
         rrc = rrc_plus + rrc_minus
         return(rrc, rrc_plus, rrc_minus)
     
     @staticmethod
-    def arc(variant: str) -> float:
+    def arc(variant: str) -> tuple[float]:
 
         variant_depth = variant[7].split('DP4=')[1].split(';')[0]
-        arc_plus = float(variant_depth.split(',')[2])
-        arc_minus = float(variant_depth.split(',')[3])
+        depths = variant_depth.split(',')
+        arc_plus = float(depths[2])
+        arc_minus = float(depths[3])
         arc = arc_plus + arc_minus
         return(arc,arc_plus,arc_minus)
 
@@ -132,22 +134,36 @@ class Varscan(VariantCaller):
     @staticmethod
     def VAF(variant: str) -> float:
 
-        pass
+        vaf = float(variant[9].split('%')[0].split(':')[-1])/100
+
+        return vaf
     
     @staticmethod
     def depth(variant: str) -> int:
 
-        pass
+        return int(variant[9].split(':')[2])
     
     @staticmethod
-    def rcc(variant: str) -> float:
+    def rcc(variant: str) -> tuple[float]:
 
-        pass
+        values = variant[9].split(':')
+
+        rrc = float(values[4])
+        rrc_plus = float(values[10])
+        rrc_minus = float(values[11])
+
+        return(rrc,rrc_plus,rrc_minus)
     
     @staticmethod
-    def arc(variant: str) -> float:
+    def arc(variant: str) -> tuple[float]:
 
-        pass
+        values = variant[9].split(':')
+
+        arc = float(values[5])
+        arc_plus = float(values[12])
+        arc_minus = float(values[13])
+
+        return(arc,arc_plus,arc_minus)
 
 
 
@@ -161,24 +177,36 @@ class Vardict(VariantCaller):
     @staticmethod
     def VAF(variant: str) -> float:
 
-        pass
+        vaf = float(variant[7].split('AF=')[1].split(';')[0])
+
+        return vaf
     
     @staticmethod
     def depth(variant: str) -> int:
 
-        pass
+        return int(variant[9].split(":")[1])
     
     @staticmethod
-    def rcc(variant: str) -> float:
+    def rcc(variant: str) -> tuple[float]:
 
-        pass
+        values = variant[9].split(":")
+
+        rrc = float(values[3].split(',')[0])
+        rrc_plus = float(values[5].split(',')[0])
+        rrc_minus = float(values[5].split(',')[1])
+
+        return(rrc,rrc_plus,rrc_minus)
     
     @staticmethod
-    def arc(variant: str) -> float:
+    def arc(variant: str) -> tuple[float]:
 
-        pass
+        values = variant[9].split(":")
 
+        arc = float(values[3].split(',')[1])
+        arc_plus = float(values[6].split(',')[0])
+        arc_minus = float(values[6].split(',')[1])
 
+        return(arc,arc_plus,arc_minus)
 
 class Pindel(VariantCaller):
 
@@ -190,22 +218,27 @@ class Pindel(VariantCaller):
     @staticmethod
     def VAF(variant: str) -> float:
 
-        pass
+        depths = variant[9].split(':')[1].split(',')
+        vaf = float(depths[1])/(float(depths[0]) + float(depths[1]))
+        return vaf
     
     @staticmethod
     def depth(variant: str) -> int:
 
-        pass
+        return (
+        float(variant[9].split(':')[1].split(',')[0]) +
+        float(variant[9].split(':')[1].split(',')[1])
+        )
     
     @staticmethod
-    def rcc(variant: str) -> float:
+    def rcc(variant: str) -> tuple[float]:
 
         pass
     
     @staticmethod
-    def arc(variant: str) -> float:
+    def arc(variant: str) -> tuple[float]:
 
-        pass
+        return float(variant[9].split(':')[1].split(',')[1])
 
 
 
@@ -219,22 +252,25 @@ class Haplotypecaller(VariantCaller):
     @staticmethod
     def VAF(variant: str) -> float:
 
-        pass
+        total_depth = float(variant[9].split(':')[2])
+        variant_depth = float(variant[9].split(':')[1].split(',')[1])
+        vaf = variant_depth / total_depth
+        return vaf
     
     @staticmethod
     def depth(variant: str) -> int:
 
-        pass
+        return float(variant[9].split(':')[2])
     
     @staticmethod
-    def rcc(variant: str) -> float:
+    def rcc(variant: str) -> tuple[float]:
 
         pass
     
     @staticmethod
-    def arc(variant: str) -> float:
+    def arc(variant: str) -> tuple[float]:
 
-        pass
+        return float(variant[9].split(':')[1].split(',')[1])
 
 
 
@@ -248,22 +284,25 @@ class Flit3r(VariantCaller):
     @staticmethod
     def VAF(variant: str) -> float:
 
-        pass
+        return float(variant[6].split(';')[4].split('=')[1])
     
     @staticmethod
     def depth(variant: str) -> int:
 
-        pass
+        return (
+            float(variant[6].split(';')[1].split('=')[1]) +
+            float(variant[6].split(';')[2].split('=')[1])
+        )
     
     @staticmethod
-    def rcc(variant: str) -> float:
+    def rcc(variant: str) -> tuple[float]:
 
         pass
     
     @staticmethod
-    def arc(variant: str) -> float:
+    def arc(variant: str) -> tuple[float]:
 
-        pass
+        return float(variant[6].split(';')[1].split('=')[1])
 
 
 
@@ -285,12 +324,12 @@ class DeepVariant(VariantCaller):
         pass
     
     @staticmethod
-    def rcc(variant: str) -> float:
+    def rcc(variant: str) -> tuple[float]:
 
         pass
     
     @staticmethod
-    def arc(variant: str) -> float:
+    def arc(variant: str) -> tuple[float]:
 
         pass
 
