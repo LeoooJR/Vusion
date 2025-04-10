@@ -40,7 +40,6 @@ DICTIONNARY :
 """
 
 import callers
-import copy
 import errors
 import files
 from hashlib import sha256
@@ -58,7 +57,6 @@ def combine(params):
     # ===========================================================================================
     # Initiate variables
     # ===========================================================================================
-    VCF_HEADER = ''
     SBM = 0.95
     MAX_THRESHOLD = 100.0
     MIN_THRESHOLD = 0.0
@@ -82,7 +80,6 @@ def combine(params):
     FLiT3r = {}
     readpile = {}
     ITD = {}
-    #  thresholds = [10, 30, 40, 60, 70, 80, 20, 30, 50, 1]
 
     repository = callers.VariantCallerRepository()
 
@@ -297,16 +294,6 @@ def combine(params):
                     calls[hash]['VC'][f"TRC+"][caller] = calls[hash]['VC']['ARC+'][caller] + calls[hash]['VC']['RRC+'][caller]
                     calls[hash]['VC'][f"TRC-"][caller] = calls[hash]['VC']['ARC-'][caller] + calls[hash]['VC']['RRC-'][caller]
 
-                    # for id, strand in enumerate(['+','-'], start=1):
-
-                    #     calls[hash]['VC'][f'ARC{strand}'][caller] = calls[hash]['VC']['ARC'][caller][id]
-                    #     calls[hash]['VC'][f'RRC{strand}'][caller] = calls[hash]['VC']['RRC'][caller][id]
-
-                    #     calls[hash]['VC'][f"TRC{strand}"][caller] = (
-                    #         calls[hash]['VC']['RRC'][caller][id] +
-                    #         calls[hash]['VC']['ARC'][caller][id]
-                    #     )
-
                 else:
 
                     calls[hash]['VC']['ARC'][caller] = vcfs[caller]["vcf"].arc(datas)
@@ -443,8 +430,6 @@ def combine(params):
             position_index: str = sha256(
                                     string=f"{(datas[header_dict['CHR']]).removeprefix('chr')}:{datas[header_dict['POS']]}".encode()
                                 ).hexdigest()
-            
-            # print(position_index in readpile)
 
             # Check if variant is reported in one of the VCF files
             if (datas[header_dict['REF']] != 'N') and (position_index in readpile):
@@ -699,24 +684,6 @@ def combine(params):
             del rejected[key]
 
     # ===========================================================================================
-    # set vcf headers/fields for output files
-    # ===========================================================================================
-    # vcf_fields = [
-    #     'VAR', 'BKG', 'TRC', 'RRC', 'ARC', 'BRC', 'ARR',
-    #     'BRR', 'BRE', 'SBP', 'SBM', 'LOW','VCI','VCN','PIL','RES'
-    # ]
-
-    # for variant_key in calls:
-    #     # calls[variant_key]['vcf_fields'] = vcf_fields
-    #     # Toutes les cles pointent vers la même liste en mémoire....
-    #     # ce qui implique que la modif de lune modifie aussi toutes les autres...
-    #     # copy.copy() : chaque cle pointe vers une copie disincte de vcf_fields,
-    #     # ce qui permet de les modifier sans affecter les autres cles
-    #     calls[variant_key]['vcf_fields'] = copy.copy(vcf_fields)
-    # for variant_key in rejected:
-    #     rejected[variant_key]['vcf_fields'] = copy.copy(vcf_fields)
-
-    # ===========================================================================================
     # Generate the vcf header
     # Different headers for normal, rejected and cartagenia
     # Separate header in part 1, 2 and 3 only because cartagenia
@@ -725,6 +692,7 @@ def combine(params):
     # ===========================================================================================
 
     writter = files.GenomicWritter(file=params.output)
+
     # write rejected calls to file
     # with open(os.path.join(os.getcwd(), f"{params.sample}_failed.vcf"), mode='w',encoding='utf-8') as OUT_TRASH_FILE:
     #     OUT_TRASH_FILE.write(VCF_HEADER)
@@ -735,8 +703,3 @@ def combine(params):
 
     
     writter.writeVCF(contigs=contigs, variants=calls, samples=[params.sample], thresholds=thresholds)
-    # write valid calls to file
-    # with open(params.output, 'w',encoding='utf-8') as OUT_FILE:
-    #     OUT_FILE.write(VCF_HEADER)
-    #     for variant_key in functions.order_var(calls, contigs["contig"]):
-    #         OUT_FILE.write(functions.print_var(variant_key, calls, 'final_metrics'))

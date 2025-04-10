@@ -15,7 +15,7 @@ class Program:
             Path to reference genome fasta index file')
         self.parser.add_argument('-o', '--output', type=str, dest="output", metavar='', required=True, help='Path to the output directory')
         self.parser.add_argument('-V', '--vcf', type=str, dest="vcfs", action='append', required=True, help=' <VC,vcf_file> path to input \
-        vcf file associated with identifier : samtools (ST), varscan (VS), vardict (VD), pindel (PL), haplotypecaller (HC), FILT3R (FL) \
+        vcf file associated with identifier : samtools (ST), varscan (VS), vardict (VD), pindel (PL), haplotypecaller (HC), FILT3R (FL), deepvariant (DV) \
         control & hotspot (CS & HS), when --hotspot option is set; CtlSet & HotSpot should both originate \
         from CombineVCF2Leaves')
         self.parser.add_argument('-p', '--pileup', dest="pileup", type=str, metavar='', required=True, help='Path to pileup\
