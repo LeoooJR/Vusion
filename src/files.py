@@ -193,9 +193,9 @@ class VCF(GenomicFile):
 
         return self.caller.arc(variant)
 
-    def rcc(self, variant: str) -> tuple[float]:
+    def rrc(self, variant: str) -> tuple[float]:
 
-        return self.caller.rcc(variant)
+        return self.caller.rrc(variant)
 
 class Pileup(GenomicFile):
 

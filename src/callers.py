@@ -104,7 +104,7 @@ class BCFTools(VariantCaller):
         return int(variant[7].split('DP=')[1].split(';')[0])
     
     @staticmethod
-    def rcc(variant: str) -> tuple[float]:
+    def rrc(variant: str) -> tuple[float]:
 
         variant_depth = variant[7].split('DP4=')[1].split(';')[0]
         depths = variant_depth.split(',')
@@ -144,7 +144,7 @@ class Varscan(VariantCaller):
         return int(variant[9].split(':')[2])
     
     @staticmethod
-    def rcc(variant: str) -> tuple[float]:
+    def rrc(variant: str) -> tuple[float]:
 
         values = variant[9].split(':')
 
@@ -187,7 +187,7 @@ class Vardict(VariantCaller):
         return int(variant[9].split(":")[1])
     
     @staticmethod
-    def rcc(variant: str) -> tuple[float]:
+    def rrc(variant: str) -> tuple[float]:
 
         values = variant[9].split(":")
 
@@ -231,7 +231,7 @@ class Pindel(VariantCaller):
         )
     
     @staticmethod
-    def rcc(variant: str) -> tuple[float]:
+    def rrc(variant: str) -> tuple[float]:
 
         pass
     
@@ -263,7 +263,7 @@ class Haplotypecaller(VariantCaller):
         return float(variant[9].split(':')[2])
     
     @staticmethod
-    def rcc(variant: str) -> tuple[float]:
+    def rrc(variant: str) -> tuple[float]:
 
         pass
     
@@ -295,7 +295,7 @@ class Flit3r(VariantCaller):
         )
     
     @staticmethod
-    def rcc(variant: str) -> tuple[float]:
+    def rrc(variant: str) -> tuple[float]:
 
         pass
     
@@ -316,20 +316,20 @@ class DeepVariant(VariantCaller):
     @staticmethod
     def VAF(variant: str) -> float:
 
-        pass
+        return variant.split(':')[-2]
     
     @staticmethod
     def depth(variant: str) -> int:
 
-        pass
+        return variant.split(':')[2]
     
     @staticmethod
-    def rcc(variant: str) -> tuple[float]:
+    def rrc(variant: str) -> tuple[float]:
 
-        pass
+        return variant.split(':')[3].split(',')[0]
     
     @staticmethod
     def arc(variant: str) -> tuple[float]:
 
-        pass
+        return variant.split(':')[3].split(',')[1]
 

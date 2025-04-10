@@ -292,7 +292,7 @@ def combine(params):
 
                     calls[hash]['VC']['ARC'][caller], calls[hash]['VC']['ARC+'][caller], calls[hash]['VC']['ARC-'][caller] = vcfs[caller]["vcf"].arc(datas)
 
-                    calls[hash]['VC']['RRC'][caller], calls[hash]['VC']['RRC+'][caller], calls[hash]['VC']['RRC-'][caller] = vcfs[caller]["vcf"].rcc(datas)
+                    calls[hash]['VC']['RRC'][caller], calls[hash]['VC']['RRC+'][caller], calls[hash]['VC']['RRC-'][caller] = vcfs[caller]["vcf"].rrc(datas)
 
                     calls[hash]['VC'][f"TRC+"][caller] = calls[hash]['VC']['ARC+'][caller] + calls[hash]['VC']['RRC+'][caller]
                     calls[hash]['VC'][f"TRC-"][caller] = calls[hash]['VC']['ARC-'][caller] + calls[hash]['VC']['RRC-'][caller]
