@@ -1,5 +1,4 @@
 import errors
-
 class VariantCaller():
 
     def __init__(self):
@@ -9,7 +8,8 @@ class VariantCaller():
 class VariantCallerRepository():
 
     # known variant callers are:
-    # samtools			(ST)
+    # deepvariant       (DV)
+    # bcftools			(ST)
     # varscan			(VS)
     # vardict			(VD)
     # pindel			(PL)
@@ -121,7 +121,7 @@ class BCFTools(VariantCaller):
         arc_plus = float(depths[2])
         arc_minus = float(depths[3])
         arc = arc_plus + arc_minus
-        return(arc,arc_plus,arc_minus)
+        return (arc, arc_plus, arc_minus)
 
 
 class Varscan(VariantCaller):
@@ -155,7 +155,7 @@ class Varscan(VariantCaller):
         return(rrc,rrc_plus,rrc_minus)
     
     @staticmethod
-    def arc(variant: str) -> tuple[float]:
+    def arc(variant: str) -> tuple[float|None]:
 
         values = variant[9].split(':')
 
@@ -163,7 +163,7 @@ class Varscan(VariantCaller):
         arc_plus = float(values[12])
         arc_minus = float(values[13])
 
-        return(arc,arc_plus,arc_minus)
+        return (arc, arc_plus, arc_minus)
 
 
 
@@ -198,7 +198,7 @@ class Vardict(VariantCaller):
         return(rrc,rrc_plus,rrc_minus)
     
     @staticmethod
-    def arc(variant: str) -> tuple[float]:
+    def arc(variant: str) -> tuple[float|None]:
 
         values = variant[9].split(":")
 
@@ -206,7 +206,7 @@ class Vardict(VariantCaller):
         arc_plus = float(values[6].split(',')[0])
         arc_minus = float(values[6].split(',')[1])
 
-        return(arc,arc_plus,arc_minus)
+        return (arc, arc_plus, arc_minus)
 
 class Pindel(VariantCaller):
 
@@ -236,9 +236,11 @@ class Pindel(VariantCaller):
         pass
     
     @staticmethod
-    def arc(variant: str) -> tuple[float]:
+    def arc(variant: str) -> tuple[float|None]:
 
-        return float(variant[9].split(':')[1].split(',')[1])
+        arc = float(variant[9].split(':')[1].split(',')[1])
+
+        return (arc, None, None)
 
 
 
@@ -268,9 +270,11 @@ class Haplotypecaller(VariantCaller):
         pass
     
     @staticmethod
-    def arc(variant: str) -> tuple[float]:
+    def arc(variant: str) -> tuple[float|None]:
 
-        return float(variant[9].split(':')[1].split(',')[1])
+        arc = float(variant[9].split(':')[1].split(',')[1])
+
+        return (arc, None, None) 
 
 
 
@@ -300,11 +304,11 @@ class Flit3r(VariantCaller):
         pass
     
     @staticmethod
-    def arc(variant: str) -> tuple[float]:
+    def arc(variant: str) -> tuple[float|None]:
 
-        return float(variant[6].split(';')[1].split('=')[1])
+        arc = float(variant[6].split(';')[1].split('=')[1])
 
-
+        return (arc, None, None)
 
 class DeepVariant(VariantCaller):
 
@@ -329,7 +333,9 @@ class DeepVariant(VariantCaller):
         return variant.split(':')[3].split(',')[0]
     
     @staticmethod
-    def arc(variant: str) -> tuple[float]:
+    def arc(variant: str) -> tuple[float|None]:
 
-        return variant.split(':')[3].split(',')[1]
+        arc =  variant.split(':')[3].split(',')[1]
+
+        return (arc, None, None)
 

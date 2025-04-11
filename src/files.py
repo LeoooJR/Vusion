@@ -2,6 +2,7 @@ import callers
 import errors
 import jinja2
 import os
+import pandas as pd
 
 class GenomicWritter():
 
@@ -234,7 +235,7 @@ class Pileup(GenomicFile):
         return self.HEADER
     
     def parse(self):
-
+        # Clintools
         pass
 
     def verify(self):
@@ -270,10 +271,27 @@ class FastaIndex(GenomicFile):
         if not lazy:
 
             self.parse()
+        
+        else:
+
+            self.contigs: pd.DataFrame = pd.DataFrame()
+
+    def get_contigs(self):
+
+        return self.contigs
 
     def parse(self):
 
-        pass
+        contigs: list[pd.Series] = []
+
+        with open(self.path, mode='r') as ref:
+            for line in ref:
+                if line:
+                    contigs.append(pd.Series(data=line.strip().split('\t')))
+                    
+        self.contigs: pd.DataFrame = pd.DataFrame(data=contigs)
+        self.contigs.columns=["contig", "length", "index", "pbline", "byteline"]
+        self.contigs: pd.DataFrame = self.contigs.astype({"contig": "string", "pbline": 'uint8', "byteline": "uint8"})
 
     def verify(self):
 
