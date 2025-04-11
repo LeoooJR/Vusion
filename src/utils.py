@@ -8,75 +8,9 @@ import numpy
 from scipy.stats import fisher_exact
 
 # ===========================================================================================
-# Output VCF
-# ===========================================================================================
-
-def print_var4cartagenia(variant_id, variant_dict, variant_type):
-    """
-    Function to print variant in cartagenia format
-
-    Parameters:
-    - variant_id (str): The unique identifier for the variant.
-    - variant_dict (dict): A dictionary containing variant information.
-    - type (str): The type of variant information to print (e.g., 'final_metrics').
-
-    Returns:
-    str: Returns a formatted string representing the variant in Cartagenia format
-    """
-    fields_to_remove = ['VCI', 'VCN', 'PIL','RES']
-    for field in fields_to_remove:
-        del variant_dict[variant_id]['final_metrics'][field]
-        variant_dict[variant_id]['vcf_fields'].remove(field)
-
-
-    variant_id_info = variant_id.split(':')
-    # Format genotype
-    if variant_dict[variant_id][variant_type]['GT'] == '0/0':
-        variant_dict[variant_id][variant_type]['GT'] = '0/1'
-    # Change ARR, BRR and BRE format
-    for variable in ['ARR', 'BRR', 'BRE']:
-        if variable in variant_dict[variant_id][variant_type]:
-            variant_dict[variant_id][variant_type][variable] = format(
-                float(variant_dict[variant_id][variant_type][variable])/100,
-                '.5f'
-            )
-
-    # Get only total read count for ARC and RRC
-    # instead of minus_strand_count,plus_strand_count,total_count
-    for variable in ['RRC', 'ARC']:
-        if variable in variant_dict[variant_id][variant_type]:
-            variant_dict[variant_id][variant_type][variable] = (
-                variant_dict[variant_id][variant_type][variable].split(',')[2]
-            )
-    # Set CHROM POS ID REF ALT QUAL
-    # Get CHROM, POS, REF and ALT
-    # And set ID and QUAL at '.'
-    line = '\t'.join([
-        variant_dict[variant_id]["VC"]["CHROM"],
-        variant_dict[variant_id]["VC"]["POS"],
-        '.',
-        variant_dict[variant_id]["VC"]["REF"],
-        variant_dict[variant_id]["VC"]["ALT"],
-        '.'
-    ])
-    line += '\t' + variant_dict[variant_id][variant_type]['FILTER']
-    line += '\tVAR=' + variant_dict[variant_id]['VT']
-    line += '\tGT:' + ':'.join(variant_dict[variant_id]['vcf_fields'])
-
-    line += '\t' + variant_dict[variant_id][variant_type]['GT'] + ':'
-    fields_info = []
-
-    for field in variant_dict[variant_id]['vcf_fields']:
-        fields_info.append(str(variant_dict[variant_id][variant_type][field]))
-
-    line += ':'.join(fields_info)
-    line += '\n'
-    return line
-
-# ===========================================================================================
 # Basics functions on dictionary
 # ===========================================================================================
-def merge_variant_dict(dicts):
+def merge_collections(collections: list[tuple|list|dict]) -> tuple|list|dict:
     """
     Merges specified variant dictionaries.
     Parameters:
@@ -84,10 +18,25 @@ def merge_variant_dict(dicts):
     Returns:
         A merged variant dictionary
     """
-    out = {}
-    for d in dicts:
-        out.update(d)
-    return out
+    if isinstance(collections[0], dict):
+
+        if all(list(map(lambda collection: isinstance(collection, dict), collections))):
+
+            output: dict = {}
+
+            for collection in collections:
+                
+                output.update(collection)
+        
+        else:
+
+            raise ValueError(f"Not all of the collections being merged are of the same data type.")
+
+    else:
+
+        raise ValueError(f"{type(collections[0])} cannot be merged.")
+
+    return output
 
 
 # ===========================================================================================
@@ -105,21 +54,21 @@ def define_variant_type(ref: str, alt: str):
     REPLACE_CHARS = "TGCAtgca"
     rev = alt.translate(str.maketrans(OLD_CHARS,REPLACE_CHARS))[::-1]
     if len(ref) == 1 and len(alt) == 1:
-        variant_type = 'SNV'
+        type = 'SNV'
     elif len(ref) == 1 and len(alt) > 1 :
-        variant_type = 'INS'
+        type = 'INS'
     elif len(ref) > 1 and len(alt) == 1:
-        variant_type = 'DEL'
+        type = 'DEL'
     elif len(ref) == len(alt):
         if ref == rev :
-            variant_type = 'INV'
+            type = 'INV'
         else:
             # mostly coming from <VD> and both annotated as <Complex>
-            variant_type = 'MNV'
+            type = 'MNV'
     else:
         # mostly coming from <PL> and annotated as either <INV> or <RPL>
-        variant_type = 'CSV'
-    return variant_type
+        type = 'CSV'
+    return type
 
 
 def estimate_sbm(dic,variant_key,sbm_homozygous):

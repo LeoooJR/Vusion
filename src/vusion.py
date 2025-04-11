@@ -49,12 +49,14 @@ import pandas as pd
 import re
 import sys
 
+import pprint
+
 import utils as functions
 
 def combine(params):
 
     # ===========================================================================================
-    # Initiate variables
+    # Initiate constant variables
     # ===========================================================================================
     SBM = 0.95
     MAX_THRESHOLD = 100.0
@@ -65,7 +67,7 @@ def combine(params):
     rev = {}
     INV_MNV_CSV = {}
     FLiT3r = {}
-    readpile = {}
+    vpileup = {}
     ITD = {}
 
     repository = callers.VariantCallerRepository()
@@ -124,64 +126,49 @@ def combine(params):
 
         logger.debug(f"Variant Callers inputed: {input[0]}")
 
-    # Load reference genome dict ie. list of ordered contig names / length
-    contigs: list[pd.Series] = []
-
-    with open(fasta_index.get_path(), mode='r') as ref:
-        logger.debug(f"Parsing {fasta_index.get_path()}.")
-        for line in ref:
-            if line:
-                contigs.append(pd.Series(data=line.strip().split('\t')))
-                
-    contigs: pd.DataFrame = pd.DataFrame(data=contigs)
-    contigs.columns=["contig", "length", "index", "pbline", "byteline"]
-    contigs = contigs.astype({"contig": "string", "pbline": 'uint8', "byteline": "uint8"})
-
     # Check if all mandatory option are given and modify variable depending of given options
 
     if params.disable_strand_bias:
         SBM = 2
 
-    if params.thresholds:
+    thresholds = params.thresholds.split(',')
 
-        thresholds = params.thresholds.split(',')
-
-        # Check that we have 10 values in thresholds
-        if len(thresholds) != 10:
-            logger.error(f"Invalid number of values in --threshold option.")
-            raise SystemExit(f"Invalid number of values in --threshold option.")
+    # Check that we have 10 values in thresholds
+    if len(thresholds) != 10:
+        logger.error(f"Invalid number of values in --threshold option.")
+        raise SystemExit(f"Invalid number of values in --threshold option.")
         
-        #Check that all values can be converted to floats
-        try:
-            thresholds = list(map(float, thresholds)) 
-        except ValueError:
-            logger.error("Invalid values in thresholds option.")
-            raise SystemExit("Invalid values in thresholds option.")
+    #Check that all values can be converted to floats
+    try:
+        thresholds = list(map(float, thresholds)) 
+    except ValueError:
+        logger.error("Invalid values in thresholds option.")
+        raise SystemExit("Invalid values in thresholds option.")
         
-        if not any(list(map(lambda value: value >= MIN_THRESHOLD and value <= MAX_THRESHOLD, thresholds))):
-            logger.error("Option --thresholds values cannot be equal or higher than 100, or lower than 0.")
-            raise SystemExit("Option --thresholds values cannot be equal or higher than 100, or lower than 0.")
+    if not any(list(map(lambda value: value >= MIN_THRESHOLD and value <= MAX_THRESHOLD, thresholds))):
+        logger.error("Option --thresholds values cannot be equal or higher than 100, or lower than 0.")
+        raise SystemExit("Option --thresholds values cannot be equal or higher than 100, or lower than 0.")
 
-        # Check that 6 first given threshold are unique
-        if len(thresholds[0:6]) != len(set(thresholds[0:6])):
-            logger.error("Option --thresholds six first values must be unique.")
-            raise SystemExit("Option --thresholds six first values must be unique.")
+    # Check that 6 first given threshold are unique
+    if len(thresholds[0:6]) != len(set(thresholds[0:6])):
+        logger.error("Option --thresholds six first values must be unique.")
+        raise SystemExit("Option --thresholds six first values must be unique.")
 
-        # Check that second group of threshold values are unique
-        if len(thresholds[6:9]) != len(set(thresholds[6:9])):
-            logger.error("Option --thresholds values 7, 8 and 9 must be unique.")
-            raise SystemExit("Option --thresholds values 7, 8 and 9 must be unique.")
+    # Check that second group of threshold values are unique
+    if len(thresholds[6:9]) != len(set(thresholds[6:9])):
+        logger.error("Option --thresholds values 7, 8 and 9 must be unique.")
+        raise SystemExit("Option --thresholds values 7, 8 and 9 must be unique.")
         
-        thresholds[0:6] = sorted(thresholds[0:6])
-        thresholds[6:9] = sorted(thresholds[6:9])
+    thresholds[0:6] = sorted(thresholds[0:6])
+    thresholds[6:9] = sorted(thresholds[6:9])
 
-        logger.debug(f"Thresholds: {thresholds}")
+    logger.debug(f"Thresholds: {thresholds}")
 
     for _, caller in enumerate(vcfs):
 
         if not _:
 
-            calls = {}  # dictionary of unique variant calls
+            calls = {}  # dictionary of variant calls
 
         with open(vcfs[caller]["vcf"].get_path(), mode='r') as vcf:
 
@@ -283,7 +270,7 @@ def combine(params):
 
                 else:
 
-                    calls[hash]['VC']['ARC'][caller] = vcfs[caller]["vcf"].arc(datas)
+                    calls[hash]['VC']['ARC'][caller] = vcfs[caller]["vcf"].arc(datas)[0]
 
                     calls[hash]['VC']['RRC'][caller] = (
                         calls[hash]['VC']['TRC'][caller] -
@@ -358,11 +345,11 @@ def combine(params):
                                         string=f"{(datas[0]).removeprefix('chr')}:{position}".encode()
                                     ).hexdigest()
                         
-                    if not position_index in readpile:
+                    if not position_index in vpileup:
                             
-                        readpile[position_index] = {}
+                        vpileup[position_index] = {}
 
-                    readpile[position_index][hash] = alt
+                    vpileup[position_index][hash] = alt
                     
                 elif calls[hash]["VT"] in ['INV','MNV','CSV']:
 
@@ -394,20 +381,12 @@ def combine(params):
     # process pileup data
     # --------------------------------
 
-    #####################################################################################################################
-
     with open(pileup.get_path(), mode='r') as f:
 
         # Get header, make it upper case, split it on <tab>,
         # take only 3 first letter (so barcode become BAR)
         # Save the column POSITION for each header part (BAR is first column, CR second...)
         # This will be used for reading lines after
-
-        # header = pileup.readline().strip('\n').upper()
-        # header_dict = {}
-
-        # for id, header_part in enumerate(header.split('\t')):
-        #     header_dict[header_part[:3]] = id
 
         for n, line in enumerate(f, start=1):
 
@@ -422,9 +401,9 @@ def combine(params):
                                     ).hexdigest()
 
                 # Check if variant is reported in one of the VCF files
-                if (datas[pileup.get_header()['reference']] != 'N') and (position_index in readpile):
+                if (datas[pileup.get_header()['reference']] != 'N') and (position_index in vpileup):
                     
-                    for key in readpile[position_index]:
+                    for key in vpileup[position_index]:
 
                         # depth of coverage at <CHR:POS> = sum(Nt) + #DEL (if any)
                         coverage = {"plus": 0,
@@ -478,11 +457,11 @@ def combine(params):
 
                         if (calls[key]['VT'] == 'DEL') or (calls[key]['VT'] == 'INS'):
                                 
-                            if re.search(r"\b" + readpile[position_index][key] + r"\b:[0-9]+,[0-9]+" ,\
+                            if re.search(r"\b" + vpileup[position_index][key] + r"\b:[0-9]+,[0-9]+" ,\
                                 (datas[pileup.get_header()[calls[key]['VT']]])):
                             
                                     arc_plus_strand, arc_minus_strand = re.findall(
-                                        r"\b" + readpile[position_index][key] + r"\b:[0-9]+,[0-9]+",
+                                        r"\b" + vpileup[position_index][key] + r"\b:[0-9]+,[0-9]+",
                                         datas[pileup.get_header()[calls[key]['VT']]]
                                         )[0].split(':')[-1].split(',')
                                     
@@ -502,7 +481,7 @@ def combine(params):
                         else:
                             # keep 1st character of <ALT> string (approx. counts for non-SNV variants)
 
-                            if readpile[position_index][key][0] == 'N':
+                            if vpileup[position_index][key][0] == 'N':
                                 del calls[key]
                             else:
                                 for strand in ['+','-']:
@@ -513,10 +492,10 @@ def combine(params):
                                         calls[key]['final_metrics'][arc] = ''
 
                                     calls[key]['final_metrics'][arc] = \
-                                        datas[pileup.get_header()[f"{readpile[position_index][key][0]}{strand}"]]
+                                        datas[pileup.get_header()[f"{vpileup[position_index][key][0]}{strand}"]]
                                     
                                     variants_count += int(
-                                        datas[pileup.get_header()[f"{readpile[position_index][key][0]}{strand}"]]
+                                        datas[pileup.get_header()[f"{vpileup[position_index][key][0]}{strand}"]]
                                     )
                         
                         # --------------------------------------------------------------
@@ -602,7 +581,11 @@ def combine(params):
     # ===========================================================================================
     # Merge Pileup and noPileup dict
     # ===========================================================================================
-    calls = functions.merge_variant_dict ([calls,INV_MNV_CSV,ITD,FLiT3r])
+    try:
+        calls = functions.merge_collections([calls,INV_MNV_CSV,ITD,FLiT3r])
+    except ValueError as e:
+        logger.error(f"Error: {e}")
+        raise SystemExit("Cannot merge variant dictionaries.")
 
     # ===========================================================================================
     # Clean calls and rejected variants
@@ -683,4 +666,4 @@ def combine(params):
     #         OUT_TRASH_FILE.write(functions.print_var(variant_key, rejected, 'final_metrics'))
 
     
-    writter.writeVCF(contigs=contigs, variants=calls, samples=[params.sample], thresholds=thresholds)
+    writter.writeVCF(contigs=fasta_index.get_contigs(), variants=calls, samples=[params.sample], thresholds=thresholds)

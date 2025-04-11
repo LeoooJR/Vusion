@@ -1,5 +1,6 @@
 from __init__ import __version__
 from argparse import ArgumentParser
+from loguru import logger
 from vusion import combine
 from sys import argv
 
@@ -57,4 +58,11 @@ class Program:
     def launch(self) -> int:
 
         cmd = self.parser.parse_args(argv[1:])
+
+        if not cmd.verbosity:
+
+            logger.remove(0)
+
+            logger.add("vusion.log")
+
         return cmd.func(params=cmd)
