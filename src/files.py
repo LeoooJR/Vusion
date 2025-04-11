@@ -213,8 +213,8 @@ class Pileup(GenomicFile):
               "G+": 11, 
               "G-": 12, 
               "N": 13, 
-              "Ins": 14, 
-              "Del": 15}
+              "INS": 14, 
+              "DEL": 15}
     
     PLUS_STRAND: list[int] = [0,2,4,6]
     MINUS_STRAND: list[int] = [1,3,5,7]

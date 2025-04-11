@@ -49,7 +49,6 @@ import pandas as pd
 import re
 import sys
 
-sys.path.insert(1, os.path.dirname(os.path.abspath(__file__)))
 import utils as functions
 
 def combine(params):
@@ -60,18 +59,6 @@ def combine(params):
     SBM = 0.95
     MAX_THRESHOLD = 100.0
     MIN_THRESHOLD = 0.0
-    HEADER = {
-        "CHROM": 0,
-        "POS": 1,
-        "ID": 2,
-        "REF": 3,
-        "ALT": 4,
-        "QUAL": 5,
-        "FILTER": 6,
-        "INFO": 7,
-        "FORMAT": 8,
-        "SAMPLE": 9
-    }
 
     # rejected variants (if any; will be written to $opt{trash_file})
     rejected = {}
@@ -261,13 +248,13 @@ def combine(params):
                     calls[hash]['VT'] = functions.define_variant_type(ref=datas[3], alt=datas[4])
 
                 if caller == 'FL' : # Less informations with FLiT3r
-                    calls[hash]['VC']['FORMAT'][caller] = datas[HEADER["FORMAT"]]
-                    calls[hash]['VC']['SAMPLE'][caller] = datas[HEADER["SAMPLE"]]
+                    calls[hash]['VC']['FORMAT'][caller] = datas[vcfs[input[0]]["vcf"].get_header()["FORMAT"]]
+                    calls[hash]['VC']['SAMPLE'][caller] = datas[vcfs[input[0]]["vcf"].get_header()["SAMPLE"]]
                 else:
-                    calls[hash]['VC']['FILTER'][caller] = datas[HEADER['FILTER']]
-                    calls[hash]['VC']['INFO'][caller] = datas[HEADER['INFO']]
-                    calls[hash]['VC']['FORMAT'][caller] = datas[HEADER["FORMAT"]]
-                    calls[hash]['VC']['SAMPLE'][caller] = datas[HEADER["SAMPLE"]]
+                    calls[hash]['VC']['FILTER'][caller] = datas[vcfs[input[0]]["vcf"].get_header()['FILTER']]
+                    calls[hash]['VC']['INFO'][caller] = datas[vcfs[input[0]]["vcf"].get_header()['INFO']]
+                    calls[hash]['VC']['FORMAT'][caller] = datas[vcfs[input[0]]["vcf"].get_header()["FORMAT"]]
+                    calls[hash]['VC']['SAMPLE'][caller] = datas[vcfs[input[0]]["vcf"].get_header()["SAMPLE"]]
 
                     GT = datas[9].split(':')[0]
 
@@ -409,204 +396,200 @@ def combine(params):
 
     #####################################################################################################################
 
-    with open(pileup.get_path(), mode='r') as pileup:
+    with open(pileup.get_path(), mode='r') as f:
 
         # Get header, make it upper case, split it on <tab>,
         # take only 3 first letter (so barcode become BAR)
         # Save the column POSITION for each header part (BAR is first column, CR second...)
         # This will be used for reading lines after
-        header = pileup.readline().strip('\n').upper()
-        header_dict = {}
 
-        for id, header_part in enumerate(header.split('\t')):
-            header_dict[header_part[:3]] = id
+        # header = pileup.readline().strip('\n').upper()
+        # header_dict = {}
 
-        for n, line in enumerate(pileup, start=1):
+        # for id, header_part in enumerate(header.split('\t')):
+        #     header_dict[header_part[:3]] = id
+
+        for n, line in enumerate(f, start=1):
 
             datas = line.strip('\n').split('\t')
 
-            # Create a key with format chromosome:POSITION
+            if datas[0] == params.sample:
 
-            position_index: str = sha256(
-                                    string=f"{(datas[header_dict['CHR']]).removeprefix('chr')}:{datas[header_dict['POS']]}".encode()
-                                ).hexdigest()
+                # Create a key with format chromosome:POSITION
 
-            # Check if variant is reported in one of the VCF files
-            if (datas[header_dict['REF']] != 'N') and (position_index in readpile):
-                
-                for key in readpile[position_index]:
-                    # depth of coverage at <CHR:POS> = sum(Nt) + #DEL (if any)
-                    coverage = {"plus": 0,
-                                "minus": 0,
-                                "total": 0}
-                    plus_strand_POSITIONs = [0,2,4,6]
-                    minus_strand_POSITIONs = [1,3,5,7]
+                position_index: str = sha256(
+                                        string=f"{(datas[pileup.get_header()['chromosome']]).removeprefix('chr')}:{datas[pileup.get_header()['position']]}".encode()
+                                    ).hexdigest()
 
-                    for column, value in enumerate(datas[5:13], start=0):
-                        try:
-                            coverage['total'] += int(value)
-                            if column in plus_strand_POSITIONs:
-                                coverage['plus'] += int(value)
-                            elif column in minus_strand_POSITIONs:
-                                coverage["minus"] += int(value)
-                        except ValueError:
-                            logger.warning("Uknown coverage value present in pileup file.")
-                            logger.warning(f"Warning was raised by: {value} at line {n} column {column}.")
+                # Check if variant is reported in one of the VCF files
+                if (datas[pileup.get_header()['reference']] != 'N') and (position_index in readpile):
+                    
+                    for key in readpile[position_index]:
 
-                    if not 'final_metrics' in calls[key]:
-                        calls[key]['final_metrics'] = {}
+                        # depth of coverage at <CHR:POS> = sum(Nt) + #DEL (if any)
+                        coverage = {"plus": 0,
+                                    "minus": 0,
+                                    "total": 0}
 
-                    # manage DEL counts
-                    if datas[-1] != 'None':
-                        if datas[-1][0] == '*':
+                        for column, value in enumerate(datas[5:13], start=0):
+
                             try:
-                                coverage["total"] += int(datas[-1].split(':')[1].split(';')[0])
+                                coverage['total'] += int(value)
+                                if column in pileup.PLUS_STRAND:
+                                    coverage['plus'] += int(value)
+                                elif column in pileup.MINUS_STRAND:
+                                    coverage["minus"] += int(value)
                             except ValueError:
-                                logger.warning("Unknow DEL value present in pileup file.")
-                                logger.warning(f"Warning was raised by: {datas[-1]} at line {n} column {column}.")
+                                logger.warning("Uknown coverage value present in pileup file.")
+                                logger.warning(f"Warning was raised by: {value} at line {n} column {column}.")
+
+                        if not 'final_metrics' in calls[key]:
+                            calls[key]['final_metrics'] = {}
+
+                        # manage DEL counts
+                        if datas[-1] != 'None':
+                            if datas[-1][0] == '*':
+                                try:
+                                    coverage["total"] += int(datas[-1].split(':')[1].split(';')[0])
+                                except ValueError:
+                                    logger.warning("Unknow DEL value present in pileup file.")
+                                    logger.warning(f"Warning was raised by: {datas[-1]} at line {n} column {column}.")
+                            else:
+                                # clintools bug where a DEL does not start w/ *:\d+
+                                # (causing illegal division by zero)
+                                for deletion in datas[-1].split(';'):
+                                    del_cov1, del_cov2 = deletion.split(':')[1].split(',')
+                                    coverage["total"] += (int(del_cov1) + int(del_cov2))
+
+                        calls[key]['final_metrics']['TRC'] = coverage["total"]
+                        calls[key]['final_metrics']['TRC-'] = coverage['minus']
+                        calls[key]['final_metrics']['TRC+'] = coverage['plus']
+
+                        # Add <REF> strand-specific counts for each <ALT> at <CHR:POS>
+                        # ie. the matched key in callset
+                        # RRC : Reference Read Counts
+                        # ARC : Alternative Read Counts
+                        for strand in ['-','+']:
+
+                            calls[key]['final_metrics'][f"RRC{strand}"] = datas[pileup.get_header()[f"{datas[pileup.get_header()['reference']]}{strand}"]]
+
+                        # if <ALT> is an <INDEL>
+                        variants_count: int = 0
+
+                        if (calls[key]['VT'] == 'DEL') or (calls[key]['VT'] == 'INS'):
+                                
+                            if re.search(r"\b" + readpile[position_index][key] + r"\b:[0-9]+,[0-9]+" ,\
+                                (datas[pileup.get_header()[calls[key]['VT']]])):
+                            
+                                    arc_plus_strand, arc_minus_strand = re.findall(
+                                        r"\b" + readpile[position_index][key] + r"\b:[0-9]+,[0-9]+",
+                                        datas[pileup.get_header()[calls[key]['VT']]]
+                                        )[0].split(':')[-1].split(',')
+                                    
+                                    variants_count: int = int(arc_plus_strand) + int(arc_minus_strand)
+                                    
+                                    #Save indel count per strand in callset ARC+ and ARC-
+                                    for strand in ['+','-']:
+
+                                        arc = f'ARC{strand}'
+
+                                        if not arc in calls[key]['final_metrics']:
+                                            calls[key]['final_metrics'][arc] = ''
+
+                                        calls[key]['final_metrics'][arc] = arc_plus_strand if strand == '+' else arc_minus_strand
+
+                        # any other <VarType>
                         else:
-                            # clintools bug where a DEL does not start w/ *:\d+
-                            # (causing illegal division by zero)
-                            for deletion in datas[-1].split(';'):
-                                del_cov1, del_cov2 = deletion.split(':')[1].split(',')
-                                coverage += (int(del_cov1) + int(del_cov2))
+                            # keep 1st character of <ALT> string (approx. counts for non-SNV variants)
 
-                    calls[key]['final_metrics']['TRC'] = coverage["total"]
-                    calls[key]['final_metrics']['TRC-'] = coverage['minus']
-                    calls[key]['final_metrics']['TRC+'] = coverage['plus']
+                            if readpile[position_index][key][0] == 'N':
+                                del calls[key]
+                            else:
+                                for strand in ['+','-']:
 
-                    # Add <REF> strand-specific counts for each <ALT> at <CHR:POS>
-                    # ie. the matched key in callset
-                    # RRC : Reference Read Counts
-                    # ARC : Alternative Read Counts
-                    for strand in ['-','+']:
+                                    arc = f'ARC{strand}'
 
-                        calls[key]['final_metrics'][f"RRC{strand}"] = datas[header_dict[datas[header_dict['REF']] + strand]]
+                                    if not arc in calls[key]['final_metrics']:
+                                        calls[key]['final_metrics'][arc] = ''
 
-                    # if <ALT> is an <INDEL>
-                    VARIANT_COUNTS = 0
+                                    calls[key]['final_metrics'][arc] = \
+                                        datas[pileup.get_header()[f"{readpile[position_index][key][0]}{strand}"]]
+                                    
+                                    variants_count += int(
+                                        datas[pileup.get_header()[f"{readpile[position_index][key][0]}{strand}"]]
+                                    )
+                        
+                        # --------------------------------------------------------------
+                        # <ALT> not covered in read pile;
+                        # keep trace of rejected calls (for test / rescuing purpose)
+                        # --------------------------------------------------------------
+                        if variants_count == 0:
 
-                    if (calls[key]['VT'] == 'DEL') or (calls[key]['VT'] == 'INS'):
-                    
-                        if re.search(r"\b" + readpile[position_index][key] + r"\b:[0-9]+,[0-9]+" ,\
-                                    (datas[header_dict[calls[key]['VT']]])):
-                            
-                            count1, count2 = re.findall(
-                                r"\b" + readpile[position_index][key] + r"\b:[0-9]+,[0-9]+",
-                                datas[header_dict[calls[key]['VT']]]
-                                )[0].split(':')[-1].split(',')
-                            
-                            VARIANT_COUNTS = int(count1) + int(count2)
-                            
-                            #Save indel count per strand in callset ARC+ and ARC-
-                            for strand in ['+','-']:
-                                ARC_STRAND = 'ARC' + strand
-                                if not ARC_STRAND in calls[key]['final_metrics']:
-                                    calls[key]['final_metrics'][ARC_STRAND] = ''
-                                if strand == '+':
-                                    calls[key]['final_metrics'][ARC_STRAND] = count1
-                                else:
-                                    calls[key]['final_metrics'][ARC_STRAND] = count2
+                            if (calls[key]['VT'] == 'INS') and (len(calls[key]["VC"]["ALT"])-1 > params.length_indels):
 
-                    # any other <VarType>
-                    else:
-                        # keep 1st character of <ALT> string (approx. counts for non-SNV variants)
-                        variant_first_char = readpile[position_index][key][0]
-                        if variant_first_char == 'N':
-                            del calls[key]
+                                ITD[key] = calls.pop(key)
+
+                            else:
+
+                                rejected[key] = calls.pop(key)
+
                             continue
-                        for strand in ['+','-']:
-                            ARC_STRAND = 'ARC' + strand
-                            if not ARC_STRAND in calls[key]['final_metrics']:
-                                calls[key]['final_metrics'][ARC_STRAND] = ''
-                            calls[key]['final_metrics'][ARC_STRAND] = \
-                                datas[header_dict[variant_first_char + strand]]
-                            VARIANT_COUNTS += int(
-                                datas[header_dict[variant_first_char + strand]]
-                            )
-                    
-                    # --------------------------------------------------------------
-                    # <ALT> not covered in read pile;
-                    # keep trace of rejected calls (for test / rescuing purpose)
-                    # --------------------------------------------------------------
-                    if VARIANT_COUNTS == 0:
 
-                        if (calls[key]['VT'] == 'INS') and len(calls[key]["VC"]["ALT"])-1 > params.length_indels:
+                        # --------------------------------------------------------------
+                        # Compute metrics
+                        # --------------------------------------------------------------
 
-                            ITD[key] = calls[key].copy()
+                        # Save number of Variant Callers that found this variant
+                        calls[key]['final_metrics']['VCN'] = len(calls[key]['VC']['VAF'])
 
-                        else:
+                        # keep trace of used VC identifier(s)
+                        calls[key]['final_metrics']['VCI'] = ','.join(
+                            sorted(calls[key]['VC']['VAF'].keys(), key=str.lower)
+                        )
 
-                            rejected[key] = calls[key].copy()
+                        #format [R/A]RC for vcf
+                        calls[key]['final_metrics']['ARC'],\
+                        calls[key]['final_metrics']['RRC'] = \
+                            functions.format_rrc_arc(calls,key)
 
-                        del calls[key]
+                        # Compute VAF from pileup
+                        alt_read_count_plus = calls[key]['final_metrics']['ARC+']
+                        alt_read_count_minus = calls[key]['final_metrics']['ARC-']
+                        total_read_count = calls[key]['final_metrics']['TRC']
+                        calls[key]['final_metrics']['ARR'] = format(
+                            (
+                                (float(alt_read_count_plus) + float(alt_read_count_minus)) /
+                                float(total_read_count)
+                            )*100,
+                            '.5f'
+                        )
 
-                        continue
+                        # Estimate GT
+                        calls[key]['final_metrics']['VAR'] = \
+                            functions.categorize_variant_type(calls,key,thresholds)
+                        calls[key]['final_metrics']['GT'] = \
+                            functions.estimate_gt(calls,key)
+                        
+                        # If variant callers do not agree on genotype change VAR to WAR (warning)
+                        calls[key]['final_metrics']['VAR'] = \
+                            functions.compare_gt(calls,key)
 
-                    # --------------------------------------------------------------
-                    # Compute metrics
-                    # --------------------------------------------------------------
-                    # Get meanVAF from Variant Callers
-                    # 231010 : Mean VAF only used withoutPileup -
-                    # not usefull to compute meanVAF in pileup
-                    #
-                    # calls[key]['final_metrics']['VCR'] = format(
-                    #     (sum(calls[key]['VC']['VAF'].values())/
-                    #     calls[key]['final_metrics']['VCN']),
-                    #     '.5f'
-                    # )
-                    #round((sum(calls[key]['VC']['VAF'].values())
-                    #/calls[key]['final_metrics']['VCN']),5)
+                        calls[key]['final_metrics']['BRC'],\
+                        calls[key]['final_metrics']['BRR'],\
+                        calls[key]['final_metrics']['BRE'] = \
+                            functions.estimate_brc_r_e(calls,key,datas)
 
-                    # Save number of Variant Callers that found this variant
-                    calls[key]['final_metrics']['VCN'] = len(calls[key]['VC']['VAF'])
-                    # keep trace of used VC identifier(s)
-                    calls[key]['final_metrics']['VCI'] = ','.join(
-                        sorted(calls[key]['VC']['VAF'].keys(), key=str.lower)
-                    )
+                        calls[key]['final_metrics']['SBP'],calls[key]['SBM'] = \
+                            functions.estimate_sbm(calls,key,params.sbm_homozygous)
+                        calls[key]['final_metrics']['LOW'] = \
+                            functions.vaf_user_threshold(calls,key,thresholds)
+                        calls[key]['final_metrics']['BKG'] = \
+                            functions.categorize_background_signal(calls,key,thresholds)
+                        calls[key]['final_metrics']['FILTER'] = \
+                            functions.format_float_descriptors(calls,key,SBM)
 
-                    #format [R/A]RC for vcf
-                    calls[key]['final_metrics']['ARC'],\
-                    calls[key]['final_metrics']['RRC'] = \
-                        functions.format_rrc_arc(calls,key)
-
-                    # Compute VAF from pileup
-                    alt_read_count_plus = calls[key]['final_metrics']['ARC+']
-                    alt_read_count_minus = calls[key]['final_metrics']['ARC-']
-                    total_read_count = calls[key]['final_metrics']['TRC']
-                    calls[key]['final_metrics']['ARR'] = format(
-                        (
-                            (float(alt_read_count_plus) + float(alt_read_count_minus)) /
-                            float(total_read_count)
-                        )*100,
-                        '.5f'
-                    )
-
-                    # Estimate GT
-                    calls[key]['final_metrics']['VAR'] = \
-                        functions.categorize_variant_type(calls,key,thresholds)
-                    calls[key]['final_metrics']['GT'] = \
-                        functions.estimate_gt(calls,key)
-                    # If variant callers do not agree on genotype change VAR to WAR (warning)
-                    calls[key]['final_metrics']['VAR'] = \
-                        functions.compare_gt(calls,key)
-
-                    calls[key]['final_metrics']['BRC'],\
-                    calls[key]['final_metrics']['BRR'],\
-                    calls[key]['final_metrics']['BRE'] = \
-                        functions.estimate_brc_r_e(calls,key,datas)
-
-                    calls[key]['final_metrics']['SBP'],calls[key]['SBM'] = \
-                        functions.estimate_sbm(calls,key,params.sbm_homozygous)
-                    calls[key]['final_metrics']['LOW'] = \
-                        functions.vaf_user_threshold(calls,key,thresholds)
-                    calls[key]['final_metrics']['BKG'] = \
-                        functions.categorize_background_signal(calls,key,thresholds)
-                    calls[key]['final_metrics']['FILTER'] = \
-                        functions.format_float_descriptors(calls,key,SBM)
-
-                    calls[key]['final_metrics']['PIL'] = 'Y'
-                    calls[key]['final_metrics']['RES'] = 'N'
+                        calls[key]['final_metrics']['PIL'] = 'Y'
+                        calls[key]['final_metrics']['RES'] = 'N'
 
     # ===========================================================================================
     # Rescue INS not identified by pileup (probably ITD or long insertions), mostly coming from PL
@@ -626,9 +609,12 @@ def combine(params):
     # ===========================================================================================
     # Delete variants called outside of read pile (very unlikely)
     key_to_delete = []
+
     for variant_key in calls:
+        
         if not 'final_metrics' in calls[variant_key]:
             key_to_delete.append(variant_key)
+
     for bad_key in key_to_delete:
         del calls[bad_key]
 
@@ -661,7 +647,7 @@ def combine(params):
     # ===========================================================================================
     # Process Rejected dic
     # ===========================================================================================
-    rejected = functions.process_without_pileup(rejected,thresholds,SBM,params.sbm_homozygous)
+    rejected: dict = functions.process_without_pileup(rejected,thresholds,SBM,params.sbm_homozygous)
 
     # ===========================================================================================
     # rescuing rejected calls w/ FILTER <PASS> (optional; if any)
@@ -670,28 +656,23 @@ def combine(params):
         # rescue <PASS> calls only
         # do not rescue SNV (more likely to be VS artefacts)
         # pindel bug where ARC > TRC
-        rescued_keys = [
+        rescued_keys: list[str] = [
             key for key in rejected if (
                 rejected[key]['final_metrics']['FILTER'] == 'PASS' and \
                 rejected[key]['VT'] != 'SNV' and \
-                float(rejected[key]['final_metrics']['ARR']) <= 100
+                float(rejected[key]['final_metrics']['ARR']) <= 100.0
             )
         ]
 
         for key in rescued_keys:
             rejected[key]['final_metrics']['RES'] = 'Y'
-            calls[key] = rejected[key].copy()
-            del rejected[key]
+            calls[key] = rejected.pop(key)
 
     # ===========================================================================================
-    # Generate the vcf header
-    # Different headers for normal, rejected and cartagenia
-    # Separate header in part 1, 2 and 3 only because cartagenia
-    # has 2 lines different in from normal header
-    # Just merge then part one, two and 3 wih normal header, rejected header and cartagenia header
+    # Write VCFs
     # ===========================================================================================
 
-    writter = files.GenomicWritter(file=params.output)
+    writter: files.GenomicWritter = files.GenomicWritter(file=params.output)
 
     # write rejected calls to file
     # with open(os.path.join(os.getcwd(), f"{params.sample}_failed.vcf"), mode='w',encoding='utf-8') as OUT_TRASH_FILE:

@@ -84,13 +84,10 @@ def merge_variant_dict(dicts):
     Returns:
         A merged variant dictionary
     """
-    merged_dict = {}
+    out = {}
     for d in dicts:
-        for key, value in d.items():
-            if key in merged_dict:
-                print(f"Warning: Key '{key}' already exists. Value '{value}' will be overwritten.")
-            merged_dict[key] = value
-    return merged_dict
+        out.update(d)
+    return out
 
 
 # ===========================================================================================
