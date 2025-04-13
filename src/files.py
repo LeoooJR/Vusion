@@ -14,7 +14,11 @@ class GenomicWritter():
 
         def sort_variant(contigs: object , variants: dict) -> object:
 
-            return {k: v for k, v in sorted(variants.items(), key=lambda item: [item[1]["VC"]["CHROM"], int(item[1]["VC"]["POS"])] )}
+            for chromosme in variants:
+
+                variants[chromosme] = {k: v for k, v in sorted(variants[chromosme].items(), key=lambda item: int(item[0]))}
+
+            # return {k: v for k, v in sorted(variants.items(), key=lambda item: [item[1]["VC"]["CHROM"], int(item[1]["VC"]["POS"])] )}
 
         FORMAT = [
         'GT', 'VAR', 'BKG', 'TRC', 'RRC', 'ARC', 'BRC', 'ARR',
@@ -49,22 +53,32 @@ class GenomicWritter():
 
             out.write(f"\n#{'\t'.join(HEADER)}\n")
 
-            variants = sort_variant(contigs=contigs, variants=variants)
+            sort_variant(contigs=contigs, variants=variants)
 
-            for variant in variants:
+            for chromosome in variants:
 
-                out.write('\t'.join([variants[variant]["VC"]["CHROM"], # Chromosome field
-                        variants[variant]["VC"]["POS"], # Position field
-                        '.', # ID field
-                        variants[variant]["VC"]["REF"], # Reference field
-                        variants[variant]["VC"]["ALT"], # Alternate field
-                        '.',
-                        variants[variant]["final_metrics"]["FILTER"], # Filter field
-                        '='.join([INFOS[0],variants[variant]["VT"]]), # Info field
-                        ':'.join(FORMAT), # Format field
-                        ':'.join([str(variants[variant]["final_metrics"][f]) for f in FORMAT])])) # Sample values field
-                
-                out.write('\n')
+                for position in variants[chromosome]:
+
+                    for variant_index in variants[chromosome][position]:
+
+                        variant: dict = variants[chromosome][position][variant_index]
+
+                        ref, alt = variant_index.split(':')
+
+                        if 'final_metrics' in variant:
+
+                            out.write('\t'.join([f"chrom{chromosome}", # Chromosome field
+                                    str(position), # Position field
+                                    '.', # ID field
+                                    ref, # Reference field
+                                    alt, # Alternate field
+                                    '.',
+                                    variant["final_metrics"]["FILTER"], # Filter field
+                                    '='.join([INFOS[0], variant["VT"]]), # Info field
+                                    ':'.join(FORMAT), # Format field
+                                    ':'.join([str(variant["final_metrics"][f]) for f in FORMAT])])) # Sample values field
+                            
+                            out.write('\n')
 
 class GenomicReader():
 

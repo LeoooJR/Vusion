@@ -1,6 +1,7 @@
 from cli import Program
 from sys import exit, stderr
 
+
 def main():
 
     try:
@@ -12,6 +13,7 @@ def main():
         print(f"Error: {e}", file=stderr)
         exit(1)
 
+
 if __name__ == "__main__":
-    
+
     main()
