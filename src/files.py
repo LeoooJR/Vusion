@@ -14,13 +14,17 @@ class GenomicWritter():
 
         def sort_variant(contigs: object , variants: dict) -> object:
 
+            # First sort the positions for each chromosome
             for chromosme in variants:
 
                 variants[chromosme] = {k: v for k, v in sorted(variants[chromosme].items(), key=lambda item: int(item[0]))}
+            
+            # Then sort the chromosomes
+            {k: v for k,v in sorted(variants.items(), key=lambda item: item[0])}
 
             # return {k: v for k, v in sorted(variants.items(), key=lambda item: [item[1]["VC"]["CHROM"], int(item[1]["VC"]["POS"])] )}
 
-        FORMAT = [
+        FORMAT: list[str] = [
         'GT', 'VAR', 'BKG', 'TRC', 'RRC', 'ARC', 'BRC', 'ARR',
         'BRR', 'BRE', 'SBP', 'SBM', 'LOW', 'VCI', 'VCN', 'PIL', 'RES'
         ]
@@ -37,24 +41,31 @@ class GenomicWritter():
         "FORMAT",
         ]
 
+        # Add sample names to the header
         HEADER.extend(samples)
 
         INFOS: list[str] = ["VAR"]
 
+        # Path to the template directory
         ressources = os.path.join(os.path.dirname(os.path.abspath(__file__)),'templates')
 
         env = jinja2.Environment(loader=jinja2.FileSystemLoader(ressources))
 
+        # Load the header template
         template = env.get_template("header")
 
         with open(self.file, mode='w') as out:
-
+            
+            # Write the rendered header to the file
             out.writelines(template.render(contigs = contigs, thresholds = thresholds))
 
+            # Write the column names
             out.write(f"\n#{'\t'.join(HEADER)}\n")
 
+            # Sort the variants by chromosome and position
             sort_variant(contigs=contigs, variants=variants)
 
+            # Iterate over each level of the variants dictionary
             for chromosome in variants:
 
                 for position in variants[chromosome]:
@@ -65,6 +76,7 @@ class GenomicWritter():
 
                         ref, alt = variant_index.split(':')
 
+                        # Write ONLY if normalized metrics are present
                         if 'final_metrics' in variant:
 
                             out.write('\t'.join([f"chrom{chromosome}", # Chromosome field

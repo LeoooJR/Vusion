@@ -8,21 +8,32 @@ class VariantsRepository():
 
     def __init__(self):
 
+        # Dictionary to store variants
         self.variants: dict = {}
 
+        # Set to store variants possibly found in pileup
         self.trace: set[str] = {}
-
-        self.rev: dict = {}
         
+        # Dictionary to store variants that have been left-aligned
+        self.rev: dict = {}
+
+        # Set to store complex variants
         self.INV_MNV_CSV: set[str] = {}
 
+        # Set to store FLiT3r variants
         self.FLiT3r: set[str] = {}
 
     @staticmethod
     def get_variant_type(ref: str, alt: str):
 
+        # Empty string to store variant type
+        # Empty string return False
         variant_type: str = ''
 
+        # List of functions to check variant type
+        # Deque is used to pop functions from the left at each iteration
+        # until one of them returns a value
+        # If no function returns a value, the variant type is set to CSV (complex structural variant)
         funcs: deque = deque([is_snp, is_ins, is_del, is_inv, is_mnv])
 
         def is_snp(ref: str, alt: str) -> str:
@@ -39,28 +50,33 @@ class VariantsRepository():
 
         def is_inv(ref: str, alt: str) -> str:
 
-            OLD_CHARS = "ACGTacgt"
-            REPLACE_CHARS = "TGCAtgca"
+            OLD_CHARS: str = "ACGTacgt"
+            REPLACE_CHARS: str = "TGCAtgca"
 
-            rev = alt.translate(str.maketrans(OLD_CHARS,REPLACE_CHARS))[::-1]
+            rev: str = alt.translate(str.maketrans(OLD_CHARS,REPLACE_CHARS))[::-1]
 
             return "INV" if len(ref) == len(alt) and ref == rev else ''
 
         def is_mnv(ref: str, alt: str) -> str:
 
-            OLD_CHARS = "ACGTacgt"
-            REPLACE_CHARS = "TGCAtgca"
+            OLD_CHARS: str = "ACGTacgt"
+            REPLACE_CHARS: str = "TGCAtgca"
 
-            rev = alt.translate(str.maketrans(OLD_CHARS,REPLACE_CHARS))[::-1]
+            rev: str = alt.translate(str.maketrans(OLD_CHARS,REPLACE_CHARS))[::-1]
 
-            return "INV" if len(ref) == len(alt) and ref != rev else ''
+            return "MNV" if len(ref) == len(alt) and ref != rev else ''
         
         try:
-
+            # Loop until one of the functions returns a value
+            # Empty string equivalent to False
             while not variant_type:
 
                 variant_type: str = funcs.popleft()(ref, alt)
 
+        # IndexError is raised when all functions have been popped from the deque
+        # and none of them returned a value
+        # In this case, the variant type is set to CSV (complex structural variant)
+        # This is a fallback to avoid infinite loop
         except IndexError:
 
             logger.warning(f"Could not determine variant type from {ref}:{alt}")
@@ -72,7 +88,13 @@ class VariantsRepository():
 
     def populate(self, vcfs: dict):
 
+        # Loop through each VCF file
         for caller in vcfs:
+
+            # Get the header of the VCF file
+            # The header contains the names of the columns in the VCF file
+            # It is used to map the values in the VCF file to the correct keys in the dictionary
+            header: dict = vcfs[caller]["vcf"].get_header()
 
             with open(vcfs[caller]["vcf"].get_path(), mode='r') as vcf:
 
@@ -80,8 +102,7 @@ class VariantsRepository():
 
                 for line in vcf:
 
-                    # Reminder of what info will containe
-                    # vcf line structure is like [CHROM POS ID REF ALT QUAL FILTER INFO FORMAT SAMPLE]
+                    # VCF line structure is like [CHROM POS ID REF ALT QUAL FILTER INFO FORMAT SAMPLE]
                     datas = line.strip().split('\t')
 
                     # Skip header
@@ -107,25 +128,34 @@ class VariantsRepository():
                         'INV' in datas[4]
                     ):
                         continue
-
+                    
+                    # Remove 'chr' from chromosome name if present
+                    # This is to avoid issues with different chromosome naming conventions
                     chromosome: str = datas[0].removeprefix('chr')
                     
                     if not chromosome in self.variants:
 
                         self.variants[chromosome] = {}
 
+                    # Set positiion to integer
+                    # Integer reduces memory usage in dictionary as key
                     position = int(datas[1])
                         
                     if not position in self.variants[chromosome]:
 
                         self.variants[chromosome][position] = {}
 
-                    variant_identifier: str = f"{datas[3]}:{datas[4]}"
+                    # Variant identifier is a string that contains the reference and alternative alleles
+                    # It is used to identify the variant in the dictionary
+                    ref: str = datas[3]
+                    alt: str = datas[4]
+                    variant_identifier: str = f"{ref}:{alt}"
 
                     if not variant_identifier in self.variants[chromosome][position]:
 
-                        self.variants[chromosome][position][variant_identifier] = {{"VC": {'REF': datas[3],
-                                                                                        'ALT': datas[4],
+                        # Create a new entry in the dictionary for the variant
+                        self.variants[chromosome][position][variant_identifier] = {{"VC": {'REF': ref,
+                                                                                        'ALT': alt,
                                                                                         'VAF': {},
                                                                                         'GT': {},
                                                                                         'FILTER': {},
@@ -142,19 +172,21 @@ class VariantsRepository():
                                                                                         'RRC-': {},
                                                                                         'RRC+': {},}}}
                     
-                        ## 1/ define <VT>
-                        self.variants[chromosome][position][variant_identifier]['VT'] = functions.define_variant_type(ref=datas[3], alt=datas[4])
+                        # Define variant type
+                        self.variants[chromosome][position][variant_identifier]['VT'] = functions.define_variant_type(ref=ref, alt=alt)
 
+                    # Create a variable which link to the same memory address as the variant in the global dictionary
+                    # It reduce writing complexity and improve readability
                     variant: dict = self.variants[chromosome][position][variant_identifier]
 
                     if caller == 'FL' : # Less informations with FLiT3r
-                        variant['VC']['FORMAT'][caller] = datas[vcfs[input[0]]["vcf"].get_header()["FORMAT"]]
-                        variant['VC']['SAMPLE'][caller] = datas[vcfs[input[0]]["vcf"].get_header()["SAMPLE"]]
+                        variant['VC']['FORMAT'][caller] = datas[header["FORMAT"]]
+                        variant['VC']['SAMPLE'][caller] = datas[header["SAMPLE"]]
                     else:
-                        variant['VC']['FILTER'][caller] = datas[vcfs[input[0]]["vcf"].get_header()['FILTER']]
-                        variant['VC']['INFO'][caller] = datas[vcfs[input[0]]["vcf"].get_header()['INFO']]
-                        variant['VC']['FORMAT'][caller] = datas[vcfs[input[0]]["vcf"].get_header()["FORMAT"]]
-                        variant['VC']['SAMPLE'][caller] = datas[vcfs[input[0]]["vcf"].get_header()["SAMPLE"]]
+                        variant['VC']['FILTER'][caller] = datas[header['FILTER']]
+                        variant['VC']['INFO'][caller] = datas[header['INFO']]
+                        variant['VC']['FORMAT'][caller] = datas[header["FORMAT"]]
+                        variant['VC']['SAMPLE'][caller] = datas[header["SAMPLE"]]
 
                         GT = datas[9].split(':')[0]
 
@@ -232,7 +264,7 @@ class VariantsRepository():
 
                     # ETBI
 
-                    ref, alt = variant_identifier.split(':')
+                    # ref, alt = variant_identifier.split(':')
 
                     if not (variant["VT"] in ['INV','MNV','CSV'] or "FL" in variant["VC"]["VAF"]):
 
@@ -246,35 +278,58 @@ class VariantsRepository():
 
                         elif variant['VT'] == 'DEL':
 
+                            # New position is the next one
+                            # It is the position of the first base of the deletion
+                            position_updated: int = position + 1
+
+                            # New variant identifier
                             variant_identifier_updated: str = f"{ref[1:]}:{alt}"
 
-                            self.variants[chromosome][position][variant_identifier_updated] = self.variants[chromosome][position].pop(variant_identifier)
-
+                            # If the variant is the only one at this position,
+                            # update the variant identifier first then 
+                            # remove position from the dictionary and add the variant to the next position
                             if len(self.variants[chromosome][position]) == 1:
 
-                                self.variants[chromosome][(position+1)] = self.variants[chromosome].pop(position)
+                                self.variants[chromosome][position][variant_identifier_updated] = self.variants[chromosome][position].pop(variant_identifier)
 
+                                self.variants[chromosome][position_updated] = self.variants[chromosome].pop(position)
+
+                            # If the variant is not the only one at this position, add it to the next position
+                            # and remove it from the current position
                             else:
 
-                                if not (position+1) in self.variants[chromosome]:
+                                if not position_updated in self.variants[chromosome]:
                                     
-                                    self.variants[chromosome][(position+1)] = {}
+                                    self.variants[chromosome][position_updated] = {}
 
-                                self.variants[chromosome][(position+1)][variant_identifier_updated] = self.variants[chromosome][position].pop(variant_identifier)
+                                self.variants[chromosome][position_updated][variant_identifier_updated] = self.variants[chromosome][position].pop(variant_identifier)
                             
                             # reset <POS> if <DEL>
                             # delA = p+1 in read pile
-                            # position += 1
 
-                            self.trace.add(f"{chromosome}:{position}:{ref}:{alt}")                                    
+                            # Update position
+                            position: int = position_updated
+                            # Update variant identifier
+                            variant_identifier: str = variant_identifier_updated
+
+                        # Keep trace of the variant
+                        # Set allow faster lookup in O(1)
+                        # instead of O(n)
+                        self.trace.add(f"{chromosome}:{position}:{variant_identifier}")                                    
                         
                     elif variant["VT"] in ['INV','MNV','CSV']:
-
-                        self.INV_MNV_CSV.add(f"{chromosome}:{position}:{ref}:{alt}")
+                        
+                        # Keep trace of the complex variant
+                        # Set allow faster lookup in O(1)
+                        # instead of O(n)
+                        self.INV_MNV_CSV.add(f"{chromosome}:{position}:{variant_identifier}")
                         
                     elif "FL" in variant["VC"]["VAF"]:
-
-                        self.FLiT3r.add(f"{chromosome}:{position}:{ref}:{alt}")
+                        
+                        # Keep trace of the FliT3r detected variant
+                        # Set allow faster lookup in O(1)
+                        # instead of O(n)
+                        self.FLiT3r.add(f"{chromosome}:{position}:{variant_identifier}")
 
     def normalize(self, sample: str, pileup: Pileup, thresholds: list[float], length_indels: int, sbm: float, sbm_homozygous: float) -> tuple[dict]:
 

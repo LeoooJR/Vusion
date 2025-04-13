@@ -1,6 +1,5 @@
 import errors
 
-
 class VariantCaller:
 
     def __init__(self):
@@ -32,14 +31,6 @@ class VariantCallerRepository:
             "FL": Flit3r(),
             "DV": DeepVariant(),
         }
-
-        # self.BT = BCFTools()
-        # self.VS = Varscan()
-        # self.VD = Vardict()
-        # self.PL = Pindel()
-        # self.HS = Haplotypecaller()
-        # self.FL = Flit3r()
-        # self.DV = DeepVariant()
 
     def get_VC(self, caller: str) -> VariantCaller:
 

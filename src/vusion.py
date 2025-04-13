@@ -61,9 +61,18 @@ def combine(params):
     MAX_THRESHOLD = 100.0
     MIN_THRESHOLD = 0.0
 
+    # Create a variant caller repository
+    # This repository will be used to check if the variant callers are supported
+    # and to get the variant caller object for each variant caller
     caller_repository = VariantCallerRepository()
 
+    # Create a variants repository
+    # This repository will be used to store the variants and their information
     variants_repository = VariantsRepository()
+
+    # ===========================================================================================
+    # Check mandatory options
+    # ===========================================================================================
 
     # Check reference genome index
     try:
@@ -151,24 +160,44 @@ def combine(params):
     if len(thresholds[6:9]) != len(set(thresholds[6:9])):
         logger.error("Option --thresholds values 7, 8 and 9 must be unique.")
         raise SystemExit("Option --thresholds values 7, 8 and 9 must be unique.")
-        
+    
+    # Sort the first 6 values and the last 3 values
+    # This is done to make sure that the values are in the right order
     thresholds[0:6] = sorted(thresholds[0:6])
     thresholds[6:9] = sorted(thresholds[6:9])
 
     logger.debug(f"Thresholds: {thresholds}")
 
+    # ============================================================================================
+    # Parse VCFs
+    # ============================================================================================
+
+    # Populate the variants repository from the VCFs
+    # This will create a dictionary of variants with the following structure:
+    # 'chr':{
+    #     'pos':{
+    #         'ref:alt':{
+    #             'VC':{},
+    #             'VT': '',
+    #             'final_metrics':{},
+    #             'vcf_fields':[]
+    #         }
+    #     }
+    # }
     variants_repository.populate(vcfs=vcfs)
 
     # ===========================================================================================
     # Process variants with Pileup
     # ===========================================================================================
 
+    # Normalize variants with common metrics
+    # Use the pileup to normalize the variants
     variants, ITD, rejected = variants_repository.normalize(sample=params.sample, pileup=pileup, thresholds=thresholds, length_indels=params.length_indels, sbm=SBM, sbm_homozygous=params.sbm_homozygous)
 
     # ===========================================================================================
     # Process exceptions without Pileup : INV,MNV and CSV
     # ===========================================================================================
-    variants: dict = functions.process_without_pileup(variants=variants_repository.variants, lookups=variants_repository.INV_MNV_CSV.union(variants_repository.FLiT3r, ITD), thresholds=thresholds, sbm=SBM, sbm_homozygous=params.sbm_homozygous)
+    variants: dict = functions.process_without_pileup(variants=variants, lookups=variants_repository.INV_MNV_CSV.union(variants_repository.FLiT3r, ITD), thresholds=thresholds, sbm=SBM, sbm_homozygous=params.sbm_homozygous)
 
     # ===========================================================================================
     # Process FL output without Pileup :
@@ -256,6 +285,7 @@ def combine(params):
     # Write VCFs
     # ===========================================================================================
 
+    # Create a writer object to write the VCF file
     writter: io.GenomicWritter = io.GenomicWritter(file=params.output)
 
     # write rejected calls to file
@@ -266,5 +296,5 @@ def combine(params):
     #     for variant_key in ordered_variant_key:
     #         OUT_TRASH_FILE.write(functions.print_var(variant_key, rejected, 'final_metrics'))
 
-    
+    # Write the VCF file
     writter.writeVCF(contigs=fasta_index.get_contigs(), variants=variants, samples=[params.sample], thresholds=thresholds)
