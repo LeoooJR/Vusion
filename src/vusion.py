@@ -221,47 +221,50 @@ def combine(params):
 
         chromosome, position, ref, alt = index.split(':')
 
-        variant: dict = variants[chromosome][position][f"{ref}:{alt}"]
+        variant: dict = variants[chromosome][int(position)].get(f"{ref}:{alt}")
 
-        BRR = 1000
+        if variant:
 
-        # Check that $hash_key is not in rejected calls
-        if not index in variants_repository.trace:
-            if index in rejected:
-                del rejected[index]
-        else:
-            BRR = float(variant['final_metrics']['BRR'])
+            BRR = 1000
 
-        for updated_index in variants_repository.rev[index]:
-
-            NEW_BRR = 1000
-            
             # Check that $hash_key is not in rejected calls
-            if not updated_index in variants_repository.trace:
-                if updated_index in rejected:
-                    del rejected[updated_index]
-
-            elif BRR == 1000:
-                NEW_BRR = float(variant['final_metrics']['BRR'])
-                BRR = NEW_BRR
-
+            if not index in variants_repository.trace:
+                if index in rejected:
+                    del rejected[index]
             else:
-                NEW_BRR = float(variant['final_metrics']['BRR'])
-                if BRR <= NEW_BRR:
-                    del variants[chromosome][position][updated_index]
-                else:
-                    del variants[chromosome][position][index]
+                BRR = float(variant['final_metrics']['BRR'])
+
+            for updated_index in variants_repository.rev[index]:
+
+                NEW_BRR = 1000
+                
+                # Check that $hash_key is not in rejected calls
+                if not updated_index in variants_repository.trace:
+                    if updated_index in rejected:
+                        del rejected[updated_index]
+
+                elif BRR == 1000:
+                    NEW_BRR = float(variant['final_metrics']['BRR'])
                     BRR = NEW_BRR
 
-    # ===========================================================================================
-    # Process Rejected dic
-    # ===========================================================================================
-    rejected: dict = functions.process_without_pileup(rejected, thresholds, SBM, params.sbm_homozygous)
+                else:
+                    NEW_BRR = float(variant['final_metrics']['BRR'])
+                    if BRR <= NEW_BRR:
+                        del variants[chromosome][int(position)][updated_index]
+                    else:
+                        del variants[chromosome][int(position)][index]
+                        BRR = NEW_BRR
 
     # ===========================================================================================
     # rescuing rejected calls w/ FILTER <PASS> (optional; if any)
     # ===========================================================================================
     if params.rescue:
+
+        # ===========================================================================================
+        # Process Rejected dic
+        # ===========================================================================================
+        rejected: dict = functions.process_without_pileup(rejected, thresholds, SBM, params.sbm_homozygous)
+
         # rescue <PASS> calls only
         # do not rescue SNV (more likely to be VS artefacts)
         # pindel bug where ARC > TRC
@@ -279,7 +282,14 @@ def combine(params):
 
             rejected[key]['final_metrics']['RES'] = 'Y'
 
-            variant[chromosome][position][f"{ref}:{alt}"] = rejected.pop(key)
+            variants[chromosome][position][f"{ref}:{alt}"] = rejected.pop(key)
+
+    
+    for index in rejected:
+
+        chromosome, position, alt, ref = index.split(':')
+
+        variants[chromosome].get(int(position),{}).pop(f"{ref}:{alt}",None)
 
     # ===========================================================================================
     # Write VCFs

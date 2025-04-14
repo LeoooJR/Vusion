@@ -562,7 +562,7 @@ def process_without_pileup(variants: dict, lookups: set, thresholds: list[float]
 
         variant_identifier = f"{ref}:{alt}"
 
-        variant: dict = variants[chromsome][position][variant_identifier]
+        variant: dict = variants[chromsome][int(position)][variant_identifier]
 
         if not 'final_metrics' in variant:
             variant['final_metrics'] = {}
@@ -632,8 +632,8 @@ def process_without_pileup(variants: dict, lookups: set, thresholds: list[float]
             undertermined_ct_values = ["ARC+","ARC-","RRC+","RRC-","SBM","SBP","TRC+","TRC-"]
 
             for ct_values in undertermined_ct_values:
-                variant['final_metrics'][ct_values] = "-1"
-                variant['final_metrics']['ARC'], variant['final_metrics']['RRC'] = format_rrc_arc(variant)
+                variant['final_metrics'].setdefault(ct_values, "-1")
+            variant['final_metrics']['ARC'], variant['final_metrics']['RRC'] = format_rrc_arc(variant)
         else:
             # Get mean TRC+/-,RRC+/-, ARC+/- from Variant callers
             for strand in["+","-"]:
@@ -642,16 +642,16 @@ def process_without_pileup(variants: dict, lookups: set, thresholds: list[float]
                         sum_strand = sum(variant['VC']['RRC'+strand].values()) + sum(variant['VC']['ARC'+strand].values())
                     else:
                         sum_strand = sum(variant['VC'][count+strand].values())
-                        variant['final_metrics'][count+strand] = round(
-                            sum_strand/
-                            variant['final_metrics']['VCN'],
-                            5)
+                    variant['final_metrics'][count+strand] = round(
+                        sum_strand/
+                        variant['final_metrics']['VCN'],
+                        5)
 
-        variant['final_metrics']['ARC'],\
-        variant['final_metrics']['RRC'] = format_rrc_arc(variant)
+            variant['final_metrics']['ARC'],\
+            variant['final_metrics']['RRC'] = format_rrc_arc(variant)
 
-        variant['final_metrics']['SBP'],\
-        variant['SBM'] = estimate_sbm(variant,sbm_homozygous)
+            variant['final_metrics']['SBP'],\
+            variant['SBM'] = estimate_sbm(variant, sbm_homozygous)
 
         variant['final_metrics']['FILTER'] = format_float_descriptors(
             variant,

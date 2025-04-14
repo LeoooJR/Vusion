@@ -15,9 +15,9 @@ class GenomicWritter():
         def sort_variant(contigs: object , variants: dict) -> object:
 
             # First sort the positions for each chromosome
-            for chromosme in variants:
+            for chromosome in variants:
 
-                variants[chromosme] = {k: v for k, v in sorted(variants[chromosme].items(), key=lambda item: int(item[0]))}
+                variants[chromosome] = {k: v for k, v in sorted(variants[chromosome].items(), key=lambda item: int(item[0]))}
             
             # Then sort the chromosomes
             {k: v for k,v in sorted(variants.items(), key=lambda item: item[0])}
