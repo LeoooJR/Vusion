@@ -42,34 +42,6 @@ def merge_collections(collections: list[tuple|list|dict]) -> tuple|list|dict:
 # ===========================================================================================
 # Functions on variants
 # ===========================================================================================
-def define_variant_type(ref: str, alt: str):
-    """
-    define VarType (VT) ie. SNV, MNV, INS/DEL, INV or CSV (Complex Structural Variant)
-    Parameters:
-    - sequence: String
-    - seq_len : a dictionnary containing the length of the reference and the alternative allele
-    Return : the variant type
-    """
-    OLD_CHARS = "ACGTacgt"
-    REPLACE_CHARS = "TGCAtgca"
-    rev = alt.translate(str.maketrans(OLD_CHARS,REPLACE_CHARS))[::-1]
-    if len(ref) == 1 and len(alt) == 1:
-        type = 'SNV'
-    elif len(ref) == 1 and len(alt) > 1 :
-        type = 'INS'
-    elif len(ref) > 1 and len(alt) == 1:
-        type = 'DEL'
-    elif len(ref) == len(alt):
-        if ref == rev :
-            type = 'INV'
-        else:
-            # mostly coming from <VD> and both annotated as <Complex>
-            type = 'MNV'
-    else:
-        # mostly coming from <PL> and annotated as either <INV> or <RPL>
-        type = 'CSV'
-    return type
-
 
 def estimate_sbm(variant,sbm_homozygous):
     """
@@ -338,7 +310,9 @@ def format_rrc_arc(variant):
         read_count_plus = variant['sample'][read_count_type + '+']
 
         if read_count_minus!="-1" and read_count_plus != "-1":
+
             tmp_read_count = int(read_count_minus) + int(read_count_plus)
+
             variant['sample'][read_count_type] = ','.join(
             [
                 str(int(read_count_plus)),
@@ -346,6 +320,7 @@ def format_rrc_arc(variant):
                 str(tmp_read_count)
             ])
         else:
+            
             variant['sample'][read_count_type] = ','.join(
             [
                 str(read_count_plus),

@@ -1,6 +1,7 @@
-from collections import deque
+from collections import deque, Counter
 from files import Pileup
 from loguru import logger
+import math
 import re
 import utils as functions
 
@@ -16,7 +17,7 @@ class VariantsRepository():
                                           "rejected": set()} # Set to store rejected variants
 
     @staticmethod
-    def get_variant_type(ref: str, alt: str):
+    def get_variant_type(ref: str, alt: str) -> str:
 
         # Empty string to store variant type
         # Empty string return False
@@ -76,7 +77,147 @@ class VariantsRepository():
             variant_type: str = "CSV"
 
         return variant_type
+    
+    @staticmethod
+    def classification(arr: float, thresholds: list[float]) -> str:
+        """
+        categorize variant based on ALT Read Count Ratio (ARR) thresholds:
+        Scale:
+        L/P-HO Likely/Probably HOmozygous
+        L/P-HE Likely/Probably HEterozygous
+        L/P-SC Likely/Probably SubClonal
+        [ LSC [ PSC [ PHE [ LHE ] PHE ] PHO ] LHO ]
+        |     |     |     |     |     |     |     |
+        0    [0]   [1]   [2]   [3]   [4]   [5]  100 (ARR)
+        """
 
+        MAX_THRESHOLD = 100.0
+        MIN_THRESHOLD = 0.0
+
+        classes: list[str] = ["LSC", "PSC", "PHE", "LHE", "PHE", "PHO", "LHO"]
+
+        if arr == MIN_THRESHOLD:
+
+            level = classes[0]
+
+        elif arr == MAX_THRESHOLD:
+
+            level = classes[-1]
+
+        else:
+
+            thresholds.insert(0, 0.0)
+
+            thresholds.insert(-1, 100.0)
+
+            queue: deque = deque(zip(thresholds, classes))
+
+            try:
+
+                while arr >= queue[0][0]:
+
+                    level: str = queue[0][1]
+
+                    queue.popleft()
+                
+            except IndexError:
+
+                logger.warning(f"Could not determine variant class from ARR with value: {arr}")
+
+                level: str = "UKN"
+        
+        return level
+    
+    @staticmethod
+    def get_genotype(genotypes: list[str], arr: float, thresholds: list[float]) -> tuple[str]:
+
+        level: str = VariantsRepository.classification(arr, thresholds)
+
+        if level in ["PHE", "LHE"]:
+
+            genotype: str = "0/1"
+
+        elif level in ["PHO", "LHO"]:
+
+            genotype: str = "1/1"
+
+        else:
+
+            genotype: str = "0/0"
+
+        # Float division
+        onset_threshold = math.ceil(len(genotypes) / 2)
+
+        if sum(list(map(lambda x: x >= onset_threshold, dict(Counter(genotypes))))) == 0:
+
+            level: str = "WAR"
+
+        return (genotype, level)
+    
+    @staticmethod
+    def compute_background_metrics(pileup: Pileup, record: list[str], variant: dict, thresholds: list[float]) -> dict[str:float|str]:
+        """
+        estimate <BRC/R/E> (background read counts/ratio/enrichment)
+        BRC : background read counts
+        BRR : background read ratio
+        BRE : background read enrichment
+        Returns : a tuple containing the estimated BRC, BRR, and BRE.
+        """
+
+        def classification(bre: float, arr: float, thresholds: list[float]) -> str:
+
+            MAX_THRESHOLD = 100.0
+            MIN_THRESHOLD = 0.0
+
+            classes: list[str] = ["LCL", "PCL", "PNO", "LNO"]
+
+            if arr >= 30.0:
+
+                level: str = classes[1]
+
+            else:
+
+                if bre == MIN_THRESHOLD:
+
+                    level = classes[0]
+
+                elif bre == MAX_THRESHOLD:
+
+                    level = classes[-1]
+
+                else:
+
+                    thresholds.insert(0, 0.0)
+
+                    thresholds.insert(-1, 100.0)
+
+                    queue: deque = deque(zip(thresholds, classes))
+
+                    try:
+
+                        while bre >= queue[0][0]:
+
+                            level: str = queue[0][1]
+
+                            queue.popleft()
+                        
+                    except IndexError:
+
+                        logger.warning(f"Could not categorize background signal from BRE with value: {bre}")
+
+                        level: str = "UKN"
+            
+            return level
+        
+        pass
+
+    def compute_sample_metrics():
+
+        pass
+
+    def get_filter():
+
+        pass
 
     def populate(self, vcfs: dict):
 
@@ -426,7 +567,7 @@ class VariantsRepository():
 
                                     # keep trace of used VC identifier(s)
                                     variant['sample']['VCI'] = ','.join(
-                                        sorted(variant['collection']['VAF'].keys(), key=str.lower)
+                                        sorted(variant['collection']['VAF'].keys())
                                     )
 
                                     #format [R/A]RC for vcf
@@ -435,26 +576,19 @@ class VariantsRepository():
                                         functions.format_rrc_arc(variant)
 
                                     # Compute VAF from pileup
-                                    alt_read_count_plus = variant['sample']['ARC+']
-                                    alt_read_count_minus = variant['sample']['ARC-']
-                                    total_read_count = variant['sample']['TRC']
                                     variant['sample']['ARR'] = format(
                                         (
-                                            (float(alt_read_count_plus) + float(alt_read_count_minus)) /
-                                            float(total_read_count)
+                                            (float(variant['sample']['ARC+']) + float(variant['sample']['ARC-'])) / float(variant['sample']['TRC'])
                                         )*100,
                                         '.5f'
                                     )
 
                                     # Estimate GT
-                                    variant['sample']['VAR'] = \
-                                        functions.categorize_variant_type(variant, thresholds)
-                                    variant['sample']['GT'] = \
-                                        functions.estimate_gt(variant)
+                                    variant['sample']['VAR'] = functions.categorize_variant_type(variant, thresholds)
+                                    variant['sample']['GT'] = functions.estimate_gt(variant)
                                     
                                     # If variant callers do not agree on genotype change VAR to WAR (warning)
-                                    variant['sample']['VAR'] = \
-                                        functions.compare_gt(variant)
+                                    variant['sample']['VAR'] = functions.compare_gt(variant)
 
                                     variant['sample']['BRC'],\
                                     variant['sample']['BRR'],\
@@ -463,15 +597,15 @@ class VariantsRepository():
 
                                     variant['sample']['SBP'],variant['SBM'] = \
                                         functions.estimate_sbm(variant, sbm_homozygous)
-                                    variant['sample']['LOW'] = \
-                                        functions.vaf_user_threshold(variant, thresholds)
+                                    variant['sample']['LOW'] = int(variant["sample"]["ARR"] < thresholds[-1])
                                     variant['sample']['BKG'] = \
                                         functions.categorize_background_signal(variant, thresholds)
 
                                     variant['sample']['PIL'] = 'Y'
                                     variant['sample']['RES'] = 'N'
 
-                                    variant['filter'] = \
-                                        functions.format_float_descriptors(variant, sbm)
+                                    variant['filter'] = "FAIL" if ((variant["sample"] in ["PNO", "LNO"]) 
+                                                                   or (variant['sample']['LOW'] == 1) 
+                                                                   or (abs(float(variant['sample']['SBP'])) <= 0.05)) else "PASS"
         
         return (self.variants, ITD)

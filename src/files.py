@@ -70,11 +70,11 @@ class GenomicWritter():
 
                     for mutation in variants[chromosome][position]:
 
-                            ref, alt = mutation.split(':')
-
                             variant: dict = variants[chromosome][position][mutation]
 
-                            print(variant)
+                            vcf_compliant_position: int = (position - 1) if variant["type"] == "DEL" else position
+
+                            ref, alt = mutation.split(':')
 
                             if variant.get("filter", "REJECTED") != "REJECTED":
 
@@ -82,7 +82,7 @@ class GenomicWritter():
                                 if 'sample' in variant:
 
                                     out.write('\t'.join([f"chr{chromosome}", # Chromosome field
-                                            str(position), # Position field
+                                            str(vcf_compliant_position), # Position field
                                             '.', # ID field
                                             ref, # Reference field
                                             alt, # Alternate field
