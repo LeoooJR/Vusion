@@ -216,45 +216,6 @@ def combine(params):
     # Clean calls and rejected variants
     # ===========================================================================================
 
-    # Select best descriptor for parcimonious DEL
-    for index in variants_repository.rev:
-
-        chromosome, position, ref, alt = index.split(':')
-
-        variant: dict = variants[chromosome][int(position)].get(f"{ref}:{alt}")
-
-        if variant:
-
-            BRR = 1000
-
-            # Check that $hash_key is not in rejected calls
-            if not index in variants_repository.trace:
-                if index in rejected:
-                    del rejected[index]
-            else:
-                BRR = float(variant['final_metrics']['BRR'])
-
-            for updated_index in variants_repository.rev[index]:
-
-                NEW_BRR = 1000
-                
-                # Check that $hash_key is not in rejected calls
-                if not updated_index in variants_repository.trace:
-                    if updated_index in rejected:
-                        del rejected[updated_index]
-
-                elif BRR == 1000:
-                    NEW_BRR = float(variant['final_metrics']['BRR'])
-                    BRR = NEW_BRR
-
-                else:
-                    NEW_BRR = float(variant['final_metrics']['BRR'])
-                    if BRR <= NEW_BRR:
-                        del variants[chromosome][int(position)][updated_index]
-                    else:
-                        del variants[chromosome][int(position)][index]
-                        BRR = NEW_BRR
-
     # ===========================================================================================
     # rescuing rejected calls w/ FILTER <PASS> (optional; if any)
     # ===========================================================================================
@@ -284,13 +245,6 @@ def combine(params):
 
             variants[chromosome][position][f"{ref}:{alt}"] = rejected.pop(key)
 
-    
-    for index in rejected:
-
-        chromosome, position, alt, ref = index.split(':')
-
-        variants[chromosome].get(int(position),{}).pop(f"{ref}:{alt}",None)
-
     # ===========================================================================================
     # Write VCFs
     # ===========================================================================================
@@ -307,4 +261,4 @@ def combine(params):
     #         OUT_TRASH_FILE.write(functions.print_var(variant_key, rejected, 'final_metrics'))
 
     # Write the VCF file
-    writter.writeVCF(contigs=fasta_index.get_contigs(), variants=variants, samples=[params.sample], thresholds=thresholds)
+    writter.writeVCF(contigs=fasta_index.get_contigs(), variants=variants, samples=[params.sample], thresholds=thresholds, rejected=rejected)

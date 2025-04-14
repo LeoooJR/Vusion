@@ -14,9 +14,6 @@ class VariantsRepository():
 
         # Set to store variants possibly found in pileup
         self.trace: set[str] = set()
-        
-        # Dictionary to store variants that have been left-aligned
-        self.rev: dict = {}
 
         # Set to store complex variants
         self.INV_MNV_CSV: set[str] = set()
@@ -226,51 +223,7 @@ class VariantsRepository():
                                 variant['VC']['ARC'][caller]
                             )
 
-                        # TBI (Must be done only once)
-                        # 2/ revert vt norm of variants that should not have been left-aligned (if any)
-                        if variant['VT'] == 'DEL':
-
-                            for caller in variant['VC']['VAF']:
-
-                                ## from vt decompose
-                                if 'OLD_MULTIALLELIC' in variant['VC']['INFO'][caller]:
-                                    continue
-
-                                # from vt decompose
-                                if 'OLD_VARIANT' in variant['VC']['INFO'][caller]:
-                                    info_old_variant = variant['VC']['INFO'][caller] \
-                                                    .split('OLD_VARIANT=')[1] \
-                                                    .split(',')
-                                    for old_variant in info_old_variant:
-                                        ov_ref, ov_alt = old_variant.split('/')
-                                        # DEL is not parsimonious eg. POS:ABB/AB (should be POS+1:BB/B)
-                                        if len(ov_alt) != 1:
-                                            continue
-                                        # Keep trace of old/new DEL descriptor
-                                        variant_identifier_updated: str = f"{ov_ref}:{ov_alt}"
-
-                                        if not f"{chromosome}:{position}:{variant_identifier}" in self.rev:
-                                            self.rev[f"{chromosome}:{position}:{variant_identifier}"] = []
-                                            
-                                        self.rev[f"{chromosome}:{position}:{variant_identifier}"].append(f"{chromosome}:{position}:{variant_identifier_updated}")
-
-                                        # DEL is parsimonious;
-                                        # clone <hash_key> according to <OLD_VARIANT> description
-                                        # call[new_hash] = callsets[hash].copy()
-                                        # Update variant
-                                        value = copy.copy(self.variants[chromosome][position][variant_identifier])
-                                        value["VC"]["REF"] = ov_ref
-                                        value["VC"]["ALT"] = ov_alt
-                                        self.variants[chromosome][position][variant_identifier_updated] = value
-                                        # Sync hash value
-                                        # variant_identifier = variant_identifier_updated
-                                    break
-
-                        # ETBI
-
-                        # ref, alt = variant_identifier.split(':')
-
-                        if not (variant["VT"] in ['INV','MNV','CSV'] or "FL" in variant["VC"]["VAF"]):
+                        if not (variant.get("VT",'') in ['INV','MNV','CSV'] or "FL" in variant["VC"].get("VAF",[])):
 
                             # reset <ALT> allele descriptor for <INS> and <DEL>
                             # A/AA = insA; AA/A = delA
@@ -278,7 +231,10 @@ class VariantsRepository():
 
                                 variant_identifier_updated: str = f"{ref}:{alt[1:]}"
 
-                                self.variants[chromosome][position][variant_identifier_updated] = self.variants[chromosome][position].pop(variant_identifier) 
+                                self.variants[chromosome][position][variant_identifier_updated] = self.variants[chromosome][position].pop(variant_identifier)
+
+                                # Update variant identifier
+                                variant_identifier: str = variant_identifier_updated
 
                             elif variant['VT'] == 'DEL':
 
@@ -289,24 +245,16 @@ class VariantsRepository():
                                 # New variant identifier
                                 variant_identifier_updated: str = f"{ref[1:]}:{alt}"
 
-                                # If the variant is the only one at this position,
-                                # update the variant identifier first then 
-                                # remove position from the dictionary and add the variant to the next position
-                                if len(self.variants[chromosome][position]) == 1:
-
-                                    self.variants[chromosome][position][variant_identifier_updated] = self.variants[chromosome][position].pop(variant_identifier)
-
-                                    self.variants[chromosome][position_updated] = self.variants[chromosome].pop(position)
-
-                                # If the variant is not the only one at this position, add it to the next position
-                                # and remove it from the current position
-                                else:
-
-                                    if not position_updated in self.variants[chromosome]:
-                                        
-                                        self.variants[chromosome][position_updated] = {}
-
-                                    self.variants[chromosome][position_updated][variant_identifier_updated] = self.variants[chromosome][position].pop(variant_identifier)
+                                # Create the position_updated key if it doesn't exist
+                                if position_updated not in self.variants[chromosome]:
+                                    self.variants[chromosome][position_updated] = {}
+                                    
+                                # Move the variant to the updated position with the new identifier
+                                self.variants[chromosome][position_updated][variant_identifier_updated] = self.variants[chromosome][position].pop(variant_identifier)
+                                
+                                # Remove the original position entry if it's now empty
+                                if not self.variants[chromosome][position]:
+                                    del self.variants[chromosome][position]
                                 
                                 # reset <POS> if <DEL>
                                 # delA = p+1 in read pile
@@ -350,9 +298,10 @@ class VariantsRepository():
 
                     chromosome: str = datas[1].removeprefix('chr')
                     position: int = int(datas[2])
+                    reference: str = datas[pileup.HEADER['reference']]
 
                     # Check if variant is reported in one of the VCF files
-                    if (datas[pileup.HEADER['reference']] != 'N') and (chromosome in self.variants) and (position in self.variants[chromosome]):
+                    if (reference != 'N') and (chromosome in self.variants) and (position in self.variants[chromosome]):
                         
                         for variant_identifier in self.variants[chromosome][position]:
                             
@@ -411,25 +360,28 @@ class VariantsRepository():
                                 # if <ALT> is an <INDEL>
                                 variants_count: int = 0
 
-                                if (variant['VT'] == 'DEL') or (variant['VT'] == 'INS'):
+                                if variant['VT'] in ['DEL','INS']:
+
+                                    pattern: str = r"\b" + variant_identifier.split(':')[1] + r"\b:[0-9]+,[0-9]+"
+
+                                    data: str = datas[pileup.HEADER[variant['VT']]]
+
+                                    rsearch = re.search(pattern, data)
                                         
-                                    if re.search(r"\b" + variant_identifier.split(':')[1] + r"\b:[0-9]+,[0-9]+" ,\
-                                        (datas[pileup.HEADER[variant['VT']]])):
+                                    if rsearch:
                                     
-                                            arc_plus_strand, arc_minus_strand = re.findall(
-                                                r"\b" + variant_identifier.split(':')[1] + r"\b:[0-9]+,[0-9]+",
-                                                datas[pileup.HEADER[variant['VT']]]
-                                                )[0].split(':')[-1].split(',')
+                                            # Extract once and split to get counts
+                                            counts = rsearch.group(0).split(':')[-1]
+                                            arc_plus_strand, arc_minus_strand = map(int, counts.split(','))
                                             
-                                            variants_count: int = int(arc_plus_strand) + int(arc_minus_strand)
+                                            variants_count: int = arc_plus_strand + arc_minus_strand
                                             
                                             #Save indel count per strand in callset ARC+ and ARC-
                                             for strand in ['+','-']:
 
                                                 arc = f'ARC{strand}'
 
-                                                if not arc in variant['final_metrics']:
-                                                    variant['final_metrics'][arc] = ''
+                                                variant['final_metrics'].setdefault(arc, '-1')
 
                                                 variant['final_metrics'][arc] = arc_plus_strand if strand == '+' else arc_minus_strand
 
@@ -462,6 +414,8 @@ class VariantsRepository():
                                         ITD.add(f"{chromosome}:{position}:{variant_identifier}")
 
                                     else:
+
+                                        print(variant)
                                         
                                         rejected.add(f"{chromosome}:{position}:{variant_identifier}")
 
