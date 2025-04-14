@@ -72,22 +72,18 @@ class GenomicWritter():
 
                     for variant_index in variants[chromosome][position]:
 
-                        if not f"{chromosome}:{position}:{variant_index}" in rejected:
+                        if not (f"{chromosome}:{position}:{variant_index}" in rejected):
 
                             variant: dict = variants[chromosome][position][variant_index]
-
-                            ref, alt = variant_index.split(':')
 
                             # Write ONLY if normalized metrics are present
                             if 'final_metrics' in variant:
 
-                                print(variant)
-
-                                out.write('\t'.join([f"chrom{chromosome}", # Chromosome field
-                                        str(position), # Position field
+                                out.write('\t'.join([f"chr{chromosome}", # Chromosome field
+                                        str(variant['VC']['POSITION']), # Position field
                                         '.', # ID field
-                                        ref, # Reference field
-                                        alt, # Alternate field
+                                        variant['VC']['REF'], # Reference field
+                                        variant['VC']['ALT'], # Alternate field
                                         '.',
                                         variant["final_metrics"]["FILTER"], # Filter field
                                         '='.join([INFOS[0], variant["VT"]]), # Info field

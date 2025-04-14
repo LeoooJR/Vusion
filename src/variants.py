@@ -1,5 +1,4 @@
 from collections import deque
-import copy
 from files import Pileup
 from loguru import logger
 import re
@@ -157,6 +156,7 @@ class VariantsRepository():
                             # Create a new entry in the dictionary for the variant
                             self.variants[chromosome][position][variant_identifier] = {"VC": {'REF': ref,
                                                                                             'ALT': alt,
+                                                                                            'POSITION': position,
                                                                                             'VAF': {},
                                                                                             'GT': {},
                                                                                             'FILTER': {},
@@ -362,7 +362,7 @@ class VariantsRepository():
 
                                 if variant['VT'] in ['DEL','INS']:
 
-                                    pattern: str = r"\b" + variant_identifier.split(':')[1] + r"\b:[0-9]+,[0-9]+"
+                                    pattern: str = r"\b" + variant_identifier.split(':')[0 if variant['VT'] == 'DEL' else 1] + r"\b:[0-9]+,[0-9]+"
 
                                     data: str = datas[pileup.HEADER[variant['VT']]]
 
@@ -414,8 +414,6 @@ class VariantsRepository():
                                         ITD.add(f"{chromosome}:{position}:{variant_identifier}")
 
                                     else:
-
-                                        print(variant)
                                         
                                         rejected.add(f"{chromosome}:{position}:{variant_identifier}")
 
