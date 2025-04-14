@@ -86,43 +86,43 @@ def estimate_sbm(variant,sbm_homozygous):
 
     (*) Modified formula is applied to avoid potential illegal division by zero.
     """
-    alt_plus_x_ref_minus = int(variant['final_metrics']['ARC+']) * \
-                           int(variant['final_metrics']['RRC-'])
-    alt_minus_x_ref_plus = int(variant['final_metrics']['ARC-']) * \
-                           int(variant['final_metrics']['RRC+'])
+    alt_plus_x_ref_minus = int(variant['sample']['ARC+']) * \
+                           int(variant['sample']['RRC-'])
+    alt_minus_x_ref_plus = int(variant['sample']['ARC-']) * \
+                           int(variant['sample']['RRC+'])
 
     # Check if there is a zero count or if variant is homozygous
     if (
         alt_plus_x_ref_minus==0 or
         alt_minus_x_ref_plus==0 or
-        variant['final_metrics']['GT'] == "1/1"
+        variant['sample']['GT'] == "1/1"
     ):
         strand_max = max(
-            int(variant['final_metrics']['ARC+']),
-            int(variant['final_metrics']['ARC-'])
+            int(variant['sample']['ARC+']),
+            int(variant['sample']['ARC-'])
         )
         if strand_max !=0:
             strand_ratio = strand_max/(
-                int(variant['final_metrics']['ARC+'])+
-                int(variant['final_metrics']['ARC-'])
+                int(variant['sample']['ARC+'])+
+                int(variant['sample']['ARC-'])
             ) #ratio of reads on one strand to the other
         else:
             strand_ratio = 0 # no ALT allele = no stand bias
 
-        variant['final_metrics']['SBP'] = 0.05
+        variant['sample']['SBP'] = 0.05
         if strand_ratio >= sbm_homozygous:
-            variant['final_metrics']['SBM'] = '1.50000'
+            variant['sample']['SBM'] = '1.50000'
         else:
-            variant['final_metrics']['SBM'] = '0.50000'
+            variant['sample']['SBM'] = '0.50000'
 
     # Otherwise, perform standard Fisher Test
     else:
         m = max(alt_plus_x_ref_minus,alt_minus_x_ref_plus)
         # no <REF> allele = no strand-bias (case of illegal division by zero)
         # if m == 0:
-        #     variant['final_metrics']['SBM'] = '0.50000'
+        #     variant['sample']['SBM'] = '0.50000'
         # else:
-            # variant['final_metrics']['SBM'] = format(
+            # variant['sample']['SBM'] = format(
             #     (m / (alt_plus_x_ref_minus + alt_minus_x_ref_plus)),
             #     '.5f'
             # )
@@ -130,17 +130,17 @@ def estimate_sbm(variant,sbm_homozygous):
         # [n11,n12] n1p
         # [n21,n22] n2p
         # np1 np2  npp
-        n11 = int(variant['final_metrics']['ARC+'])
-        n12 = int(variant['final_metrics']['ARC-'])
+        n11 = int(variant['sample']['ARC+'])
+        n12 = int(variant['sample']['ARC-'])
 
-        if (variant['VT'] == 'INS') or (variant['VT'] == 'INV'):
+        if (variant['type'] == 'INS') or (variant['type'] == 'INV'):
             n21 = (
-                int(variant['final_metrics']['TRC+']) -
-                int(variant['final_metrics']['ARC+'])
+                int(variant['sample']['TRC+']) -
+                int(variant['sample']['ARC+'])
             )
             n22 = (
-                int(variant['final_metrics']['TRC-']) -
-                int(variant['final_metrics']['ARC-'])
+                int(variant['sample']['TRC-']) -
+                int(variant['sample']['ARC-'])
             )
             # 131223 : cas rare avec bug de CT ou TRC+<ARC+...
             if n21<0 :
@@ -148,20 +148,20 @@ def estimate_sbm(variant,sbm_homozygous):
             if n22<0:
                 n22=0
         else:
-            n21 = int(variant['final_metrics']['RRC+'])
-            n22 = int(variant['final_metrics']['RRC-'])
+            n21 = int(variant['sample']['RRC+'])
+            n22 = int(variant['sample']['RRC-'])
 
 
-        variant['final_metrics']['SBM'] = format(
+        variant['sample']['SBM'] = format(
             (m / (alt_plus_x_ref_minus + alt_minus_x_ref_plus)),
             '.5f'
         )
         table_for_fisher_test = numpy.array([[n11, n12], [n21, n22]])
         oddsr, p = fisher_exact(table_for_fisher_test, alternative='two-sided')
-        #variant['final_metrics']['SBP'] = format(p, '.5f')
-        variant['final_metrics']['SBP'] = round(p,5)
+        #variant['sample']['SBP'] = format(p, '.5f')
+        variant['sample']['SBP'] = round(p,5)
 
-    return(variant['final_metrics']['SBP'],variant['final_metrics']['SBM'])
+    return(variant['sample']['SBP'],variant['sample']['SBM'])
 
 
 def categorize_variant_type(variant,thresholds):
@@ -186,21 +186,21 @@ def categorize_variant_type(variant,thresholds):
     |     |     |     |     |     |     |     |
     0    [0]   [1]   [2]   [3]   [4]   [5]  100 (ARR)
     """
-    alt_read_count_ratio = float(variant['final_metrics']['ARR'])
+    alt_read_count_ratio = float(variant['sample']['ARR'])
 
     if alt_read_count_ratio > thresholds[5]:
-        variant['final_metrics']['VAR'] = 'LHO'
+        variant['sample']['VAR'] = 'LHO'
     elif alt_read_count_ratio > thresholds[4]:
-        variant['final_metrics']['VAR'] = 'PHO'
+        variant['sample']['VAR'] = 'PHO'
     elif alt_read_count_ratio < thresholds[0]:
-        variant['final_metrics']['VAR'] = 'LSC'
+        variant['sample']['VAR'] = 'LSC'
     elif alt_read_count_ratio < thresholds[1]:
-        variant['final_metrics']['VAR'] = 'PSC'
+        variant['sample']['VAR'] = 'PSC'
     elif (alt_read_count_ratio < thresholds[2]) or (alt_read_count_ratio > thresholds[3]):
-        variant['final_metrics']['VAR'] = 'PHE'
+        variant['sample']['VAR'] = 'PHE'
     else:
-        variant['final_metrics']['VAR'] = 'LHE'
-    return variant['final_metrics']['VAR']
+        variant['sample']['VAR'] = 'LHE'
+    return variant['sample']['VAR']
 
 
 def estimate_gt(variant):
@@ -216,13 +216,13 @@ def estimate_gt(variant):
     Returns:
     - str: The estimated genotype (GT) for the given variant based on VAF values.
     """
-    if len(re.findall('SC',variant['final_metrics']['VAR'])) > 0:
-        variant['final_metrics']['GT'] = '0/0'
-    elif len(re.findall('HE',variant['final_metrics']['VAR'])) > 0:
-        variant['final_metrics']['GT'] = '0/1'
+    if len(re.findall('SC',variant['sample']['VAR'])) > 0:
+        variant['sample']['GT'] = '0/0'
+    elif len(re.findall('HE',variant['sample']['VAR'])) > 0:
+        variant['sample']['GT'] = '0/1'
     else:
-        variant['final_metrics']['GT'] = '1/1'
-    return variant['final_metrics']['GT']
+        variant['sample']['GT'] = '1/1'
+    return variant['sample']['GT']
 
 
 def compare_gt(variant):
@@ -239,22 +239,22 @@ def compare_gt(variant):
     Returns:
     The (modified) VAR field in the dictionnary
     """
-    callers = list(variant['VC']['VAF'].keys())
-    pileup_gt = variant['final_metrics']['GT']
+    callers = list(variant['collection']['VAF'].keys())
+    pileup_gt = variant['sample']['GT']
 
     if 'FL' in callers:
         # If FL in callers, callers cant be agreed
         # Because FL do not compute GT
-        variant['final_metrics']['VAR'] = 'WAR'
+        variant['sample']['VAR'] = 'WAR'
     else:
 
-        # gt_list = variant['VC']['GT'].copy()
+        # gt_list = variant['collection']['GT'].copy()
         # gt_list[:] = [x if x != './1' else '0/1' for x in gt_list]
         # => TypeError: unhashable type: 'slice' => normal, jai change la structure du dic pour les GT
         gt_list = [] #List of all GT identified for a variant
         for variant_caller in callers:
 
-            gt_list.append(variant['VC']['GT'][variant_caller])
+            gt_list.append(variant['collection']['GT'][variant_caller])
 
         # Replace "./1" by "0/1", "1/." by "0/1", and "0/0" by "0/1".
         gt_list[:] = [x if x != './1' else '0/1' for x in gt_list]
@@ -285,10 +285,10 @@ def compare_gt(variant):
         if sum(count_genotype) != gt_pileup_count:
             genotype_ok = False
         if not genotype_ok:
-            variant['final_metrics']['VAR'] = 'WAR'
+            variant['sample']['VAR'] = 'WAR'
 
 
-    return variant['final_metrics']['VAR']
+    return variant['sample']['VAR']
 
 
 def vaf_user_threshold(variant, thresholds):
@@ -311,7 +311,7 @@ def vaf_user_threshold(variant, thresholds):
     and thresholds[-1] is interpreted as a percentage.
     """
 
-    return int(float(variant['final_metrics']['ARR']) < thresholds[-1])
+    return int(float(variant['sample']['ARR']) < thresholds[-1])
 
 
 def format_rrc_arc(variant):
@@ -329,31 +329,31 @@ def format_rrc_arc(variant):
            ARC (ALT Read Count) and RRC (REF Read Count).
 
     Note:
-    - The input dictionary is expected to have 'final_metrics' containing
+    - The input dictionary is expected to have 'sample' containing
     'ARC+' and 'ARC-' for ALT Read Count, and 'RRC+' and 'RRC-' for REF Read Count.
     """
     for read_count_type in ['RRC', 'ARC'] :
         # REF + ALT
-        read_count_minus = variant['final_metrics'][read_count_type + '-']
-        read_count_plus = variant['final_metrics'][read_count_type + '+']
+        read_count_minus = variant['sample'][read_count_type + '-']
+        read_count_plus = variant['sample'][read_count_type + '+']
 
         if read_count_minus!="-1" and read_count_plus != "-1":
             tmp_read_count = int(read_count_minus) + int(read_count_plus)
-            variant['final_metrics'][read_count_type] = ','.join(
+            variant['sample'][read_count_type] = ','.join(
             [
                 str(int(read_count_plus)),
                 str(int(read_count_minus)),
                 str(tmp_read_count)
             ])
         else:
-            variant['final_metrics'][read_count_type] = ','.join(
+            variant['sample'][read_count_type] = ','.join(
             [
                 str(read_count_plus),
                 str(read_count_minus),
-                str(variant['final_metrics'][read_count_type])
+                str(variant['sample'][read_count_type])
             ])
 
-    return(variant['final_metrics']['ARC'],variant['final_metrics']['RRC'])
+    return(variant['sample']['ARC'],variant['sample']['RRC'])
 
 
 def estimate_brc_r_e(variant,pileup_line_info):
@@ -371,35 +371,35 @@ def estimate_brc_r_e(variant,pileup_line_info):
 
     Returns : a tuple containing the estimated BRC, BRR, and BRE.
     """
-    ref_and_alt_read_count = int(variant['final_metrics']['ARC-']) + \
-                             int(variant['final_metrics']['ARC+']) + \
-                             int(variant['final_metrics']['RRC-']) + \
-                             int(variant['final_metrics']['RRC+'])
+    ref_and_alt_read_count = int(variant['sample']['ARC-']) + \
+                             int(variant['sample']['ARC+']) + \
+                             int(variant['sample']['RRC-']) + \
+                             int(variant['sample']['RRC+'])
     ins_read_counts = 0
-    total_read_count = variant['final_metrics']['TRC']
+    total_read_count = variant['sample']['TRC']
 
     if pileup_line_info[14] != 'None':
         # Get number of read with ins format is A:1,0
         tmp_table_count = re.findall(r'\d+', pileup_line_info[14])
         for tmp_count in tmp_table_count:
             ins_read_counts += int(tmp_count)
-    if variant['VT'] == 'INS':
+    if variant['type'] == 'INS':
         ins_read_counts -= (
-            int(variant['final_metrics']['ARC+']) +
-            int(variant['final_metrics']['ARC-'])
+            int(variant['sample']['ARC+']) +
+            int(variant['sample']['ARC-'])
         )
 
     # Removing DEL counts if variant is at some position of a DEL.
     # Because we miss valid variants in specific case like that
     # Clintool bug where non-existing deletion is reported and start with A , C, T or G
-    if (variant['VT'] != 'DEL') and (pileup_line_info[15] != 'None'):
+    if (variant['type'] != 'DEL') and (pileup_line_info[15] != 'None'):
         # Escaping clintool bug where non-existing deletion is reported and start with A , C, T or G
         if pileup_line_info[15][0] == '*':
             del_read_count = int(pileup_line_info[15].strip().split(';')[0].split(':')[1])
             tmp_total_read_count = int(total_read_count) - int(del_read_count)
 
 
-            variant['final_metrics']['BRC'] = (
+            variant['sample']['BRC'] = (
                 tmp_total_read_count +
                 int(ins_read_counts) -
                 min([
@@ -409,7 +409,7 @@ def estimate_brc_r_e(variant,pileup_line_info):
                 )
 
         else:
-            variant['final_metrics']['BRC'] = (
+            variant['sample']['BRC'] = (
                 int(total_read_count) +
                 int(ins_read_counts) -
                 min([
@@ -417,8 +417,8 @@ def estimate_brc_r_e(variant,pileup_line_info):
                     int(ref_and_alt_read_count)
                 ])
             )
-    elif variant['VT'] != 'DEL':
-        variant['final_metrics']['BRC'] = (
+    elif variant['type'] != 'DEL':
+        variant['sample']['BRC'] = (
             int(total_read_count) +
             int(ins_read_counts) -
             min([
@@ -432,38 +432,38 @@ def estimate_brc_r_e(variant,pileup_line_info):
         del_alt_count = 0
         for del_info in del_read_count:
             tmp_del_info = del_info.split(':')
-            if (tmp_del_info[0] != '*') and (tmp_del_info[0] != (variant["VC"]["REF"])[1:]):
+            if (tmp_del_info[0] != '*') and (tmp_del_info[0] != (variant["collection"]["REF"])[1:]):
                 del_alt_count += (
                     int(tmp_del_info[1].split(',')[0]) +
                     int(tmp_del_info[1].split(',')[1])
                 )
-        variant['final_metrics']['BRC'] = del_alt_count
+        variant['sample']['BRC'] = del_alt_count
 
 
-    background_read_counts = int(variant['final_metrics']['BRC'])
-    variant['final_metrics']['BRR'] = format(
+    background_read_counts = int(variant['sample']['BRC'])
+    variant['sample']['BRR'] = format(
         background_read_counts / int(total_read_count),
         '.5f'
     )
-    background_read_ratio = float(variant['final_metrics']['BRR'])
-    alt_read_count_ratio = float(variant['final_metrics']['ARR'])/100
-    variant['final_metrics']['BRE'] = background_read_ratio / \
+    background_read_ratio = float(variant['sample']['BRR'])
+    alt_read_count_ratio = float(variant['sample']['ARR'])/100
+    variant['sample']['BRE'] = background_read_ratio / \
                                                  (alt_read_count_ratio + background_read_ratio)
     # scale ratio from [0-1] to [0-100]
-    variant['final_metrics']['BRE'] = format(
-        float(variant['final_metrics']['BRE']) * 100,
+    variant['sample']['BRE'] = format(
+        float(variant['sample']['BRE']) * 100,
         '.5f'
     )
-    variant['final_metrics']['BRR'] = format(
-        float(variant['final_metrics']['BRR']) * 100,
+    variant['sample']['BRR'] = format(
+        float(variant['sample']['BRR']) * 100,
         '.5f'
     )
 
 
     return(
-        variant['final_metrics']['BRC'],
-        variant['final_metrics']['BRR'],
-        variant['final_metrics']['BRE']
+        variant['sample']['BRC'],
+        variant['sample']['BRR'],
+        variant['sample']['BRE']
     )
 
 
@@ -482,7 +482,7 @@ def categorize_background_signal(variant,thresholds):
          which could be one of the following: 'LNO', 'PNO', 'PCL', or 'LCL'.
 
     Note:
-    - The input dictionary is expected to have 'final_metrics' containing 'ARR' and 'BRE'.
+    - The input dictionary is expected to have 'sample' containing 'ARR' and 'BRE'.
     - update : 230413 If variant ratio is higher that 30% we consider it automatically clean
 
     L/P-NO Likely/Probably NOisy
@@ -491,22 +491,22 @@ def categorize_background_signal(variant,thresholds):
     |     |     |     |                       |
     0    [6]   [7]   [8]                    100 (BRE)
     """
-    alt_read_count_ratio = float(variant['final_metrics']['ARR'])
+    alt_read_count_ratio = float(variant['sample']['ARR'])
     if alt_read_count_ratio >= 30:
-        variant['final_metrics']['BKG'] = 'PCL'
+        variant['sample']['BKG'] = 'PCL'
     else:
-        background_read_enrichment = float(variant['final_metrics']['BRE'])
+        background_read_enrichment = float(variant['sample']['BRE'])
 
         if background_read_enrichment >= thresholds[8]:
-            variant['final_metrics']['BKG'] = 'LNO'
+            variant['sample']['BKG'] = 'LNO'
         elif background_read_enrichment >= thresholds[7]:
-            variant['final_metrics']['BKG'] = 'PNO'
+            variant['sample']['BKG'] = 'PNO'
         elif background_read_enrichment >= thresholds[6]:
-            variant['final_metrics']['BKG'] = 'PCL'
+            variant['sample']['BKG'] = 'PCL'
         else:
-            variant['final_metrics']['BKG'] = 'LCL'
+            variant['sample']['BKG'] = 'LCL'
 
-    return variant['final_metrics']['BKG']
+    return variant['sample']['BKG']
 
 
 def format_float_descriptors(variant,sbm):
@@ -522,18 +522,18 @@ def format_float_descriptors(variant,sbm):
     str: Returns the formatted <CT>-based <FILTER> field, which could be 'PASS' or 'FAIL'.
     """
     #for descriptor in ['ARR', 'BRR', 'BRE', 'SBM', 'SBP']:
-    #   des = callsets[variant_key]['final_metrics'][descriptor]
-    #   callsets[variant_key]['final_metrics'][descriptor] = des
-    if len(re.findall('NO', variant['final_metrics']['BKG'])) > 0:
-        variant['final_metrics']['FILTER'] = 'FAIL'
-    elif variant['final_metrics']['LOW'] == 1:
-        variant['final_metrics']['FILTER'] = 'FAIL'
-    elif (abs(float(variant['final_metrics']['SBP'])) <= 0.05) and \
-        (float(variant['final_metrics']['SBM']) >= sbm):
-        variant['final_metrics']['FILTER'] = 'FAIL'
+    #   des = callsets[variant_key]['sample'][descriptor]
+    #   callsets[variant_key]['sample'][descriptor] = des
+    if len(re.findall('NO', variant['sample']['BKG'])) > 0:
+        variant['sample']['FILTER'] = 'FAIL'
+    elif variant['sample']['LOW'] == 1:
+        variant['sample']['FILTER'] = 'FAIL'
+    elif (abs(float(variant['sample']['SBP'])) <= 0.05) and \
+        (float(variant['sample']['SBM']) >= sbm):
+        variant['sample']['FILTER'] = 'FAIL'
     else:
-        variant['final_metrics']['FILTER'] = 'PASS'
-    return variant['final_metrics']['FILTER']
+        variant['sample']['FILTER'] = 'PASS'
+    return variant['sample']['FILTER']
 
 
 def process_without_pileup(variants: dict, lookups: set, thresholds: list[float], sbm, sbm_homozygous):
@@ -564,100 +564,100 @@ def process_without_pileup(variants: dict, lookups: set, thresholds: list[float]
 
         variant: dict = variants[chromsome][int(position)][variant_identifier]
 
-        if not 'final_metrics' in variant:
-            variant['final_metrics'] = {}
+        if not 'sample' in variant:
+            variant['sample'] = {}
 
         # Save number of Variant callers that found this variant
-        variant['final_metrics']['VCN'] = len(variant['VC']['VAF'])
+        variant['sample']['VCN'] = len(variant['collection']['VAF'])
 
         # keep trace of used VC identifier(s)
-        variant['final_metrics']['VCI'] = ','.join(
+        variant['sample']['VCI'] = ','.join(
             sorted(
-                variant['VC']['VAF'].keys(),
+                variant['collection']['VAF'].keys(),
                 key=str.lower
             ))
 
 
         # Get mean vaf from Variant callers and convert in %
-        vaf_sum = sum(variant['VC']['VAF'].values())
-        vcn = float(variant['final_metrics']['VCN'])
+        vaf_sum = sum(variant['collection']['VAF'].values())
+        vcn = float(variant['sample']['VCN'])
         mean_arr = vaf_sum / vcn
-        variant['final_metrics']['ARR'] = format(mean_arr,'.5f')
+        variant['sample']['ARR'] = format(mean_arr,'.5f')
 
         #Filter on vaf
-        variant['final_metrics']['LOW'] = vaf_user_threshold(
+        variant['sample']['LOW'] = vaf_user_threshold(
             variant,
             thresholds
         )
-        variant['final_metrics']['VAR'] = categorize_variant_type(
+        variant['sample']['VAR'] = categorize_variant_type(
             variant,
             thresholds
         )
 
 
         # Get mean TRC from Variant callers
-        variant['final_metrics']['TRC'] = int(round(
-            sum(variant['VC']['TRC'].values()) /
-            variant['final_metrics']['VCN'],
+        variant['sample']['TRC'] = int(round(
+            sum(variant['collection']['TRC'].values()) /
+            variant['sample']['VCN'],
             5))
 
         # Get mean ARC from Variant callers
-        variant['final_metrics']['ARC'] = int(round(
-            (sum(variant['VC']['ARC'].values())/
-            variant['final_metrics']['VCN']),
+        variant['sample']['ARC'] = int(round(
+            (sum(variant['collection']['ARC'].values())/
+            variant['sample']['VCN']),
             5))
 
         # Get mean RRC from Variant callers
-        variant['final_metrics']['RRC'] = int(round(
-            (sum(variant['VC']['RRC'].values())/
-            variant['final_metrics']['VCN']),
+        variant['sample']['RRC'] = int(round(
+            (sum(variant['collection']['RRC'].values())/
+            variant['sample']['VCN']),
             5))
 
 
         # Determine GT
         # estimate <GT> from CT data
-        variant['final_metrics']['GT'] = estimate_gt(variant)
+        variant['sample']['GT'] = estimate_gt(variant)
         # 2. Set WAR if VC do not agree
-        variant['final_metrics']['VAR'] = compare_gt(variant)
+        variant['sample']['VAR'] = compare_gt(variant)
 
         # Without pileup, impossible to determine certain values - set -1
-        variant['final_metrics']['BRC'] = "-1"
-        variant['final_metrics']['BRR'] = "-1"
-        variant['final_metrics']['BRE'] = "-1"
-        variant['final_metrics']['BKG'] = "-1"
+        variant['sample']['BRC'] = "-1"
+        variant['sample']['BRR'] = "-1"
+        variant['sample']['BRE'] = "-1"
+        variant['sample']['BKG'] = "-1"
 
 
-        if 'RRC+' not in variant['VC'] or len(variant['VC']['RRC+']) != len(variant['VC']['RRC']):
+        if 'RRC+' not in variant['collection'] or len(variant['collection']['RRC+']) != len(variant['collection']['RRC']):
 
             undertermined_ct_values = ["ARC+","ARC-","RRC+","RRC-","SBM","SBP","TRC+","TRC-"]
 
             for ct_values in undertermined_ct_values:
-                variant['final_metrics'].setdefault(ct_values, "-1")
-            variant['final_metrics']['ARC'], variant['final_metrics']['RRC'] = format_rrc_arc(variant)
+                variant['sample'].setdefault(ct_values, "-1")
+            variant['sample']['ARC'], variant['sample']['RRC'] = format_rrc_arc(variant)
         else:
             # Get mean TRC+/-,RRC+/-, ARC+/- from Variant callers
             for strand in["+","-"]:
                 for count in ['TRC','RRC','ARC']:
                     if count == 'TRC':
-                        sum_strand = sum(variant['VC']['RRC'+strand].values()) + sum(variant['VC']['ARC'+strand].values())
+                        sum_strand = sum(variant['collection']['RRC'+strand].values()) + sum(variant['collection']['ARC'+strand].values())
                     else:
-                        sum_strand = sum(variant['VC'][count+strand].values())
-                    variant['final_metrics'][count+strand] = round(
+                        sum_strand = sum(variant['collection'][count+strand].values())
+                    variant['sample'][count+strand] = round(
                         sum_strand/
-                        variant['final_metrics']['VCN'],
+                        variant['sample']['VCN'],
                         5)
 
-            variant['final_metrics']['ARC'],\
-            variant['final_metrics']['RRC'] = format_rrc_arc(variant)
+            variant['sample']['ARC'],\
+            variant['sample']['RRC'] = format_rrc_arc(variant)
 
-            variant['final_metrics']['SBP'],\
+            variant['sample']['SBP'],\
             variant['SBM'] = estimate_sbm(variant, sbm_homozygous)
 
-        variant['final_metrics']['FILTER'] = format_float_descriptors(
+        variant['filter'] = format_float_descriptors(
             variant,
             sbm
         )
-        variant['final_metrics']['PIL'] = "N"
-        variant['final_metrics']['RES'] = 'N'
+        variant['sample']['PIL'] = "N"
+        variant['sample']['RES'] = 'N'
 
     return variants

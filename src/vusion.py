@@ -44,7 +44,6 @@ import errors
 import files as io
 from loguru import logger
 import os
-import pandas as pd
 import sys
 from variants import VariantsRepository
 
@@ -177,10 +176,9 @@ def combine(params):
     # 'chr':{
     #     'pos':{
     #         'ref:alt':{
-    #             'VC':{},
-    #             'VT': '',
-    #             'final_metrics':{},
-    #             'vcf_fields':[]
+    #             'collection':{},
+    #             'type': '',
+    #             'display': '',
     #         }
     #     }
     # }
@@ -192,25 +190,30 @@ def combine(params):
 
     # Normalize variants with common metrics
     # Use the pileup to normalize the variants
-    variants, ITD, rejected = variants_repository.normalize(sample=params.sample, pileup=pileup, thresholds=thresholds, length_indels=params.length_indels, sbm=SBM, sbm_homozygous=params.sbm_homozygous)
+    # This will create a dictionary of variants with the following structure:
+    # 'chr':{
+    #     'pos':{
+    #         'ref:alt':{
+    #             'collection':{},
+    #             'type': '',
+    #             'display': '',
+    #             'filter' 'REJECTED|FAIL|PASS',
+    #             'sample':{},
+    #         }
+    #     }
+    # }
+    variants, ITD = variants_repository.normalize(sample=params.sample, pileup=pileup, thresholds=thresholds, length_indels=params.length_indels, sbm=SBM, sbm_homozygous=params.sbm_homozygous)
 
     # ===========================================================================================
-    # Process exceptions without Pileup : INV,MNV and CSV
+    # Process complex variants without Pileup : INV,MNV and CSV
     # ===========================================================================================
-    variants: dict = functions.process_without_pileup(variants=variants, lookups=variants_repository.INV_MNV_CSV.union(variants_repository.FLiT3r, ITD), thresholds=thresholds, sbm=SBM, sbm_homozygous=params.sbm_homozygous)
-
-    # ===========================================================================================
-    # Process FL output without Pileup :
-    # ===========================================================================================
-    # variants: dict = functions.process_without_pileup(variants_repository.variants, variants_repository.FLiT3r, thresholds, SBM, params.sbm_homozygous)
+    variants: dict = functions.process_without_pileup(variants=variants, lookups=variants_repository.cache["complex"].union(ITD), thresholds=thresholds, sbm=SBM, sbm_homozygous=params.sbm_homozygous)
     
     # ===========================================================================================
     # Rescue INS not identified by pileup (probably ITD or long insertions), mostly coming from PL
     # And remove rescued INS from Trash
     # Do the same with DEL
     # ===========================================================================================
-
-    # variants: dict = functions.process_without_pileup(variants, ITD, thresholds, SBM, params.sbm_homozygous)
 
     # ===========================================================================================
     # Clean calls and rejected variants
@@ -261,4 +264,4 @@ def combine(params):
     #         OUT_TRASH_FILE.write(functions.print_var(variant_key, rejected, 'final_metrics'))
 
     # Write the VCF file
-    writter.writeVCF(contigs=fasta_index.get_contigs(), variants=variants, samples=[params.sample], thresholds=thresholds, rejected=rejected)
+    writter.writeVCF(contigs=fasta_index.get_contigs(), variants=variants, samples=[params.sample], thresholds=thresholds)

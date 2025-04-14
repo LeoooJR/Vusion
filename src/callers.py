@@ -16,9 +16,6 @@ class VariantCallerRepository:
     # vardict			(VD)
     # pindel			(PL)
     # haplotypecaller	(HC)
-    # smCounter2		(SM; DEPRECATED)
-    # control & hotspot (CS & HS) ## when --hotspot option is set;
-    # CtlSet & HotSpot should both originate from CombineVCF2final_metrics
 
     def __init__(self):
 
@@ -123,7 +120,9 @@ class BCFTools(VariantCaller):
         arc_minus = float(depths[3])
         arc = arc_plus + arc_minus
         return (arc, arc_plus, arc_minus)
-
+    
+    def __str__(self):
+        return "BCFTools"
 
 class Varscan(VariantCaller):
 
@@ -180,6 +179,9 @@ class Varscan(VariantCaller):
         arc_minus = float(values[13])
 
         return (arc, arc_plus, arc_minus)
+    
+    def __str__(self):
+        return "Varscan"
 
 
 class Vardict(VariantCaller):
@@ -222,6 +224,9 @@ class Vardict(VariantCaller):
         arc_minus = float(values[6].split(",")[1])
 
         return (arc, arc_plus, arc_minus)
+    
+    def __str__(self):
+        return "Vardict"
 
 
 class Pindel(VariantCaller):
@@ -256,6 +261,9 @@ class Pindel(VariantCaller):
         arc = float(variant[9].split(":")[1].split(",")[1])
 
         return (arc, None, None)
+    
+    def __str__(self):
+        return "Pindel"
 
 
 class Haplotypecaller(VariantCaller):
@@ -289,6 +297,9 @@ class Haplotypecaller(VariantCaller):
         arc = float(variant[9].split(":")[1].split(",")[1])
 
         return (arc, None, None)
+    
+    def __str__(self):
+        return "Haplotypecaller"
 
 
 class Flit3r(VariantCaller):
@@ -321,7 +332,9 @@ class Flit3r(VariantCaller):
         arc = float(variant[6].split(";")[1].split("=")[1])
 
         return (arc, None, None)
-
+    
+    def __str__(self):
+        return "Flit3r"
 
 class DeepVariant(VariantCaller):
 
@@ -351,3 +364,6 @@ class DeepVariant(VariantCaller):
         arc = variant.split(":")[3].split(",")[1]
 
         return (arc, None, None)
+    
+    def __str__(self):
+        return "Deepvariant"

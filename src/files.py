@@ -10,7 +10,7 @@ class GenomicWritter():
         
         self.file = file
 
-    def writeVCF(self, contigs: object, variants: object, samples: list[str], thresholds: list[float], rejected: set[str]):
+    def writeVCF(self, contigs: object, variants: object, samples: list[str], thresholds: list[float]):
 
         def sort_variant(contigs: object , variants: dict) -> object:
 
@@ -21,8 +21,6 @@ class GenomicWritter():
             
             # Then sort the chromosomes
             {k: v for k,v in sorted(variants.items(), key=lambda item: item[0])}
-
-            # return {k: v for k, v in sorted(variants.items(), key=lambda item: [item[1]["VC"]["CHROM"], int(item[1]["VC"]["POS"])] )}
 
         FORMAT: list[str] = [
         'GT', 'VAR', 'BKG', 'TRC', 'RRC', 'ARC', 'BRC', 'ARR',
@@ -70,27 +68,31 @@ class GenomicWritter():
 
                 for position in variants[chromosome]:
 
-                    for variant_index in variants[chromosome][position]:
+                    for mutation in variants[chromosome][position]:
 
-                        if not (f"{chromosome}:{position}:{variant_index}" in rejected):
+                            ref, alt = mutation.split(':')
 
-                            variant: dict = variants[chromosome][position][variant_index]
+                            variant: dict = variants[chromosome][position][mutation]
 
-                            # Write ONLY if normalized metrics are present
-                            if 'final_metrics' in variant:
+                            print(variant)
 
-                                out.write('\t'.join([f"chr{chromosome}", # Chromosome field
-                                        str(variant['VC']['POSITION']), # Position field
-                                        '.', # ID field
-                                        variant['VC']['REF'], # Reference field
-                                        variant['VC']['ALT'], # Alternate field
-                                        '.',
-                                        variant["final_metrics"]["FILTER"], # Filter field
-                                        '='.join([INFOS[0], variant["VT"]]), # Info field
-                                        ':'.join(FORMAT), # Format field
-                                        ':'.join([str(variant["final_metrics"][f]) for f in FORMAT])])) # Sample values field
-                                
-                                out.write('\n')
+                            if variant.get("filter", "REJECTED") != "REJECTED":
+
+                                # Write ONLY if normalized metrics are present
+                                if 'sample' in variant:
+
+                                    out.write('\t'.join([f"chr{chromosome}", # Chromosome field
+                                            str(position), # Position field
+                                            '.', # ID field
+                                            ref, # Reference field
+                                            alt, # Alternate field
+                                            '.',
+                                            variant["filter"], # Filter field
+                                            '='.join([INFOS[0], variant["type"]]), # Info field
+                                            ':'.join(FORMAT), # Format field
+                                            ':'.join([str(variant["sample"][f]) for f in FORMAT])])) # Sample values field
+                                    
+                                    out.write('\n')
 
 class GenomicReader():
 
