@@ -17,7 +17,7 @@ class GenomicWritter():
             # First sort the positions for each chromosome
             for chromosome in variants:
 
-                variants[chromosome] = {k: v for k, v in sorted(variants[chromosome].items(), key=lambda item: int(item[0]))}
+                variants[chromosome] = {k: v for k, v in sorted(variants[chromosome].items(), key=lambda item: int(item[0].vcf_position))}
             
             # Then sort the chromosomes
             {k: v for k,v in sorted(variants.items(), key=lambda item: item[0])}
@@ -66,13 +66,13 @@ class GenomicWritter():
             # Iterate over each level of the variants dictionary
             for chromosome in variants:
 
-                for position in variants[chromosome]:
+                for positions in variants[chromosome]:
 
-                    for mutation in variants[chromosome][position]:
+                    for mutation in variants[chromosome][positions]:
 
-                            variant: dict = variants[chromosome][position][mutation]
+                            variant: dict = variants[chromosome][positions][mutation]
 
-                            vcf_compliant_position: int = (position - 1) if variant["type"] == "DEL" else position
+                            # vcf_compliant_position: int = (position - 1) if variant["type"] == "DEL" else position
 
                             ref, alt = mutation.split(':')
 
@@ -82,7 +82,7 @@ class GenomicWritter():
                                 if 'sample' in variant:
 
                                     out.write('\t'.join([f"chr{chromosome}", # Chromosome field
-                                            str(vcf_compliant_position), # Position field
+                                            str(positions.vcf_position), # Position field
                                             '.', # ID field
                                             ref, # Reference field
                                             alt, # Alternate field
@@ -130,6 +130,8 @@ class VCF(GenomicFile):
         "SAMPLE": 9
     }
 
+    DEL_FIRST_NC: int = -1
+
     def __init__(self, path: str, caller: callers.VariantCaller, lazy: bool = True):
 
         super().__init__(path=path)
@@ -154,11 +156,11 @@ class VCF(GenomicFile):
 
         if not self.is_file():
 
-            raise errors.VCFError(f"Error: The file {self.path} does not exist.")
+            raise errors.VCFError(f"The file {self.path} does not exist.")
 
         if self.is_empty():
 
-            raise errors.VCFError(f"Error: The file {self.path} is empty.")
+            raise errors.VCFError(f"The file {self.path} is empty.")
         
         try:
 
@@ -168,14 +170,14 @@ class VCF(GenomicFile):
 
                 if not line:
 
-                    raise errors.VCFError(f"Error: First line of {self.path} is empty.")
+                    raise errors.VCFError(f"First line of {self.path} is empty.")
                 
                 else:
 
                     # Check if first line start with "#"
                     if line[0] != '#':
 
-                        raise errors.VCFError(f"Error: First line inconsistent with VCF header format")
+                        raise errors.VCFError(f"First line inconsistent with VCF header format")
 
         except FileNotFoundError:
 
@@ -212,19 +214,19 @@ class VCF(GenomicFile):
     
     def VAF(self, variant: str) -> float:
 
-        return self.caller.VAF(variant)
+        return self.caller.VAF(variant, self.HEADER)
 
     def depth(self, variant: str) -> int:
 
-        return self.caller.depth(variant)
+        return self.caller.depth(variant, self.HEADER)
 
     def arc(self, variant: str) -> tuple[float]:
 
-        return self.caller.arc(variant)
+        return self.caller.arc(variant, self.HEADER)
 
     def rrc(self, variant: str) -> tuple[float]:
 
-        return self.caller.rrc(variant)
+        return self.caller.rrc(variant, self.HEADER)
 
 class Pileup(GenomicFile):
 
@@ -248,6 +250,8 @@ class Pileup(GenomicFile):
     PLUS_STRAND: list[int] = [0,2,4,6]
     MINUS_STRAND: list[int] = [1,3,5,7]
 
+    DEL_FIRST_NC: int = 1
+
     def __init__(self, path: str, lazy: bool = True):
 
         super().__init__(path=path)
@@ -270,11 +274,11 @@ class Pileup(GenomicFile):
 
         if not self.is_file():
 
-            raise errors.PileupError(f"Error: The file {self.path} does not exist.")
+            raise errors.PileupError(f"The file {self.path} does not exist.")
 
         if self.is_empty():
 
-            raise errors.PileupError(f"Error: The file {self.path} is empty.")
+            raise errors.PileupError(f"The file {self.path} is empty.")
         
 class VCFIndex(GenomicFile):
 
@@ -325,11 +329,11 @@ class FastaIndex(GenomicFile):
 
         if not self.is_file():
 
-            raise errors.FastaIndexError(f"Error: The file {self.path} does not exist.")
+            raise errors.FastaIndexError(f"The file {self.path} does not exist.")
 
         if self.is_empty():
 
-            raise errors.FastaIndexError(f"Error: The file {self.path} is empty.")
+            raise errors.FastaIndexError(f"The file {self.path} is empty.")
         
         try:
 
@@ -339,14 +343,14 @@ class FastaIndex(GenomicFile):
 
                 if not line:
                     
-                    raise errors.FastaIndexError(f"Error: First line of {self.path} is empty.")
+                    raise errors.FastaIndexError(f"First line of {self.path} is empty.")
                 
                 else:
 
                     # Check if first line is composed of 5 columns
                     if len(line.split('\t')) != 5:
 
-                        raise errors.FastaIndexError(f"Error: First line inconsistent with Fasta index format")
+                        raise errors.FastaIndexError(f"First line inconsistent with Fasta index format")
         
         except FileNotFoundError:
 

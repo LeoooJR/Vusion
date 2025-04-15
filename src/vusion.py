@@ -85,6 +85,7 @@ def combine(params):
     # Check pileup
     try:
         pileup = io.Pileup(path=params.pileup, lazy=True)
+        variants_repository.set_pileup(pileup)
     except errors.PileupError:
         logger.error(f"{params.pileup} is not a valid PILEUP.")
         raise SystemExit(f"{params.pileup} is not a valid PILEUP.")
@@ -174,7 +175,7 @@ def combine(params):
     # Populate the variants repository from the VCFs
     # This will create a dictionary of variants with the following structure:
     # 'chr':{
-    #     'pos':{
+    #     '(vcf_pos, pileup_pos)':{
     #         'ref:alt':{
     #             'collection':{},
     #             'type': '',
@@ -192,7 +193,7 @@ def combine(params):
     # Use the pileup to normalize the variants
     # This will create a dictionary of variants with the following structure:
     # 'chr':{
-    #     'pos':{
+    #     '(vcf_pos, pileup_pos)':{
     #         'ref:alt':{
     #             'collection':{},
     #             'type': '',

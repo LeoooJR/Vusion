@@ -1,11 +1,40 @@
 #!/bin/python3
 
+from collections import namedtuple
 import errors
 from loguru import logger
 import os
 import re
 import numpy
 from scipy.stats import fisher_exact
+
+class Cache():
+
+    def __init__(self, func, max_size: int = 1):
+        
+        self.max_size = max_size
+
+        self.cache: dict = {}
+
+        self.func: function = func
+
+    def add():
+
+        pass
+
+    def call(self, args: list[str]):
+
+        if args[1].__hash__:
+
+            if not args[1] in self.cache:
+
+                if self.max_size and len(self.cache) >= self.max_size:
+
+                    self.cache.clear()
+
+                self.cache[args[1]] = self.func(args[0], args[1])
+            
+            return self.cache[args[1]]
 
 # ===========================================================================================
 # Basics functions on dictionary
@@ -533,11 +562,13 @@ def process_without_pileup(variants: dict, lookups: set, thresholds: list[float]
     """
     for lookup in lookups:
 
-        chromsome, position, ref, alt = lookup.split(':')
+        Positions = namedtuple("Position", ["vcf_position", "pileup_position"])
+
+        chromsome, positions, ref, alt = lookup.split(':')
 
         variant_identifier = f"{ref}:{alt}"
 
-        variant: dict = variants[chromsome][int(position)][variant_identifier]
+        variant: dict = variants[chromsome][eval(positions)][variant_identifier]
 
         if not 'sample' in variant:
             variant['sample'] = {}
