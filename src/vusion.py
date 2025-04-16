@@ -67,7 +67,7 @@ def combine(params):
 
     # Create a variants repository
     # This repository will be used to store the variants and their information
-    variants_repository = VariantsRepository()
+    variants_repository = VariantsRepository(rescue=params.rescue)
 
     # ===========================================================================================
     # Check mandatory options
@@ -209,16 +209,6 @@ def combine(params):
     # Process complex variants without Pileup : INV,MNV and CSV
     # ===========================================================================================
     variants: dict = functions.process_without_pileup(variants=variants, lookups=variants_repository.cache["complex"].union(ITD), thresholds=thresholds, sbm=SBM, sbm_homozygous=params.sbm_homozygous)
-    
-    # ===========================================================================================
-    # Rescue INS not identified by pileup (probably ITD or long insertions), mostly coming from PL
-    # And remove rescued INS from Trash
-    # Do the same with DEL
-    # ===========================================================================================
-
-    # ===========================================================================================
-    # Clean calls and rejected variants
-    # ===========================================================================================
 
     # ===========================================================================================
     # rescuing rejected calls w/ FILTER <PASS> (optional; if any)
@@ -226,28 +216,9 @@ def combine(params):
     if params.rescue:
 
         # ===========================================================================================
-        # Process Rejected dic
+        # Process rejected variant
         # ===========================================================================================
-        rejected: dict = functions.process_without_pileup(rejected, thresholds, SBM, params.sbm_homozygous)
-
-        # rescue <PASS> calls only
-        # do not rescue SNV (more likely to be VS artefacts)
-        # pindel bug where ARC > TRC
-        rescued_keys: list[str] = [
-            key for key in rejected if (
-                rejected[key]['final_metrics']['FILTER'] == 'PASS' and \
-                rejected[key]['VT'] != 'SNV' and \
-                float(rejected[key]['final_metrics']['ARR']) <= 100.0
-            )
-        ]
-
-        for key in rescued_keys:
-
-            chromosome, position, ref, alt = key.split(':')
-
-            rejected[key]['final_metrics']['RES'] = 'Y'
-
-            variants[chromosome][position][f"{ref}:{alt}"] = rejected.pop(key)
+        rejected: dict = functions.process_without_pileup(variants=variants, lookups=variants_repository.cache["rejected"], thresholds=thresholds, sbm=SBM, sbm_homozygous=params.sbm_homozygous)
 
     # ===========================================================================================
     # Write VCFs

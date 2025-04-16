@@ -579,8 +579,7 @@ def process_without_pileup(variants: dict, lookups: set, thresholds: list[float]
         # keep trace of used VC identifier(s)
         variant['sample']['VCI'] = ','.join(
             sorted(
-                variant['collection']['VAF'].keys(),
-                key=str.lower
+                variant['collection']['VAF'].keys()
             ))
 
 
@@ -659,11 +658,25 @@ def process_without_pileup(variants: dict, lookups: set, thresholds: list[float]
             variant['sample']['SBP'],\
             variant['SBM'] = estimate_sbm(variant, sbm_homozygous)
 
-        variant['filter'] = format_float_descriptors(
-            variant,
-            sbm
-        )
+        if variant.get("filter", "") == "REJECTED":
+            
+            # rescue <PASS> calls only
+            # do not rescue SNV (more likely to be VS artefacts)
+            # pindel bug where ARC > TRC
+            filter: str = "PASS" if ((format_float_descriptors(variant, sbm) == "PASS") and (variant["type"] != "SNV") and float(variant["sample"]["ARR"]) <= 100.0) else "REJECTED"
+
+            if filter == "PASS":
+
+                variant['sample']['RES'] = 'Y'
+
+        else:
+
+            filter: str = format_float_descriptors(variant, sbm)
+
+            variant['sample']['RES'] = 'N'
+
+        variant['filter'] = filter
+
         variant['sample']['PIL'] = "N"
-        variant['sample']['RES'] = 'N'
 
     return variants

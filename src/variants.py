@@ -8,14 +8,16 @@ import utils as functions
 
 class VariantsRepository():
 
-    def __init__(self):
+    def __init__(self, rescue: bool = False):
 
         # Dictionary to store variants
         self.variants: dict = {}
 
         self.cache: dict[str:set[str]] = {"common": set(), # Set to store variants possibly found in pileup
-                                          "complex": set(), # Set to store compex variants
+                                          "complex": set(), # Set to store complex variants
                                           "rejected": set()} # Set to store rejected variants
+        
+        self.rescue: bool = rescue
 
     def set_pileup(self, pileup: Pileup):
 
@@ -555,7 +557,9 @@ class VariantsRepository():
 
                                                 variant["filter"] = "REJECTED"
                                                 
-                                                self.cache["rejected"].add(f"{chromosome_pileup}:{positions}:{mutation}")
+                                                if self.rescue:
+                                                    # Cache variant for saving
+                                                    self.cache["rejected"].add(f"{chromosome_pileup}:{positions}:{mutation}")
 
                                         else:
 
@@ -606,6 +610,6 @@ class VariantsRepository():
 
                                             variant['filter'] = "FAIL" if ((variant["sample"] in ["PNO", "LNO"]) 
                                                                         or (variant['sample']['LOW'] == 1) 
-                                                                        or (abs(float(variant['sample']['SBP'])) <= 0.05)) else "PASS"
+                                                                        or ((abs(float(variant['sample']['SBP'])) <= 0.05) and (float(variant['sample']['SBM']) >= sbm))) else "PASS"
         
         return (self.variants, ITD)

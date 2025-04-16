@@ -84,6 +84,7 @@ class Program:
             "-d",
             "--disable_strand_bias",
             action="store_true",
+            default=False,
             required=False,
             help="Disable strand bias\
             based filtering of variants",
@@ -92,6 +93,7 @@ class Program:
             "-R",
             "--rescue",
             action="store_true",
+            default=False,
             required=False,
             help="Rescue rejected calls",
         )
@@ -99,6 +101,7 @@ class Program:
             "-H",
             "--hotspot",
             action="store_true",
+            default=False,
             required=False,
             help="Combine two combined callsets; \
             One originated from a hotspot feature list",
@@ -129,6 +132,7 @@ class Program:
         self.parser.add_argument(
             "--verbosity",
             action="store_true",
+            default=False,
             required=False,
             help="Should logs be printed to the shell.",
         )
