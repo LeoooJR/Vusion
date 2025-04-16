@@ -634,11 +634,13 @@ def process_without_pileup(variants: dict, lookups: set, thresholds: list[float]
 
         if 'RRC+' not in variant['collection'] or len(variant['collection']['RRC+']) != len(variant['collection']['RRC']):
 
-            undertermined_ct_values = ["ARC+","ARC-","RRC+","RRC-","SBM","SBP","TRC+","TRC-"]
+            undertermined_ct_values = ["ARC+","ARC-","RRC+", "RRC-", "SBM", "SBP", "TRC+", "TRC-"]
 
             for ct_values in undertermined_ct_values:
                 variant['sample'].setdefault(ct_values, "-1")
+
             variant['sample']['ARC'], variant['sample']['RRC'] = format_rrc_arc(variant)
+
         else:
             # Get mean TRC+/-,RRC+/-, ARC+/- from Variant callers
             for strand in["+","-"]:

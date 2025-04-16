@@ -221,14 +221,120 @@ class VariantsRepository():
             return level
         
         pass
+    
+    @staticmethod
+    def compute_sample_metrics(variant: dict, thresholds: list[float], sbm: float, sbm_homozygous: float, pileup_record: str = ""):
 
-    def compute_sample_metrics():
+        # --------------------------------------------------------------
+        # Compute metrics
+        # --------------------------------------------------------------
 
-        pass
+        if not "sample" in variant:
 
-    def get_filter():
+            variant["sample"] = {}
 
-        pass
+        # Save number of Variant Callers that found this variant
+        variant['sample']['VCN'] = len(variant['collection']['VAF'])
+
+        # keep trace of used VC identifier(s)
+        variant['sample']['VCI'] = ','.join(
+            sorted(variant['collection']['VAF'].keys())
+        )
+
+        for metric in ["ARC", "RRC", "TRC"]:
+
+            variant['sample'].setdefault(metric, int(round(sum(variant['collection'][metric].values()) / variant['sample']['VCN'], 5)))
+
+            for strand in ['+', '-']:
+
+                if metric == "TRC":
+
+                    variant["sample"].setdefault(f"{metric}{strand}", 
+                                                round((sum(variant['collection'][f"ARC{strand}"].values()) + sum(variant['collection'][f"RRC{strand}"].values())) / variant['sample']['VCN'], 5)
+                                                if ((f"ARC{strand}" in variant['collection'] 
+                                                    and (len(variant['collection'][f"ARC{strand}"]) == len(variant['collection'][f"ARC"]))) 
+                                                    and (f"RCC{strand}" in variant['collection'] 
+                                                    and (len(variant['collection'][f"RCC{strand}"]) == len(variant['collection'][f"RCC"]))))
+                                                else "-1")
+
+
+                else:
+            
+                    variant["sample"].setdefault(f"{metric}{strand}", 
+                                                round(sum(variant['collection'][f"{metric}{strand}"].values()) / variant['sample']['VCN'], 5)
+                                                if (f"{metric}{strand}" in variant['collection'] 
+                                                    and (len(variant['collection'][f"{metric}{strand}"]) == len(variant['collection'][f"{metric}"])))
+                                                else "-1")
+
+        if pileup_record:
+
+            variant['sample']['PIL'] = "Y"
+
+            # Compute VAF from pileup
+            variant['sample']['ARR'] = format(
+                (
+                    (float(variant['sample']['ARC+']) + float(variant['sample']['ARC-'])) / float(variant['sample']['TRC'])
+                )*100,
+                '.5f'
+            )
+
+            variant['sample']['BRC'],\
+            variant['sample']['BRR'],\
+            variant['sample']['BRE'] = functions.estimate_brc_r_e(variant, pileup_record)
+            variant['sample']['BKG'] = functions.categorize_background_signal(variant, thresholds)
+
+        else:
+
+            variant['sample']['PIL'] = "N"
+
+            variant['sample']['ARR'] = format(sum(variant['collection']['VAF'].values()) / variant['sample']['VCN'], '.5f')
+
+            # Without pileup, impossible to determine certain values - set -1
+            variant['sample']['BRC'] = "-1"
+            variant['sample']['BRR'] = "-1"
+            variant['sample']['BRE'] = "-1"
+            variant['sample']['BKG'] = "-1"
+
+        #format [R/A]RC for vcf
+        variant['sample']['ARC'],\
+        variant['sample']['RRC'] = \
+            functions.format_rrc_arc(variant)
+
+        variant['sample']['SBP'], variant['SBM'] = functions.estimate_sbm(variant, sbm_homozygous)
+
+        # Estimate GT
+        variant['sample']['GT'], variant['sample']['VAR'] = VariantsRepository.get_genotype(genotypes=variant["collection"]["GT"].values(),
+                                                                                            arr=float(variant["sample"]["ARR"]),
+                                                                                            thresholds=thresholds[0:6])
+
+
+        variant['sample']['LOW'] = int(float(variant["sample"]["ARR"]) < thresholds[-1])
+
+        if variant.get("filter", "") == "REJECTED":
+                
+            # rescue <PASS> calls only
+            # do not rescue SNV (more likely to be VS artefacts)
+            # pindel bug where ARC > TRC
+            filter: str = "PASS" if ((VariantsRepository.get_filter(variant, sbm) == "PASS") and (variant["type"] != "SNV") and float(variant["sample"]["ARR"]) <= 100.0) else "REJECTED"
+
+            if filter == "PASS":
+
+                variant['sample']['RES'] = 'Y'
+
+        else:
+
+            filter: str = VariantsRepository.get_filter(variant, sbm)
+
+            variant['sample']['RES'] = 'N'
+
+        variant['filter'] = filter
+    
+    @staticmethod
+    def get_filter(variant: dict, sbm: float):
+
+        return "FAIL" if ((variant["sample"] in ["PNO", "LNO"]) 
+                            or (variant['sample']['LOW'] == 1) 
+                            or ((abs(float(variant['sample']['SBP'])) <= 0.05) and (float(variant['sample']['SBM']) >= sbm))) else "PASS"
 
     def populate(self, vcfs: dict):
 
@@ -482,6 +588,7 @@ class VariantsRepository():
                                                     coverage["total"] += (int(del_cov1) + int(del_cov2))
 
                                         if not 'sample' in variant:
+
                                             variant['sample'] = {}
 
                                         variant['sample']['TRC'] = coverage.get("total", 0)

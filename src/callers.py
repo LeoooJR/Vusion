@@ -9,6 +9,8 @@ class VariantCaller:
 
 class VariantCallerRepository:
 
+    __slots__ = ['callers']
+
     # known variant callers are:
     # deepvariant       (DV)
     # bcftools			(ST)
@@ -73,6 +75,8 @@ class VariantCallerRepository:
 
 class BCFTools(VariantCaller):
 
+    __slots__ = ['FORMAT']
+
     FORMAT = ["GT", "PL"]
 
     def __init__(self):
@@ -125,6 +129,8 @@ class BCFTools(VariantCaller):
         return "BCFTools"
 
 class Varscan(VariantCaller):
+
+    __slots__ = ['FORMAT']
 
     FORMAT = [
         "GT",
@@ -186,6 +192,8 @@ class Varscan(VariantCaller):
 
 class Vardict(VariantCaller):
 
+    __slots__ = ['FORMAT']
+
     FORMAT = ["GT", "DP", "VD", "AD", "AF", "RD", "ALD"]
 
     def __init__(self):
@@ -231,6 +239,8 @@ class Vardict(VariantCaller):
 
 class Pindel(VariantCaller):
 
+    __slots__ = ['FORMAT']
+
     FORMAT = ["GT", "AD"]
 
     def __init__(self):
@@ -268,6 +278,8 @@ class Pindel(VariantCaller):
 
 class Haplotypecaller(VariantCaller):
 
+    __slots__ = ['FORMAT']
+
     FORMAT = ["GT", "AD", "DP", "GQ", "PL"]
 
     def __init__(self):
@@ -304,6 +316,8 @@ class Haplotypecaller(VariantCaller):
 
 class Flit3r(VariantCaller):
 
+    __slots__ = ['FORMAT']
+
     FORMAT = []
 
     def __init__(self):
@@ -338,9 +352,12 @@ class Flit3r(VariantCaller):
 
 class DeepVariant(VariantCaller):
 
+    __slots__ = ['FORMAT']
+
     FORMAT = ["GT", "GQ", "DP", "AD", "VAF", "PL"]
 
     def __init__(self):
+
         super().__init__()
 
     @staticmethod
