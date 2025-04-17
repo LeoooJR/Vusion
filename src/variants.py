@@ -1,9 +1,11 @@
 from collections import deque, Counter, namedtuple
 from files import Pileup
-from functools import partial, lru_cache
+from functools import lru_cache
 from loguru import logger
 import math
+import numpy as np
 import re
+from scipy.stats import fisher_exact
 import utils as functions
 
 class VariantsRepository():
@@ -174,6 +176,8 @@ class VariantsRepository():
         Returns : a tuple containing the estimated BRC, BRR, and BRE.
         """
 
+        thresholds = thresholds.copy()
+
         thresholds.insert(0, 0.0)
 
         thresholds.insert(-1, 100.0)
@@ -221,7 +225,62 @@ class VariantsRepository():
             return level
         
         pass
-    
+
+    def compute_strand_bias_metrics(trc: tuple[int], arc: tuple[int], rrc: tuple[int], genotype: str, variant: str,  sbm_homozygous: float) -> tuple[float]:
+        """
+        Estimate strand-bias metrics (<SBM>) and
+        strand-bias Fisher exact test p-value (<SBP>) from TS(*) used by SLS/LRB.
+        """
+
+        assert (len(arc) == 2) and (len(rrc) == 2), "Input strand metrics are not correctly formated."
+
+        if (-1 in arc) or (-1 in rrc):
+
+            sbp: float = -1
+
+            sbm: float = -1
+        
+        else:
+
+            product1: int = arc[0] * rrc[1]
+
+            product2: int = arc[1] * rrc[0]
+
+            if (genotype == "1/1") or (product1 == 0) or (product2 == 0):
+
+                try:
+
+                    ratio: float = max(arc) / sum(arc)
+
+                except ZeroDivisionError:
+
+                    ratio: float = 0.0
+            
+                sbp: float = 0.05
+
+                sbm: float = 1.5 if ratio >= sbm_homozygous else 0.5
+
+            else:
+
+                array: np.ndarray = np.array(object=[[arc[0], arc[1]],
+                                                    [max(((trc[0] - arc[0]) if variant in ["INS", "INV"] else rrc[0]), 0),
+                                                     max(((trc[1] - arc[1]) if variant in ["INS", "INV"] else rrc[1]), 0)]],
+                                                    dtype=np.int16)
+                
+                odds_ratio, p = fisher_exact(array, alternative="two-sided")
+
+                sbp: float = round(p, 5)
+
+                try:
+
+                    sbm: float = max(product1, product2) / sum([product1, product2])
+
+                except ZeroDivisionError:
+
+                    sbm: float = -1.0
+
+        return (sbp, sbm)
+
     @staticmethod
     def compute_sample_metrics(variant: dict, thresholds: list[float], sbm: float, sbm_homozygous: float, pileup_record: str = ""):
 
@@ -243,39 +302,39 @@ class VariantsRepository():
 
         for metric in ["ARC", "RRC", "TRC"]:
 
-            variant['sample'].setdefault(metric, int(round(sum(variant['collection'][metric].values()) / variant['sample']['VCN'], 5)))
+            variant['sample'].setdefault(metric, int(sum(variant['collection'][metric].values()) / variant['sample']['VCN']))
 
             for strand in ['+', '-']:
 
                 if metric == "TRC":
 
                     variant["sample"].setdefault(f"{metric}{strand}", 
-                                                round((sum(variant['collection'][f"ARC{strand}"].values()) + sum(variant['collection'][f"RRC{strand}"].values())) / variant['sample']['VCN'], 5)
+                                                int((sum(variant['collection'][f"ARC{strand}"].values()) + sum(variant['collection'][f"RRC{strand}"].values())) / variant['sample']['VCN'])
                                                 if ((f"ARC{strand}" in variant['collection'] 
                                                     and (len(variant['collection'][f"ARC{strand}"]) == len(variant['collection'][f"ARC"]))) 
                                                     and (f"RCC{strand}" in variant['collection'] 
                                                     and (len(variant['collection'][f"RCC{strand}"]) == len(variant['collection'][f"RCC"]))))
-                                                else "-1")
+                                                else -1)
 
 
                 else:
             
                     variant["sample"].setdefault(f"{metric}{strand}", 
-                                                round(sum(variant['collection'][f"{metric}{strand}"].values()) / variant['sample']['VCN'], 5)
+                                                int(sum(variant['collection'][f"{metric}{strand}"].values()) / variant['sample']['VCN'])
                                                 if (f"{metric}{strand}" in variant['collection'] 
                                                     and (len(variant['collection'][f"{metric}{strand}"]) == len(variant['collection'][f"{metric}"])))
-                                                else "-1")
+                                                else -1)
 
         if pileup_record:
 
             variant['sample']['PIL'] = "Y"
 
             # Compute VAF from pileup
-            variant['sample']['ARR'] = format(
+            variant['sample']['ARR'] = round(
                 (
-                    (float(variant['sample']['ARC+']) + float(variant['sample']['ARC-'])) / float(variant['sample']['TRC'])
+                    (variant['sample']['ARC+'] + variant['sample']['ARC-']) / (variant['sample']['TRC'])
                 )*100,
-                '.5f'
+                5
             )
 
             variant['sample']['BRC'],\
@@ -287,35 +346,34 @@ class VariantsRepository():
 
             variant['sample']['PIL'] = "N"
 
-            variant['sample']['ARR'] = format(sum(variant['collection']['VAF'].values()) / variant['sample']['VCN'], '.5f')
+            variant['sample']['ARR'] = round(sum(variant['collection']['VAF'].values()) / variant['sample']['VCN'], 5)
 
             # Without pileup, impossible to determine certain values - set -1
-            variant['sample']['BRC'] = "-1"
-            variant['sample']['BRR'] = "-1"
-            variant['sample']['BRE'] = "-1"
-            variant['sample']['BKG'] = "-1"
-
-        #format [R/A]RC for vcf
-        variant['sample']['ARC'],\
-        variant['sample']['RRC'] = \
-            functions.format_rrc_arc(variant)
-
-        variant['sample']['SBP'], variant['SBM'] = functions.estimate_sbm(variant, sbm_homozygous)
+            variant['sample']['BRC'] = -1
+            variant['sample']['BRR'] = -1
+            variant['sample']['BRE'] = -1
+            variant['sample']['BKG'] = -1
 
         # Estimate GT
         variant['sample']['GT'], variant['sample']['VAR'] = VariantsRepository.get_genotype(genotypes=variant["collection"]["GT"].values(),
-                                                                                            arr=float(variant["sample"]["ARR"]),
+                                                                                            arr=variant["sample"]["ARR"],
                                                                                             thresholds=thresholds[0:6])
+        
+        variant['sample']['SBP'], variant['sample']['SBM'] = VariantsRepository.compute_strand_bias_metrics(trc=(variant['sample']["TRC+"], variant['sample']["TRC-"]),
+                                                                                                  arc=(variant['sample']["ARC+"], variant['sample']["ARC-"]),
+                                                                                                  rrc=(variant['sample']["RRC+"], variant['sample']["RRC-"]),
+                                                                                                  genotype=variant['sample']["GT"],
+                                                                                                  variant=variant['type'],
+                                                                                                  sbm_homozygous=sbm_homozygous)
 
-
-        variant['sample']['LOW'] = int(float(variant["sample"]["ARR"]) < thresholds[-1])
+        variant['sample']['LOW'] = int(variant["sample"]["ARR"] < thresholds[-1])
 
         if variant.get("filter", "") == "REJECTED":
                 
             # rescue <PASS> calls only
             # do not rescue SNV (more likely to be VS artefacts)
             # pindel bug where ARC > TRC
-            filter: str = "PASS" if ((VariantsRepository.get_filter(variant, sbm) == "PASS") and (variant["type"] != "SNV") and float(variant["sample"]["ARR"]) <= 100.0) else "REJECTED"
+            filter: str = "PASS" if ((VariantsRepository.get_filter(variant, sbm) == "PASS") and (variant["type"] != "SNV") and variant["sample"]["ARR"] <= 100.0) else "REJECTED"
 
             if filter == "PASS":
 
@@ -523,13 +581,11 @@ class VariantsRepository():
         
         cache = functions.Cache(func=get_variants, max_size=1)
 
-        ITD: set[str] = set()
-
         with open(pileup.get_path(), mode='r') as f:
 
-            for n, line in enumerate(f, start=1):
+            for n, record in enumerate(f, start=1):
 
-                datas = line.strip('\n').split('\t')
+                datas = record.strip('\n').split('\t')
 
                 if datas[0] == sample:
 
@@ -555,9 +611,13 @@ class VariantsRepository():
                                         # It reduce writing complexity and improve readability
                                         variant: dict = self.variants[chromosome_pileup][positions][mutation]
 
+                                        if not 'sample' in variant:
+
+                                            variant['sample'] = {}
+
                                         # depth of coverage at <CHR:POS> = sum(Nt) + #DEL (if any)
                                         coverage = {"strand": {"+": 0,
-                                                            "-": 0},
+                                                               "-": 0},
                                                     "total": 0}
 
                                         for column, value in enumerate(datas[pileup.HEADER["A+"]:pileup.HEADER["N"]], start=0):
@@ -574,22 +634,21 @@ class VariantsRepository():
 
                                         # manage DEL counts
                                         if datas[pileup.HEADER["DEL"]] != 'None':
+
                                             if datas[pileup.HEADER["DEL"]][0] == '*':
+
                                                 try:
                                                     coverage["total"] += int(datas[pileup.HEADER["DEL"]].split(':')[1].split(';')[0])
                                                 except ValueError:
                                                     logger.warning("Unknow DEL value present in pileup file.")
                                                     logger.warning(f"Warning was raised by: {datas[pileup.HEADER["DEL"]]} at line {n} column {pileup.HEADER["DEL"]}.")
+
                                             else:
                                                 # clintools bug where a DEL does not start w/ *:\d+
                                                 # (causing illegal division by zero)
                                                 for deletion in datas[pileup.HEADER["DEL"]].split(';'):
                                                     del_cov1, del_cov2 = deletion.split(':')[1].split(',')
                                                     coverage["total"] += (int(del_cov1) + int(del_cov2))
-
-                                        if not 'sample' in variant:
-
-                                            variant['sample'] = {}
 
                                         variant['sample']['TRC'] = coverage.get("total", 0)
                                         variant['sample']['TRC-'] = coverage["strand"].get('-', 0)
@@ -601,7 +660,7 @@ class VariantsRepository():
                                         # ARC : Alternative Read Counts
                                         for strand in coverage["strand"]:
 
-                                            variant['sample'][f"RRC{strand}"] = datas[pileup.HEADER[f"{datas[pileup.HEADER['reference']]}{strand}"]]
+                                            variant['sample'][f"RRC{strand}"] = int(datas[pileup.HEADER[f"{datas[pileup.HEADER['reference']]}{strand}"]])
                                         
                                         variant_count: int = 0
 
@@ -619,16 +678,16 @@ class VariantsRepository():
                                                     # Extract once and split to get counts
                                                     counts = rsearch.group(0).split(':')[-1]
 
-                                                    arc_plus_strand, arc_minus_strand = map(int, counts.split(','))
+                                                    arc_plus_strand, arc_minus_strand = list(map(int, counts.split(',')))
                                                     
                                                     variant_count: int = arc_plus_strand + arc_minus_strand
                                                     
                                                     #Save indel count per strand in callset ARC+ and ARC-
                                                     for strand in coverage["strand"]:
 
-                                                        arc = f'ARC{strand}'
+                                                        arc: str = f'ARC{strand}'
 
-                                                        variant['sample'].setdefault(arc, '-1')
+                                                        variant['sample'].setdefault(arc, 0)
 
                                                         variant['sample'][arc] = arc_plus_strand if strand == '+' else arc_minus_strand
 
@@ -638,17 +697,15 @@ class VariantsRepository():
 
                                             for strand in coverage["strand"]:
 
-                                                arc = f'ARC{strand}'
+                                                arc: str = f'ARC{strand}'
 
-                                                if not arc in variant['sample']:
-                                                    variant['sample'][arc] = ''
+                                                variant['sample'].setdefault(arc, 0)
 
-                                                variant['sample'][arc] = \
-                                                    datas[pileup.HEADER[f"{mutation.split(':')[1][0]}{strand}"]]
+                                                coverage: int = int(datas[pileup.HEADER[f"{mutation.split(':')[1][0]}{strand}"]])
+
+                                                variant['sample'][arc] = coverage
                                                     
-                                                variant_count += int(
-                                                    datas[pileup.HEADER[f"{mutation.split(':')[1][0]}{strand}"]]
-                                                )
+                                                variant_count += coverage
                                         
                                         # --------------------------------------------------------------
                                         # <ALT> not covered in read pile;
@@ -658,65 +715,31 @@ class VariantsRepository():
 
                                             if (variant['type'] == 'INS') and (len(variant["collection"]["ALT"])-1 > length_indels):
 
-                                                ITD.add(f"{chromosome_pileup}:{positions}:{mutation}")
+                                                VariantsRepository.compute_sample_metrics(variant=variant,
+                                                                                          thresholds=thresholds,
+                                                                                          sbm=sbm,
+                                                                                          sbm_homozygous=sbm_homozygous,
+                                                                                         )
 
                                             else:
 
                                                 variant["filter"] = "REJECTED"
                                                 
                                                 if self.rescue:
-                                                    # Cache variant for saving
-                                                    self.cache["rejected"].add(f"{chromosome_pileup}:{positions}:{mutation}")
 
+                                                    VariantsRepository.compute_sample_metrics(variant=variant,
+                                                                                              thresholds=thresholds,
+                                                                                              sbm=sbm,
+                                                                                              sbm_homozygous=sbm_homozygous,
+                                                                                             )
                                         else:
 
                                             # --------------------------------------------------------------
                                             # Compute metrics
                                             # --------------------------------------------------------------
 
-                                            # Save number of Variant Callers that found this variant
-                                            variant['sample']['VCN'] = len(variant['collection']['VAF'])
-
-                                            # keep trace of used VC identifier(s)
-                                            variant['sample']['VCI'] = ','.join(
-                                                sorted(variant['collection']['VAF'].keys())
-                                            )
-
-                                            #format [R/A]RC for vcf
-                                            variant['sample']['ARC'],\
-                                            variant['sample']['RRC'] = \
-                                                functions.format_rrc_arc(variant)
-
-                                            # Compute VAF from pileup
-                                            variant['sample']['ARR'] = format(
-                                                (
-                                                    (float(variant['sample']['ARC+']) + float(variant['sample']['ARC-'])) / float(variant['sample']['TRC'])
-                                                )*100,
-                                                '.5f'
-                                            )
-
-                                            # Estimate GT
-                                            variant['sample']['GT'], variant['sample']['VAR'] = VariantsRepository.get_genotype(genotypes=variant["collection"]["GT"].values(),
-                                                                                                                                arr=float(variant["sample"]["ARR"]),
-                                                                                                                                thresholds=thresholds[0:6])
-
-                                            variant['sample']['BRC'],\
-                                            variant['sample']['BRR'],\
-                                            variant['sample']['BRE'] = \
-                                                functions.estimate_brc_r_e(variant, datas)
-
-                                            variant['sample']['SBP'],variant['SBM'] = \
-                                                functions.estimate_sbm(variant, sbm_homozygous)
-                                            
-                                            variant['sample']['LOW'] = int(float(variant["sample"]["ARR"]) < thresholds[-1])
-                                            variant['sample']['BKG'] = \
-                                                functions.categorize_background_signal(variant, thresholds)
-
-                                            variant['sample']['PIL'] = 'Y'
-                                            variant['sample']['RES'] = 'N'
-
-                                            variant['filter'] = "FAIL" if ((variant["sample"] in ["PNO", "LNO"]) 
-                                                                        or (variant['sample']['LOW'] == 1) 
-                                                                        or ((abs(float(variant['sample']['SBP'])) <= 0.05) and (float(variant['sample']['SBM']) >= sbm))) else "PASS"
-        
-        return (self.variants, ITD)
+                                            VariantsRepository.compute_sample_metrics(variant=variant,
+                                                                                      thresholds=thresholds,
+                                                                                      sbm=sbm,
+                                                                                      sbm_homozygous=sbm_homozygous,
+                                                                                      pileup_record=datas)

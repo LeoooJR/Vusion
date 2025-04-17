@@ -75,28 +75,27 @@ class VariantCallerRepository:
 
 class BCFTools(VariantCaller):
 
-    __slots__ = ['FORMAT']
-
     FORMAT = ["GT", "PL"]
 
     def __init__(self):
+
         super().__init__()
 
     @staticmethod
     def VAF(variant: list[str], header: dict[str:int]) -> float:
 
-        total_depth = float(variant[header["INFO"]].split("DP=")[1].split(";")[0])
+        total_depth: int = int(variant[header["INFO"]].split("DP=")[1].split(";")[0])
 
-        alleles_depth = variant[header["INFO"]].split("DP4=")[1].split(";")[0]
+        alleles_depth: int = variant[header["INFO"]].split("DP4=")[1].split(";")[0]
 
-        variant_depth = float(alleles_depth.split(",")[2]) + float(
+        variant_depth: int = float(alleles_depth.split(",")[2]) + float(
             alleles_depth.split(",")[3]
         )
 
         try:
-            vaf = variant_depth / total_depth
+            vaf: float = variant_depth / total_depth
         except ZeroDivisionError:
-            vaf = 0.0
+            vaf: float = 0.0
 
         return vaf
 
@@ -106,31 +105,29 @@ class BCFTools(VariantCaller):
         return int(variant[header["INFO"]].split("DP=")[1].split(";")[0])
 
     @staticmethod
-    def rrc(variant: list[str], header: dict[str:int]) -> tuple[float]:
+    def rrc(variant: list[str], header: dict[str:int]) -> tuple[int]:
 
-        variant_depth = variant[header["INFO"]].split("DP4=")[1].split(";")[0]
-        depths = variant_depth.split(",")
-        rrc_plus = float(depths[0])
-        rrc_minus = float(depths[1])
-        rrc = rrc_plus + rrc_minus
+        alleles_depth: list[str] = variant[header["INFO"]].split("DP4=")[1].split(";")[0]
+        depths: list[str] = alleles_depth.split(",")
+        rrc_plus: int = int(depths[0])
+        rrc_minus: int = int(depths[1])
+        rrc: int = rrc_plus + rrc_minus
         return (rrc, rrc_plus, rrc_minus)
 
     @staticmethod
-    def arc(variant: list[str], header: dict[str:int]) -> tuple[float]:
+    def arc(variant: list[str], header: dict[str:int]) -> tuple[int]:
 
-        variant_depth = variant[header["INFO"]].split("DP4=")[1].split(";")[0]
-        depths = variant_depth.split(",")
-        arc_plus = float(depths[2])
-        arc_minus = float(depths[3])
-        arc = arc_plus + arc_minus
+        alleles_depth: list[str] = variant[header["INFO"]].split("DP4=")[1].split(";")[0]
+        depths: list[str] = alleles_depth.split(",")
+        arc_plus: int = int(depths[2])
+        arc_minus: int = int(depths[3])
+        arc: int = arc_plus + arc_minus
         return (arc, arc_plus, arc_minus)
     
     def __str__(self):
         return "BCFTools"
 
 class Varscan(VariantCaller):
-
-    __slots__ = ['FORMAT']
 
     FORMAT = [
         "GT",
@@ -150,6 +147,7 @@ class Varscan(VariantCaller):
     ]
 
     def __init__(self):
+
         super().__init__()
 
     @staticmethod
@@ -165,24 +163,24 @@ class Varscan(VariantCaller):
         return int(variant[header["SAMPLE"]].split(":")[2])
 
     @staticmethod
-    def rrc(variant: list[str], header: dict[str:int]) -> tuple[float]:
+    def rrc(variant: list[str], header: dict[str:int]) -> tuple[int]:
 
         values = variant[header["SAMPLE"]].split(":")
 
-        rrc = float(values[4])
-        rrc_plus = float(values[10])
-        rrc_minus = float(values[11])
+        rrc = int(values[4])
+        rrc_plus = int(values[10])
+        rrc_minus = int(values[11])
 
         return (rrc, rrc_plus, rrc_minus)
 
     @staticmethod
-    def arc(variant: list[str], header: dict[str:int]) -> tuple[float | None]:
+    def arc(variant: list[str], header: dict[str:int]) -> tuple[int | None]:
 
         values = variant[header["SAMPLE"]].split(":")
 
-        arc = float(values[5])
-        arc_plus = float(values[12])
-        arc_minus = float(values[13])
+        arc = int(values[5])
+        arc_plus = int(values[12])
+        arc_minus = int(values[13])
 
         return (arc, arc_plus, arc_minus)
     
@@ -191,8 +189,6 @@ class Varscan(VariantCaller):
 
 
 class Vardict(VariantCaller):
-
-    __slots__ = ['FORMAT']
 
     FORMAT = ["GT", "DP", "VD", "AD", "AF", "RD", "ALD"]
 
@@ -212,24 +208,28 @@ class Vardict(VariantCaller):
         return int(variant[header["SAMPLE"]].split(":")[1])
 
     @staticmethod
-    def rrc(variant: list[str], header: dict[str:int]) -> tuple[float]:
+    def rrc(variant: list[str], header: dict[str:int]) -> tuple[int]:
 
-        values = variant[header["SAMPLE"]].split(":")
+        values: list[str] = variant[header["SAMPLE"]].split(":")
 
-        rrc = float(values[3].split(",")[0])
-        rrc_plus = float(values[5].split(",")[0])
-        rrc_minus = float(values[5].split(",")[1])
+        rrc = int(values[3].split(",")[0])
+
+        rd: list[str] = values[5].split(",")
+        rrc_plus: int = int(rd[0])
+        rrc_minus: int = int(rd[1])
 
         return (rrc, rrc_plus, rrc_minus)
 
     @staticmethod
-    def arc(variant: list[str], header: dict[str:int]) -> tuple[float | None]:
+    def arc(variant: list[str], header: dict[str:int]) -> tuple[int | None]:
 
-        values = variant[header["SAMPLE"]].split(":")
+        values: list[str] = variant[header["SAMPLE"]].split(":")
 
-        arc = float(values[3].split(",")[1])
-        arc_plus = float(values[6].split(",")[0])
-        arc_minus = float(values[6].split(",")[1])
+        arc = int(values[3].split(",")[1])
+
+        ald: list[int] = values[6].split(",")
+        arc_plus: int = int(ald[0])
+        arc_minus: int = int(ald[1])
 
         return (arc, arc_plus, arc_minus)
     
@@ -238,8 +238,6 @@ class Vardict(VariantCaller):
 
 
 class Pindel(VariantCaller):
-
-    __slots__ = ['FORMAT']
 
     FORMAT = ["GT", "AD"]
 
@@ -256,29 +254,28 @@ class Pindel(VariantCaller):
     @staticmethod
     def depth(variant: list[str], header: dict[str:int]) -> int:
 
-        return float(variant[header["SAMPLE"]].split(":")[1].split(",")[0]) + float(
-            variant[header["SAMPLE"]].split(":")[1].split(",")[1]
-        )
+        alleles_depth: list[str] = variant[header["SAMPLE"]].split(":")[1].split(",")
+
+        return int(alleles_depth[0]) + int(alleles_depth[1])
 
     @staticmethod
-    def rrc(variant: list[str], header: dict[str:int]) -> tuple[float]:
+    def rrc(variant: list[str], header: dict[str:int]) -> tuple[int]:
 
         pass
 
     @staticmethod
-    def arc(variant: list[str], header: dict[str:int]) -> tuple[float | None]:
+    def arc(variant: list[str], header: dict[str:int]) -> tuple[int | None]:
 
-        arc = float(variant[header["SAMPLE"]].split(":")[1].split(",")[1])
+        arc = int(variant[header["SAMPLE"]].split(":")[1].split(",")[1])
 
         return (arc, None, None)
     
     def __str__(self):
+
         return "Pindel"
 
 
 class Haplotypecaller(VariantCaller):
-
-    __slots__ = ['FORMAT']
 
     FORMAT = ["GT", "AD", "DP", "GQ", "PL"]
 
@@ -288,35 +285,36 @@ class Haplotypecaller(VariantCaller):
     @staticmethod
     def VAF(variant: list[str], header: dict[str:int]) -> float:
 
-        total_depth = float(variant[header["SAMPLE"]].split(":")[2])
-        variant_depth = float(variant[header["SAMPLE"]].split(":")[1].split(",")[1])
-        vaf = variant_depth / total_depth
-        return vaf
+        metrics: list[str] = variant[header["SAMPLE"]].split(":") 
+
+        total_depth = float(metrics[2])
+        alleles_depth = float(metrics[1].split(",")[1])
+        
+        return alleles_depth / total_depth
 
     @staticmethod
     def depth(variant: list[str], header: dict[str:int]) -> int:
 
-        return float(variant[header["SAMPLE"]].split(":")[2])
+        return int(variant[header["SAMPLE"]].split(":")[2])
 
     @staticmethod
-    def rrc(variant: list[str], header: dict[str:int]) -> tuple[float]:
+    def rrc(variant: list[str], header: dict[str:int]) -> tuple[int]:
 
         pass
 
     @staticmethod
-    def arc(variant: list[str], header: dict[str:int]) -> tuple[float | None]:
+    def arc(variant: list[str], header: dict[str:int]) -> tuple[int | None]:
 
-        arc = float(variant[header["SAMPLE"]].split(":")[1].split(",")[1])
+        arc = int(variant[header["SAMPLE"]].split(":")[1].split(",")[1])
 
         return (arc, None, None)
     
     def __str__(self):
+
         return "Haplotypecaller"
 
 
 class Flit3r(VariantCaller):
-
-    __slots__ = ['FORMAT']
 
     FORMAT = []
 
@@ -331,28 +329,31 @@ class Flit3r(VariantCaller):
     @staticmethod
     def depth(variant: list[str], header: dict[str:int]) -> int:
 
-        return float(variant[6].split(";")[1].split("=")[1]) + float(
-            variant[6].split(";")[2].split("=")[1]
-        )
+        infos: list[str] = variant[6].split(";")
+
+        variant_reads: int = int(infos[1].split("=")[1])
+
+        reference_reads: int = int(infos[2].split("=")[1])
+
+        return variant_reads + reference_reads
 
     @staticmethod
-    def rrc(variant: list[str], header: dict[str:int]) -> tuple[float]:
+    def rrc(variant: list[str], header: dict[str:int]) -> tuple[int]:
 
         pass
 
     @staticmethod
-    def arc(variant: list[str], header: dict[str:int]) -> tuple[float | None]:
+    def arc(variant: list[str], header: dict[str:int]) -> tuple[int | None]:
 
-        arc = float(variant[6].split(";")[1].split("=")[1])
+        arc = int(variant[6].split(";")[1].split("=")[1])
 
         return (arc, None, None)
     
     def __str__(self):
+
         return "Flit3r"
 
 class DeepVariant(VariantCaller):
-
-    __slots__ = ['FORMAT']
 
     FORMAT = ["GT", "GQ", "DP", "AD", "VAF", "PL"]
 
@@ -371,14 +372,14 @@ class DeepVariant(VariantCaller):
         return float(variant[header["SAMPLE"]].split(":")[2])
 
     @staticmethod
-    def rrc(variant: list[str], header: dict[str:int]) -> tuple[float]:
+    def rrc(variant: list[str], header: dict[str:int]) -> tuple[int]:
 
-        return float(variant[header["SAMPLE"]].split(":")[3].split(",")[0])
+        return int(variant[header["SAMPLE"]].split(":")[3].split(",")[0])
 
     @staticmethod
-    def arc(variant: list[str], header: dict[str:int]) -> tuple[float | None]:
+    def arc(variant: list[str], header: dict[str:int]) -> tuple[int | None]:
 
-        arc = float(variant[header["SAMPLE"]].split(":")[3].split(",")[1])
+        arc = int(variant[header["SAMPLE"]].split(":")[3].split(",")[1])
 
         return (arc, None, None)
     

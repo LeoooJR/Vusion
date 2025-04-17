@@ -22,6 +22,13 @@ class GenomicWritter():
             # Then sort the chromosomes
             {k: v for k,v in sorted(variants.items(), key=lambda item: item[0])}
 
+        def format_sample(metrics: dict) -> str:
+
+            return ':'.join([','.join([str(metrics[f"{format}+"]), 
+                                        str(metrics[f"{format}-"]), 
+                                        str(metrics[f"{format}+"] + metrics[f"{format}-"]) if metrics[f"{format}+"] != -1 and metrics[f"{format}+"] != -1 
+                                        else str(metrics[f"{format}"])]) if format in ["RRC","ARC"] else str(metrics[format]) for format in FORMAT])
+
         FORMAT: list[str] = [
         'GT', 'VAR', 'BKG', 'TRC', 'RRC', 'ARC', 'BRC', 'ARR',
         'BRR', 'BRE', 'SBP', 'SBM', 'LOW', 'VCI', 'VCN', 'PIL', 'RES'
@@ -72,8 +79,6 @@ class GenomicWritter():
 
                             variant: dict = variants[chromosome][positions][mutation]
 
-                            # vcf_compliant_position: int = (position - 1) if variant["type"] == "DEL" else position
-
                             ref, alt = mutation.split(':')
 
                             if variant.get("filter", "REJECTED") != "REJECTED":
@@ -90,7 +95,7 @@ class GenomicWritter():
                                             variant["filter"], # Filter field
                                             '='.join([INFOS[0], variant["type"]]), # Info field
                                             ':'.join(FORMAT), # Format field
-                                            ':'.join([str(variant["sample"][f]) for f in FORMAT])])) # Sample values field
+                                            format_sample(variant["sample"])])) # Sample values field
                                     
                                     out.write('\n')
 
@@ -112,7 +117,7 @@ class GenomicFile():
         """ Check if path is a file """
         return os.path.isfile(self.path)
     
-    def get_path(self):
+    def get_path(self) -> str:
 
         return self.path
 class VCF(GenomicFile):

@@ -338,7 +338,7 @@ def format_rrc_arc(variant):
         read_count_minus = variant['sample'][read_count_type + '-']
         read_count_plus = variant['sample'][read_count_type + '+']
 
-        if read_count_minus!="-1" and read_count_plus != "-1":
+        if read_count_minus != "-1" and read_count_plus != "-1":
 
             tmp_read_count = int(read_count_minus) + int(read_count_plus)
 
@@ -375,11 +375,12 @@ def estimate_brc_r_e(variant,pileup_line_info):
 
     Returns : a tuple containing the estimated BRC, BRR, and BRE.
     """
-    ref_and_alt_read_count = int(variant['sample']['ARC-']) + \
-                             int(variant['sample']['ARC+']) + \
-                             int(variant['sample']['RRC-']) + \
-                             int(variant['sample']['RRC+'])
+    ref_and_alt_read_count = variant['sample']['ARC-'] + \
+                             variant['sample']['ARC+'] + \
+                             variant['sample']['RRC-'] + \
+                             variant['sample']['RRC+']
     ins_read_counts = 0
+
     total_read_count = variant['sample']['TRC']
 
     if pileup_line_info[14] != 'None':
@@ -387,10 +388,11 @@ def estimate_brc_r_e(variant,pileup_line_info):
         tmp_table_count = re.findall(r'\d+', pileup_line_info[14])
         for tmp_count in tmp_table_count:
             ins_read_counts += int(tmp_count)
+
     if variant['type'] == 'INS':
         ins_read_counts -= (
-            int(variant['sample']['ARC+']) +
-            int(variant['sample']['ARC-'])
+            variant['sample']['ARC+'] +
+            variant['sample']['ARC-']
         )
 
     # Removing DEL counts if variant is at some position of a DEL.
@@ -400,34 +402,34 @@ def estimate_brc_r_e(variant,pileup_line_info):
         # Escaping clintool bug where non-existing deletion is reported and start with A , C, T or G
         if pileup_line_info[15][0] == '*':
             del_read_count = int(pileup_line_info[15].strip().split(';')[0].split(':')[1])
-            tmp_total_read_count = int(total_read_count) - int(del_read_count)
+            tmp_total_read_count = total_read_count - int(del_read_count)
 
 
             variant['sample']['BRC'] = (
                 tmp_total_read_count +
-                int(ins_read_counts) -
+                ins_read_counts -
                 min([
                     tmp_total_read_count,
-                    int(ref_and_alt_read_count)
+                    ref_and_alt_read_count
                     ])
                 )
 
         else:
             variant['sample']['BRC'] = (
-                int(total_read_count) +
-                int(ins_read_counts) -
+                total_read_count +
+                ins_read_counts -
                 min([
-                    int(total_read_count),
-                    int(ref_and_alt_read_count)
+                    total_read_count,
+                    ref_and_alt_read_count
                 ])
             )
     elif variant['type'] != 'DEL':
         variant['sample']['BRC'] = (
-            int(total_read_count) +
-            int(ins_read_counts) -
+            total_read_count +
+            ins_read_counts -
             min([
-                int(total_read_count),
-                int(ref_and_alt_read_count)
+                total_read_count,
+                ref_and_alt_read_count
             ])
         )
     else:
@@ -444,25 +446,26 @@ def estimate_brc_r_e(variant,pileup_line_info):
         variant['sample']['BRC'] = del_alt_count
 
 
-    background_read_counts = int(variant['sample']['BRC'])
-    variant['sample']['BRR'] = format(
-        background_read_counts / int(total_read_count),
-        '.5f'
+    background_read_counts = variant['sample']['BRC']
+    variant['sample']['BRR'] = round(
+        background_read_counts / total_read_count,
+        5
     )
-    background_read_ratio = float(variant['sample']['BRR'])
-    alt_read_count_ratio = float(variant['sample']['ARR'])/100
+    background_read_ratio = variant['sample']['BRR']
+
+    alt_read_count_ratio = variant['sample']['ARR'] / 100
     variant['sample']['BRE'] = background_read_ratio / \
                                                  (alt_read_count_ratio + background_read_ratio)
     # scale ratio from [0-1] to [0-100]
-    variant['sample']['BRE'] = format(
+    variant['sample']['BRE'] = round(
         float(variant['sample']['BRE']) * 100,
-        '.5f'
+        5
     )
-    variant['sample']['BRR'] = format(
+    
+    variant['sample']['BRR'] = round(
         float(variant['sample']['BRR']) * 100,
-        '.5f'
+        5
     )
-
 
     return(
         variant['sample']['BRC'],
@@ -608,13 +611,13 @@ def process_without_pileup(variants: dict, lookups: set, thresholds: list[float]
 
         # Get mean ARC from Variant callers
         variant['sample']['ARC'] = int(round(
-            (sum(variant['collection']['ARC'].values())/
+            (sum(variant['collection']['ARC'].values()) /
             variant['sample']['VCN']),
             5))
 
         # Get mean RRC from Variant callers
         variant['sample']['RRC'] = int(round(
-            (sum(variant['collection']['RRC'].values())/
+            (sum(variant['collection']['RRC'].values()) /
             variant['sample']['VCN']),
             5))
 
@@ -626,9 +629,9 @@ def process_without_pileup(variants: dict, lookups: set, thresholds: list[float]
         variant['sample']['VAR'] = compare_gt(variant)
 
         # Without pileup, impossible to determine certain values - set -1
-        variant['sample']['BRC'] = "-1"
-        variant['sample']['BRR'] = "-1"
-        variant['sample']['BRE'] = "-1"
+        variant['sample']['BRC'] = -1
+        variant['sample']['BRR'] = -1
+        variant['sample']['BRE'] = -1
         variant['sample']['BKG'] = "-1"
 
 
@@ -637,9 +640,10 @@ def process_without_pileup(variants: dict, lookups: set, thresholds: list[float]
             undertermined_ct_values = ["ARC+","ARC-","RRC+", "RRC-", "SBM", "SBP", "TRC+", "TRC-"]
 
             for ct_values in undertermined_ct_values:
-                variant['sample'].setdefault(ct_values, "-1")
 
-            variant['sample']['ARC'], variant['sample']['RRC'] = format_rrc_arc(variant)
+                variant['sample'].setdefault(ct_values, -1)
+
+            # variant['sample']['ARC'], variant['sample']['RRC'] = format_rrc_arc(variant)
 
         else:
             # Get mean TRC+/-,RRC+/-, ARC+/- from Variant callers
@@ -649,13 +653,14 @@ def process_without_pileup(variants: dict, lookups: set, thresholds: list[float]
                         sum_strand = sum(variant['collection']['RRC'+strand].values()) + sum(variant['collection']['ARC'+strand].values())
                     else:
                         sum_strand = sum(variant['collection'][count+strand].values())
-                    variant['sample'][count+strand] = round(
+
+                    variant['sample'][count+strand] = int(round(
                         sum_strand/
                         variant['sample']['VCN'],
-                        5)
+                        5))
 
-            variant['sample']['ARC'],\
-            variant['sample']['RRC'] = format_rrc_arc(variant)
+            # variant['sample']['ARC'],\
+            # variant['sample']['RRC'] = format_rrc_arc(variant)
 
             variant['sample']['SBP'],\
             variant['SBM'] = estimate_sbm(variant, sbm_homozygous)

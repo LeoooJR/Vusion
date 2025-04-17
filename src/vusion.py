@@ -43,11 +43,7 @@ from callers import VariantCallerRepository
 import errors
 import files as io
 from loguru import logger
-import os
-import sys
 from variants import VariantsRepository
-
-import pprint
 
 import utils as functions
 
@@ -56,9 +52,9 @@ def combine(params):
     # ===========================================================================================
     # Initiate constant variables
     # ===========================================================================================
-    SBM = 0.95
-    MAX_THRESHOLD = 100.0
-    MIN_THRESHOLD = 0.0
+    SBM: float = 2.0 if params.disable_strand_bias else 0.95
+    MAX_THRESHOLD: float = 100.0
+    MIN_THRESHOLD: float = 0.0
 
     # Create a variant caller repository
     # This repository will be used to check if the variant callers are supported
@@ -130,9 +126,6 @@ def combine(params):
 
     # Check if all mandatory option are given and modify variable depending of given options
 
-    if params.disable_strand_bias:
-        SBM = 2
-
     thresholds: list[str] = params.thresholds.split(',')
 
     # Check that we have 10 values in thresholds
@@ -203,22 +196,12 @@ def combine(params):
     #         }
     #     }
     # }
-    variants, ITD = variants_repository.normalize(sample=params.sample, pileup=pileup, thresholds=thresholds, length_indels=params.length_indels, sbm=SBM, sbm_homozygous=params.sbm_homozygous)
+    variants_repository.normalize(sample=params.sample, pileup=pileup, thresholds=thresholds, length_indels=params.length_indels, sbm=SBM, sbm_homozygous=params.sbm_homozygous)
 
     # ===========================================================================================
     # Process complex variants without Pileup : INV,MNV and CSV
     # ===========================================================================================
-    variants: dict = functions.process_without_pileup(variants=variants, lookups=variants_repository.cache["complex"].union(ITD), thresholds=thresholds, sbm=SBM, sbm_homozygous=params.sbm_homozygous)
-
-    # ===========================================================================================
-    # rescuing rejected calls w/ FILTER <PASS> (optional; if any)
-    # ===========================================================================================
-    if params.rescue:
-
-        # ===========================================================================================
-        # Process rejected variant
-        # ===========================================================================================
-        rejected: dict = functions.process_without_pileup(variants=variants, lookups=variants_repository.cache["rejected"], thresholds=thresholds, sbm=SBM, sbm_homozygous=params.sbm_homozygous)
+    variants: dict = functions.process_without_pileup(variants=variants_repository.variants, lookups=variants_repository.cache["complex"], thresholds=thresholds, sbm=SBM, sbm_homozygous=params.sbm_homozygous)
 
     # ===========================================================================================
     # Write VCFs
