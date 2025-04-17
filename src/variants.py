@@ -4,6 +4,7 @@ from functools import lru_cache
 from loguru import logger
 import math
 import numpy as np
+from operator import itemgetter
 import re
 from scipy.stats import fisher_exact
 import utils as functions
@@ -359,9 +360,9 @@ class VariantsRepository():
                                                                                             arr=variant["sample"]["ARR"],
                                                                                             thresholds=thresholds[0:6])
         
-        variant['sample']['SBP'], variant['sample']['SBM'] = VariantsRepository.compute_strand_bias_metrics(trc=(variant['sample']["TRC+"], variant['sample']["TRC-"]),
-                                                                                                  arc=(variant['sample']["ARC+"], variant['sample']["ARC-"]),
-                                                                                                  rrc=(variant['sample']["RRC+"], variant['sample']["RRC-"]),
+        variant['sample']['SBP'], variant['sample']['SBM'] = VariantsRepository.compute_strand_bias_metrics(trc=itemgetter("TRC+", "TRC-")(variant['sample']),
+                                                                                                  arc=itemgetter("ARC+", "ARC-")(variant['sample']),
+                                                                                                  rrc=itemgetter("RRC+", "RRC-")(variant['sample']),
                                                                                                   genotype=variant['sample']["GT"],
                                                                                                   variant=variant['type'],
                                                                                                   sbm_homozygous=sbm_homozygous)
