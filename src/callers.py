@@ -1,11 +1,15 @@
 import errors
-class VariantCaller():
+
+class VariantCaller:
 
     def __init__(self):
 
         pass
 
-class VariantCallerRepository():
+
+class VariantCallerRepository:
+
+    __slots__ = ['callers']
 
     # known variant callers are:
     # deepvariant       (DV)
@@ -14,157 +18,174 @@ class VariantCallerRepository():
     # vardict			(VD)
     # pindel			(PL)
     # haplotypecaller	(HC)
-    # smCounter2		(SM; DEPRECATED)
-    # control & hotspot (CS & HS) ## when --hotspot option is set;
-    # CtlSet & HotSpot should both originate from CombineVCF2final_metrics
 
     def __init__(self):
 
-        self.callers = {"BT": BCFTools(),
-                        "VS": Varscan(),
-                        "VD": Vardict(),
-                        "PL": Pindel(),
-                        "HC": Haplotypecaller(),
-                        "FL": Flit3r(),
-                        "DV": DeepVariant()}
-        
-        # self.BT = BCFTools()
-        # self.VS = Varscan()
-        # self.VD = Vardict()
-        # self.PL = Pindel()
-        # self.HS = Haplotypecaller()
-        # self.FL = Flit3r()
-        # self.DV = DeepVariant()
+        self.callers = {
+            "BT": BCFTools(),
+            "VS": Varscan(),
+            "VD": Vardict(),
+            "PL": Pindel(),
+            "HC": Haplotypecaller(),
+            "FL": Flit3r(),
+            "DV": DeepVariant(),
+        }
 
     def get_VC(self, caller: str) -> VariantCaller:
 
         try:
             return self.callers[caller]
         except KeyError:
-            raise errors.VariantCallerError(f"Variant Caller {caller} not supported.")
+            raise errors.VariantCallerError(
+                f"Variant Caller {caller} not supported."
+            )
 
     def get_BT(self) -> VariantCaller:
 
         return self.callers["BT"]
-    
+
     def get_VS(self) -> VariantCaller:
 
         return self.callers["VS"]
-    
+
     def get_VD(self) -> VariantCaller:
 
         return self.callers["VD"]
-    
+
     def get_PL(self) -> VariantCaller:
 
         return self.callers["PL"]
-    
+
     def get_HS(self) -> VariantCaller:
 
         return self.callers["HS"]
-    
+
     def get_FL(self) -> VariantCaller:
 
         return self.callers["FL"]
-    
+
     def get_DV(self) -> VariantCaller:
 
         return self.callers["DV"]
-    
+
     def is_supported(self, caller: str) -> bool:
 
         return caller in self.callers
+
 
 class BCFTools(VariantCaller):
 
     FORMAT = ["GT", "PL"]
 
     def __init__(self):
+
         super().__init__()
 
     @staticmethod
-    def VAF(variant: str) -> float:
+    def VAF(variant: list[str], header: dict[str:int]) -> float:
 
-        total_depth = float(variant[7].split('DP=')[1].split(';')[0])
+        total_depth: int = int(variant[header["INFO"]].split("DP=")[1].split(";")[0])
 
-        alleles_depth = variant[7].split('DP4=')[1].split(';')[0]
+        alleles_depth: int = variant[header["INFO"]].split("DP4=")[1].split(";")[0]
 
-        variant_depth = float(alleles_depth.split(',')[2]) + float(alleles_depth.split(',')[3])
+        variant_depth: int = float(alleles_depth.split(",")[2]) + float(
+            alleles_depth.split(",")[3]
+        )
 
         try:
-            vaf = variant_depth / total_depth
+            vaf: float = variant_depth / total_depth
         except ZeroDivisionError:
-            vaf = 0.0
+            vaf: float = 0.0
 
         return vaf
-    
-    @staticmethod
-    def depth(variant: str) -> int:
 
-        return int(variant[7].split('DP=')[1].split(';')[0])
-    
     @staticmethod
-    def rrc(variant: str) -> tuple[float]:
+    def depth(variant: list[str], header: dict[int]) -> int:
 
-        variant_depth = variant[7].split('DP4=')[1].split(';')[0]
-        depths = variant_depth.split(',')
-        rrc_plus = float(depths[0])
-        rrc_minus = float(depths[1])
-        rrc = rrc_plus + rrc_minus
-        return(rrc, rrc_plus, rrc_minus)
-    
+        return int(variant[header["INFO"]].split("DP=")[1].split(";")[0])
+
     @staticmethod
-    def arc(variant: str) -> tuple[float]:
+    def rrc(variant: list[str], header: dict[str:int]) -> tuple[int]:
 
-        variant_depth = variant[7].split('DP4=')[1].split(';')[0]
-        depths = variant_depth.split(',')
-        arc_plus = float(depths[2])
-        arc_minus = float(depths[3])
-        arc = arc_plus + arc_minus
+        alleles_depth: list[str] = variant[header["INFO"]].split("DP4=")[1].split(";")[0]
+        depths: list[str] = alleles_depth.split(",")
+        rrc_plus: int = int(depths[0])
+        rrc_minus: int = int(depths[1])
+        rrc: int = rrc_plus + rrc_minus
+        return (rrc, rrc_plus, rrc_minus)
+
+    @staticmethod
+    def arc(variant: list[str], header: dict[str:int]) -> tuple[int]:
+
+        alleles_depth: list[str] = variant[header["INFO"]].split("DP4=")[1].split(";")[0]
+        depths: list[str] = alleles_depth.split(",")
+        arc_plus: int = int(depths[2])
+        arc_minus: int = int(depths[3])
+        arc: int = arc_plus + arc_minus
         return (arc, arc_plus, arc_minus)
-
+    
+    def __str__(self):
+        return "BCFTools"
 
 class Varscan(VariantCaller):
 
-    FORMAT = ["GT", "GQ", "SDP", "DP", "RD", "AD", "FREQ", "PVAL", "RBQ", "ABQ", "RDF", "RDR", "ADF", "ADR"]
+    FORMAT = [
+        "GT",
+        "GQ",
+        "SDP",
+        "DP",
+        "RD",
+        "AD",
+        "FREQ",
+        "PVAL",
+        "RBQ",
+        "ABQ",
+        "RDF",
+        "RDR",
+        "ADF",
+        "ADR",
+    ]
 
     def __init__(self):
+
         super().__init__()
 
     @staticmethod
-    def VAF(variant: str) -> float:
+    def VAF(variant: list[str], header: dict[str:int]) -> float:
 
-        vaf = float(variant[9].split('%')[0].split(':')[-1])/100
+        vaf = float(variant[header["SAMPLE"]].split("%")[0].split(":")[-1]) / 100
 
         return vaf
-    
+
     @staticmethod
-    def depth(variant: str) -> int:
+    def depth(variant: list[str], header: dict[str:int]) -> int:
 
-        return int(variant[9].split(':')[2])
-    
+        return int(variant[header["SAMPLE"]].split(":")[2])
+
     @staticmethod
-    def rrc(variant: str) -> tuple[float]:
+    def rrc(variant: list[str], header: dict[str:int]) -> tuple[int]:
 
-        values = variant[9].split(':')
+        values = variant[header["SAMPLE"]].split(":")
 
-        rrc = float(values[4])
-        rrc_plus = float(values[10])
-        rrc_minus = float(values[11])
+        rrc = int(values[4])
+        rrc_plus = int(values[10])
+        rrc_minus = int(values[11])
 
-        return(rrc,rrc_plus,rrc_minus)
-    
+        return (rrc, rrc_plus, rrc_minus)
+
     @staticmethod
-    def arc(variant: str) -> tuple[float|None]:
+    def arc(variant: list[str], header: dict[str:int]) -> tuple[int | None]:
 
-        values = variant[9].split(':')
+        values = variant[header["SAMPLE"]].split(":")
 
-        arc = float(values[5])
-        arc_plus = float(values[12])
-        arc_minus = float(values[13])
+        arc = int(values[5])
+        arc_plus = int(values[12])
+        arc_minus = int(values[13])
 
         return (arc, arc_plus, arc_minus)
-
+    
+    def __str__(self):
+        return "Varscan"
 
 
 class Vardict(VariantCaller):
@@ -175,38 +196,46 @@ class Vardict(VariantCaller):
         super().__init__()
 
     @staticmethod
-    def VAF(variant: str) -> float:
+    def VAF(variant: list[str], header: dict[str:int]) -> float:
 
-        vaf = float(variant[7].split('AF=')[1].split(';')[0])
+        vaf = float(variant[header["INFO"]].split("AF=")[1].split(";")[0])
 
         return vaf
-    
+
     @staticmethod
-    def depth(variant: str) -> int:
+    def depth(variant: list[str], header: dict[str:int]) -> int:
 
-        return int(variant[9].split(":")[1])
-    
+        return int(variant[header["SAMPLE"]].split(":")[1])
+
     @staticmethod
-    def rrc(variant: str) -> tuple[float]:
+    def rrc(variant: list[str], header: dict[str:int]) -> tuple[int]:
 
-        values = variant[9].split(":")
+        values: list[str] = variant[header["SAMPLE"]].split(":")
 
-        rrc = float(values[3].split(',')[0])
-        rrc_plus = float(values[5].split(',')[0])
-        rrc_minus = float(values[5].split(',')[1])
+        rrc = int(values[3].split(",")[0])
 
-        return(rrc,rrc_plus,rrc_minus)
-    
+        rd: list[str] = values[5].split(",")
+        rrc_plus: int = int(rd[0])
+        rrc_minus: int = int(rd[1])
+
+        return (rrc, rrc_plus, rrc_minus)
+
     @staticmethod
-    def arc(variant: str) -> tuple[float|None]:
+    def arc(variant: list[str], header: dict[str:int]) -> tuple[int | None]:
 
-        values = variant[9].split(":")
+        values: list[str] = variant[header["SAMPLE"]].split(":")
 
-        arc = float(values[3].split(',')[1])
-        arc_plus = float(values[6].split(',')[0])
-        arc_minus = float(values[6].split(',')[1])
+        arc = int(values[3].split(",")[1])
+
+        ald: list[int] = values[6].split(",")
+        arc_plus: int = int(ald[0])
+        arc_minus: int = int(ald[1])
 
         return (arc, arc_plus, arc_minus)
+    
+    def __str__(self):
+        return "Vardict"
+
 
 class Pindel(VariantCaller):
 
@@ -216,32 +245,34 @@ class Pindel(VariantCaller):
         super().__init__()
 
     @staticmethod
-    def VAF(variant: str) -> float:
+    def VAF(variant: list[str], header: dict[str:int]) -> float:
 
-        depths = variant[9].split(':')[1].split(',')
-        vaf = float(depths[1])/(float(depths[0]) + float(depths[1]))
+        depths = variant[header["SAMPLE"]].split(":")[1].split(",")
+        vaf = float(depths[1]) / (float(depths[0]) + float(depths[1]))
         return vaf
-    
-    @staticmethod
-    def depth(variant: str) -> int:
 
-        return (
-        float(variant[9].split(':')[1].split(',')[0]) +
-        float(variant[9].split(':')[1].split(',')[1])
-        )
-    
     @staticmethod
-    def rrc(variant: str) -> tuple[float]:
+    def depth(variant: list[str], header: dict[str:int]) -> int:
+
+        alleles_depth: list[str] = variant[header["SAMPLE"]].split(":")[1].split(",")
+
+        return int(alleles_depth[0]) + int(alleles_depth[1])
+
+    @staticmethod
+    def rrc(variant: list[str], header: dict[str:int]) -> tuple[int]:
 
         pass
-    
-    @staticmethod
-    def arc(variant: str) -> tuple[float|None]:
 
-        arc = float(variant[9].split(':')[1].split(',')[1])
+    @staticmethod
+    def arc(variant: list[str], header: dict[str:int]) -> tuple[int | None]:
+
+        arc = int(variant[header["SAMPLE"]].split(":")[1].split(",")[1])
 
         return (arc, None, None)
+    
+    def __str__(self):
 
+        return "Pindel"
 
 
 class Haplotypecaller(VariantCaller):
@@ -252,30 +283,35 @@ class Haplotypecaller(VariantCaller):
         super().__init__()
 
     @staticmethod
-    def VAF(variant: str) -> float:
+    def VAF(variant: list[str], header: dict[str:int]) -> float:
 
-        total_depth = float(variant[9].split(':')[2])
-        variant_depth = float(variant[9].split(':')[1].split(',')[1])
-        vaf = variant_depth / total_depth
-        return vaf
-    
-    @staticmethod
-    def depth(variant: str) -> int:
+        metrics: list[str] = variant[header["SAMPLE"]].split(":") 
 
-        return float(variant[9].split(':')[2])
-    
+        total_depth = float(metrics[2])
+        alleles_depth = float(metrics[1].split(",")[1])
+        
+        return alleles_depth / total_depth
+
     @staticmethod
-    def rrc(variant: str) -> tuple[float]:
+    def depth(variant: list[str], header: dict[str:int]) -> int:
+
+        return int(variant[header["SAMPLE"]].split(":")[2])
+
+    @staticmethod
+    def rrc(variant: list[str], header: dict[str:int]) -> tuple[int]:
 
         pass
-    
+
     @staticmethod
-    def arc(variant: str) -> tuple[float|None]:
+    def arc(variant: list[str], header: dict[str:int]) -> tuple[int | None]:
 
-        arc = float(variant[9].split(':')[1].split(',')[1])
+        arc = int(variant[header["SAMPLE"]].split(":")[1].split(",")[1])
 
-        return (arc, None, None) 
+        return (arc, None, None)
+    
+    def __str__(self):
 
+        return "Haplotypecaller"
 
 
 class Flit3r(VariantCaller):
@@ -286,56 +322,66 @@ class Flit3r(VariantCaller):
         super().__init__()
 
     @staticmethod
-    def VAF(variant: str) -> float:
+    def VAF(variant: list[str], header: dict[str:int]) -> float:
 
-        return float(variant[6].split(';')[4].split('=')[1])
-    
-    @staticmethod
-    def depth(variant: str) -> int:
+        return float(variant[6].split(";")[4].split("=")[1])
 
-        return (
-            float(variant[6].split(';')[1].split('=')[1]) +
-            float(variant[6].split(';')[2].split('=')[1])
-        )
-    
     @staticmethod
-    def rrc(variant: str) -> tuple[float]:
+    def depth(variant: list[str], header: dict[str:int]) -> int:
+
+        infos: list[str] = variant[6].split(";")
+
+        variant_reads: int = int(infos[1].split("=")[1])
+
+        reference_reads: int = int(infos[2].split("=")[1])
+
+        return variant_reads + reference_reads
+
+    @staticmethod
+    def rrc(variant: list[str], header: dict[str:int]) -> tuple[int]:
 
         pass
-    
-    @staticmethod
-    def arc(variant: str) -> tuple[float|None]:
 
-        arc = float(variant[6].split(';')[1].split('=')[1])
+    @staticmethod
+    def arc(variant: list[str], header: dict[str:int]) -> tuple[int | None]:
+
+        arc = int(variant[6].split(";")[1].split("=")[1])
 
         return (arc, None, None)
+    
+    def __str__(self):
+
+        return "Flit3r"
 
 class DeepVariant(VariantCaller):
 
     FORMAT = ["GT", "GQ", "DP", "AD", "VAF", "PL"]
 
     def __init__(self):
+
         super().__init__()
 
     @staticmethod
-    def VAF(variant: str) -> float:
+    def VAF(variant: list[str], header: dict[str:int]) -> float:
 
-        return variant.split(':')[-2]
-    
+        return float(variant[header["SAMPLE"]].split(":")[-2])
+
     @staticmethod
-    def depth(variant: str) -> int:
+    def depth(variant: list[str], header: dict[str:int]) -> int:
 
-        return variant.split(':')[2]
-    
+        return float(variant[header["SAMPLE"]].split(":")[2])
+
     @staticmethod
-    def rrc(variant: str) -> tuple[float]:
+    def rrc(variant: list[str], header: dict[str:int]) -> tuple[int]:
 
-        return variant.split(':')[3].split(',')[0]
-    
+        return int(variant[header["SAMPLE"]].split(":")[3].split(",")[0])
+
     @staticmethod
-    def arc(variant: str) -> tuple[float|None]:
+    def arc(variant: list[str], header: dict[str:int]) -> tuple[int | None]:
 
-        arc =  variant.split(':')[3].split(',')[1]
+        arc = int(variant[header["SAMPLE"]].split(":")[3].split(",")[1])
 
         return (arc, None, None)
-
+    
+    def __str__(self):
+        return "Deepvariant"
