@@ -1,8 +1,11 @@
 import callers
+from collections import defaultdict
 import errors
 import jinja2
+import numpy as np
 import os
 import pandas as pd
+import re
 
 class GenomicWritter():
 
@@ -272,8 +275,47 @@ class Pileup(GenomicFile):
         return self.HEADER
     
     def parse(self):
-        # Clintools
-        pass
+        
+        with open(self.path, 'r') as pileup:
+
+            for record in pileup:
+
+                coverage: defaultdict = defaultdict(int)
+
+                indels: dict = {"insertions": defaultdict(lambda: np.zeros(shape=(2,2), dtype=np.uint)),
+                                "deletions": defaultdict(lambda: np.zeros(shape=(2,2), dtype=np.uint))}
+                
+                chromosome, \
+                position, \
+                reference, \
+                depth, \
+                read_base, \
+                quality = record.rstrip('\n').split('\t')
+
+                reference: str = reference.upper()
+                read_base: str = re.sub('\$', '', re.sub('\^', '', read_base))
+
+                insertions: list[str] = re.findall(r'(\+[0-9]+[ACGTNacgtn]+)', read_base)
+
+                for insertion in insertions:
+
+                    size, seq = re.split(r"(?<=\d)(?!.*\d)", insertion)
+
+                    if seq.isupper():
+
+                        indels["insertions"][seq][0] += 1
+                    
+                    else :
+
+                        indels["insertions"][seq][0] += 1
+
+                deletions: list[str] = re.findall(r"(\-[0-9]+[ACGTNacgtn]+)", read_base)
+
+                for deletion in deletions:
+
+                    pass
+
+                return {}
 
     def verify(self):
 
