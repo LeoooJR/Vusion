@@ -1,51 +1,10 @@
 #!/usr/bin/python3
 
-"""
-HOW TO RUN :
-
-python3 CombineVCF2Leaves-4.py \
--r ~/Bureau/8072/Data/REF/human_g1k_v37_decoy.fasta.fai \
--V ST,45-CEREBMD-12_S12_ST_final.vcf \
--V VD,45-CEREBMD-12_S12_VD_final.vcf \
--V PL,45-CEREBMD-12_S12_PL_final.vcf \
--V HC,45-CEREBMD-12_S12_HC_final.vcf \
--V VS,45-CEREBMD-12_S12_VS_final.vcf \
--V FL,45-CEREBMD-12_S12_VS_FILT3R_filtered.vcf \
---pileup 45-CEREBMD-12_S12_CT.tsv \
--o test.vcf \
---sample_id test \
--t 10,30,40,60,70,80,20,30,50,1 \
-
-
-DICTIONNARY :
-'chr:pos:REF:ALT':{'VC':{
-                         'VAF': {'PL': 8.968609865470851},
-                         'GT': {'PL': '0/0'},
-                         'FILTER': {'PL': 'PASS'},
-                         'INFO': {'PL': ...;SVLEN=34;SVTYPE=INS'},
-                         'FORMAT': {'PL': 'GT:AD'},
-                         'SAMPLE': {'PL': '0/0:203,20'},
-                         'TRC': {'PL': 223.0},
-                         'ARC': {'PL': 20.0},
-                         'RRC': {'PL': 203.0}},
-                    'VT': 'INS',
-                    'final_metrics': {'TRC': 223, 'TRC-': '-1', 'TRC+': '-1', \
-                    'RRC-': '-1', 'RRC+': '-1', 'VCN': 1, 'VCI': 'PL', \
-                    'ARR': '8.96861', 'LOW': 0, 'VAR': 'LSC', 'ARC': '-1,-1,20.0',\
-                    'RRC': '-1,-1,203.0', 'GT': '0/0', 'BRC': '-1', 'BRR': '-1', \
-                    'BRE': '-1', 'BKG': '-1', 'ARC+': '-1', 'ARC-': '-1', 'SBM': '-1',\
-                    'SBP': '-1', 'FILTER': 'PASS', 'PIL': 'N'},
-                    'vcf_fields': ['VAR', 'BKG', 'TRC', 'RRC', 'ARC', 'BRC', 'ARR', \
-                    'BRR', 'BRE', 'SBP', 'SBM', 'LOW', 'VCI', 'VCN','PIL']}}
-"""
-
 from callers import VariantCallerRepository
 import errors
 import files as io
 from loguru import logger
 from variants import VariantsRepository
-
-import utils as functions
 
 def combine(params):
 
@@ -199,11 +158,6 @@ def combine(params):
     variants_repository.normalize(sample=params.sample, pileup=pileup, thresholds=thresholds, length_indels=params.length_indels, sbm=SBM, sbm_homozygous=params.sbm_homozygous)
 
     # ===========================================================================================
-    # Process complex variants without Pileup : INV,MNV and CSV
-    # ===========================================================================================
-    variants: dict = functions.process_without_pileup(variants=variants_repository.variants, lookups=variants_repository.cache["complex"], thresholds=thresholds, sbm=SBM, sbm_homozygous=params.sbm_homozygous)
-
-    # ===========================================================================================
     # Write VCFs
     # ===========================================================================================
 
@@ -219,4 +173,4 @@ def combine(params):
     #         OUT_TRASH_FILE.write(functions.print_var(variant_key, rejected, 'final_metrics'))
 
     # Write the VCF file
-    writter.writeVCF(contigs=fasta_index.get_contigs(), variants=variants, samples=[params.sample], thresholds=thresholds)
+    writter.writeVCF(contigs=fasta_index.get_contigs(), variants=variants_repository.variants, samples=[params.sample], thresholds=thresholds)

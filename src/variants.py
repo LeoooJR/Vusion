@@ -582,6 +582,10 @@ class VariantsRepository():
         
         cache = functions.Cache(func=get_variants, max_size=1)
 
+        # ===========================================================================================
+        # Process common variants with Pileup
+        # ===========================================================================================
+
         with open(pileup.get_path(), mode='r') as f:
 
             for n, record in enumerate(f, start=1):
@@ -744,3 +748,25 @@ class VariantsRepository():
                                                                                       sbm=sbm,
                                                                                       sbm_homozygous=sbm_homozygous,
                                                                                       pileup_record=datas)
+                                            
+        # ===========================================================================================
+        # Process complex variants without Pileup : INV,MNV and CSV
+        # ===========================================================================================
+
+        for identifier in self.cache["complex"]:
+
+            Positions = namedtuple("Position", ["vcf_position", "pileup_position"])
+
+            chromsome, positions, ref, alt = identifier.split(':')
+
+            variant: dict = self.variants[chromsome][eval(positions)][f"{ref}:{alt}"]
+
+            if not 'sample' in variant:
+
+                variant['sample'] = {}
+
+            # --------------------------------------------------------------
+            # Compute metrics
+            # --------------------------------------------------------------
+
+            VariantsRepository.compute_sample_metrics(variant=variant, thresholds=thresholds, sbm=sbm, sbm_homozygous=sbm_homozygous)
