@@ -34,7 +34,7 @@ class Cache():
 # Basics functions on dictionary
 # ===========================================================================================
 
-def merge_collections(collections: list[tuple|list|dict]) -> tuple|list|dict:
+def merge_collections(collections: list[object]) -> object:
     """
     Merges specified variant dictionaries.
     Parameters:

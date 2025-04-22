@@ -174,7 +174,7 @@ class Varscan(VariantCaller):
         return (rrc, rrc_plus, rrc_minus)
 
     @staticmethod
-    def arc(variant: list[str], header: dict[str:int]) -> tuple[int | None]:
+    def arc(variant: list[str], header: dict[str:int]) -> tuple[int]:
 
         values = variant[header["SAMPLE"]].split(":")
 
@@ -221,7 +221,7 @@ class Vardict(VariantCaller):
         return (rrc, rrc_plus, rrc_minus)
 
     @staticmethod
-    def arc(variant: list[str], header: dict[str:int]) -> tuple[int | None]:
+    def arc(variant: list[str], header: dict[str:int]) -> tuple[int]:
 
         values: list[str] = variant[header["SAMPLE"]].split(":")
 
@@ -264,7 +264,7 @@ class Pindel(VariantCaller):
         pass
 
     @staticmethod
-    def arc(variant: list[str], header: dict[str:int]) -> tuple[int | None]:
+    def arc(variant: list[str], header: dict[str:int]) -> tuple[int]:
 
         arc = int(variant[header["SAMPLE"]].split(":")[1].split(",")[1])
 
@@ -303,7 +303,7 @@ class Haplotypecaller(VariantCaller):
         pass
 
     @staticmethod
-    def arc(variant: list[str], header: dict[str:int]) -> tuple[int | None]:
+    def arc(variant: list[str], header: dict[str:int]) -> tuple[int]:
 
         arc = int(variant[header["SAMPLE"]].split(":")[1].split(",")[1])
 
@@ -343,7 +343,7 @@ class Flit3r(VariantCaller):
         pass
 
     @staticmethod
-    def arc(variant: list[str], header: dict[str:int]) -> tuple[int | None]:
+    def arc(variant: list[str], header: dict[str:int]) -> tuple[int]:
 
         arc = int(variant[6].split(";")[1].split("=")[1])
 
@@ -377,7 +377,7 @@ class DeepVariant(VariantCaller):
         return int(variant[header["SAMPLE"]].split(":")[3].split(",")[0])
 
     @staticmethod
-    def arc(variant: list[str], header: dict[str:int]) -> tuple[int | None]:
+    def arc(variant: list[str], header: dict[str:int]) -> tuple[int]:
 
         arc = int(variant[header["SAMPLE"]].split(":")[3].split(",")[1])
 

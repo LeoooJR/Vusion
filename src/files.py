@@ -7,46 +7,97 @@ import os
 import pandas as pd
 import re
 
-class GenomicWritter():
+
+class GenomicWritter:
 
     def __init__(self, file: str):
-        
+
         self.file = file
 
-    def writeVCF(self, contigs: object, variants: object, samples: list[str], thresholds: list[float]):
+    def writeVCF(
+        self,
+        contigs: object,
+        variants: object,
+        samples: list[str],
+        thresholds: list[float],
+    ):
 
-        def sort_variant(contigs: object , variants: dict) -> object:
+        def sort_variant(contigs: object, variants: dict) -> object:
 
             # First sort the positions for each chromosome
             for chromosome in variants:
 
-                variants[chromosome] = {k: v for k, v in sorted(variants[chromosome].items(), key=lambda item: int(item[0].vcf_position))}
-            
+                variants[chromosome] = {
+                    k: v
+                    for k, v in sorted(
+                        variants[chromosome].items(),
+                        key=lambda item: int(item[0].vcf_position),
+                    )
+                }
+
             # Then sort the chromosomes
-            {k: v for k,v in sorted(variants.items(), key=lambda item: item[0])}
+            {
+                k: v
+                for k, v in sorted(variants.items(), key=lambda item: item[0])
+            }
 
         def format_sample(metrics: dict) -> str:
 
-            return ':'.join([','.join([str(metrics[f"{format}+"]), 
-                                        str(metrics[f"{format}-"]), 
-                                        str(metrics[f"{format}+"] + metrics[f"{format}-"]) if metrics[f"{format}+"] != -1 and metrics[f"{format}+"] != -1 
-                                        else str(metrics[f"{format}"])]) if format in ["RRC","ARC"] else str(metrics[format]) for format in FORMAT])
+            return ":".join(
+                [
+                    (
+                        ",".join(
+                            [
+                                str(metrics[f"{format}+"]),
+                                str(metrics[f"{format}-"]),
+                                (
+                                    str(
+                                        metrics[f"{format}+"]
+                                        + metrics[f"{format}-"]
+                                    )
+                                    if metrics[f"{format}+"] != -1
+                                    and metrics[f"{format}+"] != -1
+                                    else str(metrics[f"{format}"])
+                                ),
+                            ]
+                        )
+                        if format in ["RRC", "ARC"]
+                        else str(metrics[format])
+                    )
+                    for format in FORMAT
+                ]
+            )
 
         FORMAT: list[str] = [
-        'GT', 'VAR', 'BKG', 'TRC', 'RRC', 'ARC', 'BRC', 'ARR',
-        'BRR', 'BRE', 'SBP', 'SBM', 'LOW', 'VCI', 'VCN', 'PIL', 'RES'
+            "GT",
+            "VAR",
+            "BKG",
+            "TRC",
+            "RRC",
+            "ARC",
+            "BRC",
+            "ARR",
+            "BRR",
+            "BRE",
+            "SBP",
+            "SBM",
+            "LOW",
+            "VCI",
+            "VCN",
+            "PIL",
+            "RES",
         ]
 
         HEADER: list[str] = [
-        "CHROM",
-        "POS",
-        "ID",
-        "REF",
-        "ALT",
-        "QUAL",
-        "FILTER",
-        "INFO",
-        "FORMAT",
+            "CHROM",
+            "POS",
+            "ID",
+            "REF",
+            "ALT",
+            "QUAL",
+            "FILTER",
+            "INFO",
+            "FORMAT",
         ]
 
         # Add sample names to the header
@@ -55,20 +106,26 @@ class GenomicWritter():
         INFOS: list[str] = ["VAR"]
 
         # Path to the template directory
-        ressources = os.path.join(os.path.dirname(os.path.abspath(__file__)),'templates')
+        ressources = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "templates"
+        )
 
         env = jinja2.Environment(loader=jinja2.FileSystemLoader(ressources))
 
         # Load the header template
         template = env.get_template("header")
 
-        with open(self.file, mode='w') as out:
-            
+        with open(self.file, mode="w") as out:
+
             # Write the rendered header to the file
-            out.writelines(template.render(contigs = contigs, thresholds = thresholds))
+            out.writelines(
+                template.render(contigs=contigs, thresholds=thresholds)
+            )
+
+            header: str = "\t".join(HEADER)
 
             # Write the column names
-            out.write(f"\n#{'\t'.join(HEADER)}\n")
+            out.write(f"\n#{header}\n")
 
             # Sort the variants by chromosome and position
             sort_variant(contigs=contigs, variants=variants)
@@ -80,49 +137,65 @@ class GenomicWritter():
 
                     for mutation in variants[chromosome][positions]:
 
-                            variant: dict = variants[chromosome][positions][mutation]
+                        variant: dict = variants[chromosome][positions][
+                            mutation
+                        ]
 
-                            ref, alt = mutation.split(':')
+                        ref, alt = mutation.split(":")
 
-                            if variant.get("filter", "REJECTED") != "REJECTED":
+                        if variant.get("filter", "REJECTED") != "REJECTED":
 
-                                # Write ONLY if normalized metrics are present
-                                if 'sample' in variant:
+                            # Write ONLY if normalized metrics are present
+                            if "sample" in variant:
 
-                                    out.write('\t'.join([f"chr{chromosome}", # Chromosome field
-                                            str(positions.vcf_position), # Position field
-                                            '.', # ID field
-                                            ref, # Reference field
-                                            alt, # Alternate field
-                                            '.',
-                                            variant["filter"], # Filter field
-                                            '='.join([INFOS[0], variant["type"]]), # Info field
-                                            ':'.join(FORMAT), # Format field
-                                            format_sample(variant["sample"])])) # Sample values field
-                                    
-                                    out.write('\n')
+                                out.write(
+                                    "\t".join(
+                                        [
+                                            f"chr{chromosome}",  # Chromosome field
+                                            str(
+                                                positions.vcf_position
+                                            ),  # Position field
+                                            ".",  # ID field
+                                            ref,  # Reference field
+                                            alt,  # Alternate field
+                                            ".",
+                                            variant["filter"],  # Filter field
+                                            "=".join(
+                                                [INFOS[0], variant["type"]]
+                                            ),  # Info field
+                                            ":".join(FORMAT),  # Format field
+                                            format_sample(variant["sample"]),
+                                        ]
+                                    )
+                                )  # Sample values field
 
-class GenomicReader():
+                                out.write("\n")
+
+
+class GenomicReader:
 
     pass
 
-class GenomicFile():
+
+class GenomicFile:
 
     def __init__(self, path: str):
 
         self.path = path
 
     def is_empty(self) -> bool:
-        """ Check if file is empty """
+        """Check if file is empty"""
         return os.path.getsize(self.path) == 0
 
     def is_file(self) -> bool:
-        """ Check if path is a file """
+        """Check if path is a file"""
         return os.path.isfile(self.path)
-    
+
     def get_path(self) -> str:
 
         return self.path
+
+
 class VCF(GenomicFile):
 
     HEADER: dict[str:int] = {
@@ -135,12 +208,14 @@ class VCF(GenomicFile):
         "FILTER": 6,
         "INFO": 7,
         "FORMAT": 8,
-        "SAMPLE": 9
+        "SAMPLE": 9,
     }
 
     DEL_FIRST_NC: int = -1
 
-    def __init__(self, path: str, caller: callers.VariantCaller, lazy: bool = True):
+    def __init__(
+        self, path: str, caller: callers.VariantCaller, lazy: bool = True
+    ):
 
         super().__init__(path=path)
 
@@ -155,7 +230,7 @@ class VCF(GenomicFile):
     def get_header(self):
 
         return self.HEADER
-    
+
     def parse(self):
 
         pass
@@ -169,57 +244,65 @@ class VCF(GenomicFile):
         if self.is_empty():
 
             raise errors.VCFError(f"The file {self.path} is empty.")
-        
+
         try:
 
-            with open(self.path, mode='r') as vcf:
+            with open(self.path, mode="r") as vcf:
 
                 line = vcf.readline()
 
                 if not line:
 
-                    raise errors.VCFError(f"First line of {self.path} is empty.")
-                
+                    raise errors.VCFError(
+                        f"First line of {self.path} is empty."
+                    )
+
                 else:
 
                     # Check if first line start with "#"
-                    if line[0] != '#':
+                    if line[0] != "#":
 
-                        raise errors.VCFError(f"First line inconsistent with VCF header format")
+                        raise errors.VCFError(
+                            f"First line inconsistent with VCF header format"
+                        )
 
         except FileNotFoundError:
 
             raise errors.VCFError(f"{self.path} is not a valid path")
-                
+
         except IOError:
 
-            raise errors.VCFError(f"An error occurred while reading {self.path}")
+            raise errors.VCFError(
+                f"An error occurred while reading {self.path}"
+            )
 
     @staticmethod
     def convert(a: object) -> object:
-        """ Convert variable to appropriate type """
+        """Convert variable to appropriate type"""
         try:
             # If the variable contains a '/' or '|' character, it is a genotype information, return the variable as is
             # Else return the variable as an evaluated expression
-            return a if sum(list(map(lambda x: x in a,('/','|')))) else eval(a)
+            return (
+                a if sum(list(map(lambda x: x in a, ("/", "|")))) else eval(a)
+            )
         except Exception:
             # If the variable cannot be evaluated, return the variable as is
             return a
 
-    def format_to_values(self, values: str|list[str]) -> dict:
-        """ map FORMAT string to respective SAMPLE values """
+    def format_to_values(self, values: list[str]) -> dict:
+        """map FORMAT string to respective SAMPLE values"""
 
         # Split the values string into a list of fields
         values: list[str] = values.split(":")
 
         return {f: VCF.convert(v) for f, v in zip(self.caller.FORMAT, values)}
-    
+
     def info_to_values(self, values: str) -> dict:
 
-        infos = list(map(lambda item: item.split('='), values.split(';')))
+        infos = list(map(lambda item: item.split("="), values.split(";")))
 
         return {k: v for k, v in infos}
-    
+
     def VAF(self, variant: str) -> float:
 
         return self.caller.VAF(variant, self.HEADER)
@@ -236,27 +319,30 @@ class VCF(GenomicFile):
 
         return self.caller.rrc(variant, self.HEADER)
 
+
 class Pileup(GenomicFile):
 
-    HEADER: dict[str:int] = {"barcode": 0, 
-              "chromosome": 1, 
-              "position": 2, 
-              "reference": 3, 
-              "depth": 4, 
-              "A+": 5, 
-              "A-": 6, 
-              "T+": 7, 
-              "T-": 8, 
-              "C+": 9, 
-              "C-": 10, 
-              "G+": 11, 
-              "G-": 12, 
-              "N": 13, 
-              "INS": 14, 
-              "DEL": 15}
-    
-    PLUS_STRAND: list[int] = [0,2,4,6]
-    MINUS_STRAND: list[int] = [1,3,5,7]
+    HEADER: dict[str:int] = {
+        "barcode": 0,
+        "chromosome": 1,
+        "position": 2,
+        "reference": 3,
+        "depth": 4,
+        "A+": 5,
+        "A-": 6,
+        "T+": 7,
+        "T-": 8,
+        "C+": 9,
+        "C-": 10,
+        "G+": 11,
+        "G-": 12,
+        "N": 13,
+        "INS": 14,
+        "DEL": 15,
+    }
+
+    PLUS_STRAND: list[int] = [0, 2, 4, 6]
+    MINUS_STRAND: list[int] = [1, 3, 5, 7]
 
     DEL_FIRST_NC: int = 1
 
@@ -273,29 +359,34 @@ class Pileup(GenomicFile):
     def get_header(self):
 
         return self.HEADER
-    
+
     def parse(self):
-        
-        with open(self.path, 'r') as pileup:
+
+        with open(self.path, "r") as pileup:
 
             for record in pileup:
 
                 coverage: defaultdict = defaultdict(int)
 
-                indels: dict = {"insertions": defaultdict(lambda: np.zeros(shape=(2,2), dtype=np.uint)),
-                                "deletions": defaultdict(lambda: np.zeros(shape=(2,2), dtype=np.uint))}
-                
-                chromosome, \
-                position, \
-                reference, \
-                depth, \
-                read_base, \
-                quality = record.rstrip('\n').split('\t')
+                indels: dict = {
+                    "insertions": defaultdict(
+                        lambda: np.zeros(shape=(2, 2), dtype=np.uint)
+                    ),
+                    "deletions": defaultdict(
+                        lambda: np.zeros(shape=(2, 2), dtype=np.uint)
+                    ),
+                }
+
+                chromosome, position, reference, depth, read_base, quality = (
+                    record.rstrip("\n").split("\t")
+                )
 
                 reference: str = reference.upper()
-                read_base: str = re.sub('\$', '', re.sub('\^', '', read_base))
+                read_base: str = re.sub("\$", "", re.sub("\^", "", read_base))
 
-                insertions: list[str] = re.findall(r'(\+[0-9]+[ACGTNacgtn]+)', read_base)
+                insertions: list[str] = re.findall(
+                    r"(\+[0-9]+[ACGTNacgtn]+)", read_base
+                )
 
                 for insertion in insertions:
 
@@ -304,12 +395,14 @@ class Pileup(GenomicFile):
                     if seq.isupper():
 
                         indels["insertions"][seq][0] += 1
-                    
-                    else :
+
+                    else:
 
                         indels["insertions"][seq][0] += 1
 
-                deletions: list[str] = re.findall(r"(\-[0-9]+[ACGTNacgtn]+)", read_base)
+                deletions: list[str] = re.findall(
+                    r"(\-[0-9]+[ACGTNacgtn]+)", read_base
+                )
 
                 for deletion in deletions:
 
@@ -326,7 +419,8 @@ class Pileup(GenomicFile):
         if self.is_empty():
 
             raise errors.PileupError(f"The file {self.path} is empty.")
-        
+
+
 class VCFIndex(GenomicFile):
 
     def __init__(self, path: str, lazy: bool = True):
@@ -334,10 +428,10 @@ class VCFIndex(GenomicFile):
 
         self.verify()
 
-    
     def verify(self):
 
         pass
+
 
 class FastaIndex(GenomicFile):
 
@@ -350,7 +444,7 @@ class FastaIndex(GenomicFile):
         if not lazy:
 
             self.parse()
-        
+
         else:
 
             self.contigs: pd.DataFrame = pd.DataFrame()
@@ -363,46 +457,62 @@ class FastaIndex(GenomicFile):
 
         contigs: list[pd.Series] = []
 
-        with open(self.path, mode='r') as ref:
+        with open(self.path, mode="r") as ref:
             for line in ref:
                 if line:
-                    contigs.append(pd.Series(data=line.strip().split('\t')))
-                    
+                    contigs.append(pd.Series(data=line.strip().split("\t")))
+
         self.contigs: pd.DataFrame = pd.DataFrame(data=contigs)
-        self.contigs.columns=["contig", "length", "index", "pbline", "byteline"]
-        self.contigs: pd.DataFrame = self.contigs.astype({"contig": "string", "pbline": 'uint8', "byteline": "uint8"})
+        self.contigs.columns = [
+            "contig",
+            "length",
+            "index",
+            "pbline",
+            "byteline",
+        ]
+        self.contigs: pd.DataFrame = self.contigs.astype(
+            {"contig": "string", "pbline": "uint8", "byteline": "uint8"}
+        )
 
     def verify(self):
 
         if not self.is_file():
 
-            raise errors.FastaIndexError(f"The file {self.path} does not exist.")
+            raise errors.FastaIndexError(
+                f"The file {self.path} does not exist."
+            )
 
         if self.is_empty():
 
             raise errors.FastaIndexError(f"The file {self.path} is empty.")
-        
+
         try:
 
-            with open(self.path, mode='r') as fasta:
+            with open(self.path, mode="r") as fasta:
 
                 line = fasta.readline()
 
                 if not line:
-                    
-                    raise errors.FastaIndexError(f"First line of {self.path} is empty.")
-                
+
+                    raise errors.FastaIndexError(
+                        f"First line of {self.path} is empty."
+                    )
+
                 else:
 
                     # Check if first line is composed of 5 columns
-                    if len(line.split('\t')) != 5:
+                    if len(line.split("\t")) != 5:
 
-                        raise errors.FastaIndexError(f"First line inconsistent with Fasta index format")
-        
+                        raise errors.FastaIndexError(
+                            f"First line inconsistent with Fasta index format"
+                        )
+
         except FileNotFoundError:
 
             raise errors.FastaIndexError(f"{self.path} is not a valid path")
 
         except IOError:
 
-            raise errors.FastaIndexError(f"An error occurred while reading {self.path}")
+            raise errors.FastaIndexError(
+                f"An error occurred while reading {self.path}"
+            )

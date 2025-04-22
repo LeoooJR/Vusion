@@ -168,7 +168,7 @@ class VariantsRepository():
         return (genotype, level)
     
     @staticmethod
-    def compute_background_metrics(pileup: Pileup, record: list[str], variant: dict, thresholds: list[float]) -> dict[str:float|str]:
+    def compute_background_metrics(pileup: Pileup, record: list[str], variant: dict, thresholds: list[float]) -> dict[str:float]:
         """
         estimate <BRC/R/E> (background read counts/ratio/enrichment)
         BRC : background read counts
@@ -407,7 +407,7 @@ class VariantsRepository():
 
             with open(vcfs[caller]["vcf"].get_path(), mode='r') as vcf:
 
-                logger.debug(f"Processing {vcfs[caller]["vcf"].get_path()}")
+                logger.debug(f"Processing {vcfs[caller]['vcf'].get_path()}")
 
                 for line in vcf:
 
@@ -646,7 +646,7 @@ class VariantsRepository():
                                                     coverage["total"] += int(datas[pileup.HEADER["DEL"]].split(':')[1].split(';')[0])
                                                 except ValueError:
                                                     logger.warning("Unknow DEL value present in pileup file.")
-                                                    logger.warning(f"Warning was raised by: {datas[pileup.HEADER["DEL"]]} at line {n} column {pileup.HEADER["DEL"]}.")
+                                                    logger.warning(f"Warning was raised by: {datas[pileup.HEADER['DEL']]} at line {n} column {pileup.HEADER['DEL']}.")
 
                                             else:
                                                 # clintools bug where a DEL does not start w/ *:\d+
