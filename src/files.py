@@ -364,29 +364,39 @@ class Pileup(GenomicFile):
 
         with open(self.path, "r") as pileup:
 
+            indels: dict = {}
+
             for record in pileup:
 
                 coverage: defaultdict = defaultdict(int)
-
-                indels: dict = {
-                    "insertions": defaultdict(
-                        lambda: np.zeros(shape=(2, 2), dtype=np.uint)
-                    ),
-                    "deletions": defaultdict(
-                        lambda: np.zeros(shape=(2, 2), dtype=np.uint)
-                    ),
-                }
 
                 chromosome, position, reference, depth, read_base, quality = (
                     record.rstrip("\n").split("\t")
                 )
 
+                try:
+                    position: int = int(position)
+                except ValueError:
+                    raise errors.PileupError(f"Incorrect position value {position} in pileup file.")
+
+                indels.setdefault(position, {
+                        "insertions": defaultdict(
+                            lambda: np.zeros(shape=(1, 2), dtype=np.uint)
+                        ),
+                        "deletions": defaultdict(
+                            lambda: np.zeros(shape=(1, 2), dtype=np.uint)
+                        )
+                    }
+                )
+
                 reference: str = reference.upper()
-                read_base: str = re.sub("\$", "", re.sub("\^", "", read_base))
+
+                read_base: str = re.sub(r"\$", "", re.sub(r"\^.", "", read_base))
 
                 insertions: list[str] = re.findall(
                     r"(\+[0-9]+[ACGTNacgtn]+)", read_base
                 )
+
 
                 for insertion in insertions:
 
@@ -394,11 +404,22 @@ class Pileup(GenomicFile):
 
                     if seq.isupper():
 
-                        indels["insertions"][seq][0] += 1
+                        indels[position]["insertions"][seq][0][0] += 1
 
                     else:
 
-                        indels["insertions"][seq][0] += 1
+                        indels[position]["insertions"][seq.upper()][0][1] += 1
+
+                    read_base: str = re.sub(fr"\{insertion}", "", read_base)
+
+                insstring: str = ";".join(
+                    list(
+                        map(
+                            lambda ins: f"{ins[0]}:{ins[1][0][0]}:{ins[1][0][1]}",
+                            indels[position]["insertions"].items(),
+                        )
+                    )
+                ) if len(indels[position]["insertions"].items()) else None
 
                 deletions: list[str] = re.findall(
                     r"(\-[0-9]+[ACGTNacgtn]+)", read_base
@@ -406,9 +427,68 @@ class Pileup(GenomicFile):
 
                 for deletion in deletions:
 
-                    pass
+                    size, seq = re.split(r"(?<=\d)(?!.*\d)", deletion)
 
-                return {}
+                    if seq.isupper():
+
+                        indels[position]["deletions"][seq][0][0] += 1
+
+                    else:
+
+                        indels[position]["deletions"][seq.upper()][0][1] += 1
+
+                    read_base: str = re.sub(fr"\{deletion}", "", read_base)
+
+                for base in read_base:
+
+                    if base == ".":
+
+                        base = reference
+
+                    elif base == ",":
+
+                        base = reference.lower()
+
+                    if base == "A":
+                        coverage["A+"] += 1
+                    elif base == "a":
+                        coverage["A-"] += 1
+                    elif base == "T":
+                        coverage["T+"] += 1
+                    elif base == "t":
+                        coverage["T-"] += 1
+                    elif base == "C":
+                        coverage["C+"] += 1
+                    elif base == "c":
+                        coverage["C-"] += 1
+                    elif base == "G":
+                        coverage["G+"] += 1
+                    elif base == "g":
+                        coverage["G-"] += 1
+                    elif base == "N" or base == "n":
+                        coverage["N"] += 1
+                    elif base == "*":
+                        indels[position]["deletions"][base][0][0] += 1
+                    else:
+                        raise errors.PileupError(
+                            f"Unknown base {base} in pileup file"
+                        )
+                    
+                parts = [
+                    f"{key}:{values[0][0]}" for key, values in indels[position]["deletions"].items() if key == "*"
+                ]
+                
+                if (position - self.DEL_FIRST_NC) in indels:
+
+                    parts.extend([f"{key}:{values[0][0]}:{values[0][1]}" for key, values in indels[(position - self.DEL_FIRST_NC)]["deletions"].items() if key != "*"])
+
+                    del indels[(position - self.DEL_FIRST_NC)]
+
+                delstring: str = ';'.join(parts) if len(parts) else None
+
+                yield (
+                    f"{chromosome}\t{position}\t{reference}\t{depth}\t{coverage['A+']}\t{coverage['A-']}\t{coverage['T+']}\t{coverage['T-']}\t{coverage['C+']}\t{coverage['C-']}\t{coverage['G+']}\t{coverage['G-']}\t{coverage['N']}\t{insstring}\t{delstring}\n"
+                )
 
     def verify(self):
 
