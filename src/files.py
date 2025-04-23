@@ -544,6 +544,12 @@ class Pileup(GenomicFile):
                         if len(columns[2]) != 1 or (not columns[2] in ['A','T','C','G']):
                             
                             raise errors.PileupError(f"First line inconsistent with Pileup format")
+                        
+                        if len(columns) == 6:
+                        
+                            if not (columns[5].isascii() and len(columns[5])):
+
+                                raise errors.PileupError(f"First line inconsistent with Pileup format")
                             
         except FileNotFoundError:
 
