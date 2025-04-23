@@ -507,7 +507,53 @@ class Pileup(GenomicFile):
         if self.is_empty():
 
             raise errors.PileupError(f"The file {self.path} is empty.")
+        
+        try:
 
+            with open(self.path, mode="r") as pileup:
+
+                line = pileup.readline()
+
+                if not line:
+
+                    raise errors.PileupError(
+                        f"First line of {self.path} is empty."
+                    )
+
+                else:
+                    columns: list[str] = len(line.split("\t"))
+                    # Check if first line is composed of 5 or 6 columns
+                    # Column 6 is optional in pileup
+                    if not len(columns) in [5, 6]:
+
+                        raise errors.PileupError(
+                            f"First line inconsistent with Pileup format"
+                        )
+                    
+                    else:
+
+                        try:
+
+                            int(columns[1])
+                            int(columns[3])
+
+                        except ValueError:
+
+                            raise errors.PileupError(f"First line inconsistent with Pileup format")
+                        
+                        if len(columns[2]) != 1 or (not columns[2] in ['A','T','C','G']):
+                            
+                            raise errors.PileupError(f"First line inconsistent with Pileup format")
+                            
+        except FileNotFoundError:
+
+            raise errors.PileupError(f"{self.path} is not a valid path")
+
+        except IOError:
+
+            raise errors.PileupError(
+                f"An error occurred while reading {self.path}"
+            )
 
 class VCFIndex(GenomicFile):
 
