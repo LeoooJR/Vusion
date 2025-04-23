@@ -39,7 +39,7 @@ def combine(params):
     
     # Check pileup
     try:
-        pileup = io.Pileup(path=params.pileup, lazy=True)
+        pileup = io.Pileup(path=params.pileup, sample=params.sample, lazy=True)
         variants_repository.set_pileup(pileup)
     except errors.PileupError:
         logger.error(f"{params.pileup} is not a valid PILEUP.")

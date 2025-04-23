@@ -346,11 +346,13 @@ class Pileup(GenomicFile):
 
     DEL_FIRST_NC: int = 1
 
-    def __init__(self, path: str, lazy: bool = True):
+    def __init__(self, path: str, sample: str, lazy: bool = True):
 
         super().__init__(path=path)
 
         self.verify()
+
+        self.sample: str = sample
 
         if not lazy:
 
@@ -391,12 +393,18 @@ class Pileup(GenomicFile):
 
                 reference: str = reference.upper()
 
-                read_base: str = re.sub(r"\$", "", re.sub(r"\^.", "", read_base))
+                regex: dict[str:str] = {r'\^.': '',
+                                        r'\$': '',
+                                        '[BD-EH-SU-Z]': 'N',
+                                        '[bd-eh-su-z]': 'n'}
+                
+                for pattern in regex:
+
+                    read_base: str = re.sub(pattern, regex[pattern], read_base)
 
                 insertions: list[str] = re.findall(
                     r"(\+[0-9]+[ACGTNacgtn]+)", read_base
                 )
-
 
                 for insertion in insertions:
 
@@ -487,7 +495,7 @@ class Pileup(GenomicFile):
                 delstring: str = ';'.join(parts) if len(parts) else None
 
                 yield (
-                    f"{chromosome}\t{position}\t{reference}\t{depth}\t{coverage['A+']}\t{coverage['A-']}\t{coverage['T+']}\t{coverage['T-']}\t{coverage['C+']}\t{coverage['C-']}\t{coverage['G+']}\t{coverage['G-']}\t{coverage['N']}\t{insstring}\t{delstring}\n"
+                    f"{self.sample}\t{chromosome}\t{position}\t{reference}\t{depth}\t{coverage['A+']}\t{coverage['A-']}\t{coverage['T+']}\t{coverage['T-']}\t{coverage['C+']}\t{coverage['C-']}\t{coverage['G+']}\t{coverage['G-']}\t{coverage['N']}\t{insstring}\t{delstring}\n"
                 )
 
     def verify(self):
