@@ -44,10 +44,10 @@ class Program:
             dest="vcfs",
             action="append",
             required=True,
-            help=" <VC,vcf_file> path to input \
-        vcf file associated with identifier : samtools (ST), varscan (VS), vardict (VD), pindel (PL), haplotypecaller (HC), FILT3R (FL), deepvariant (DV) \
-        control & hotspot (CS & HS), when --hotspot option is set; CtlSet & HotSpot should both originate \
-        from CombineVCF2Leaves",
+            help=" <ID,vcf,[yaml]> path to input \
+        VCF file associated with identifier : bcftools (BT), varscan (VS), vardict (VD), pindel (PL), haplotypecaller (HC), FILT3R (FL), deepvariant (DV) \
+        control & hotspot (CS & HS). \
+        Provide a YAML file path for non-integrated variant callers.",
         )
         self.parser.add_argument(
             "-p",
@@ -56,8 +56,7 @@ class Program:
             type=str,
             metavar="",
             required=True,
-            help="Path to pileup\
-            processed mpileup data file",
+            help="Path to pileup processed mpileup data file",
         )
         self.parser.add_argument(
             "-s",
@@ -66,8 +65,7 @@ class Program:
             dest="sample",
             metavar="",
             required=True,
-            help="The sample identifier as\
-            specified in both bam and vcf files",
+            help="The sample identifier as specified in both bam and vcf files",
         )
         self.parser.add_argument(
             "-t",
@@ -77,8 +75,7 @@ class Program:
             default="10,30,40,60,70,80,20,30,50,1",
             metavar="",
             required=False,
-            help="Threshold used for variant\
-            categorization in VCF callsets",
+            help="Threshold used for variant categorization in VCF callsets",
         )
         self.parser.add_argument(
             "-d",
@@ -86,8 +83,7 @@ class Program:
             action="store_true",
             default=False,
             required=False,
-            help="Disable strand bias\
-            based filtering of variants",
+            help="Disable strand bias based filtering of variants",
         )
         self.parser.add_argument(
             "-R",
@@ -103,8 +99,7 @@ class Program:
             action="store_true",
             default=False,
             required=False,
-            help="Combine two combined callsets; \
-            One originated from a hotspot feature list",
+            help="Combine two combined callsets; One originated from a hotspot feature list",
         )
         # Si INDEL not in pileup and <l, will be considered as FP
         self.parser.add_argument(

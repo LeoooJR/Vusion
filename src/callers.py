@@ -34,8 +34,11 @@ class VariantCallerRepository:
     def get_VC(self, caller: str) -> VariantCaller:
 
         try:
+
             return self.callers[caller]
+        
         except KeyError:
+
             raise errors.VariantCallerError(
                 f"Variant Caller {caller} not supported."
             )
@@ -273,7 +276,6 @@ class Pindel(VariantCaller):
     def __str__(self):
 
         return "Pindel"
-
 
 class Haplotypecaller(VariantCaller):
 

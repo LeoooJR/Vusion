@@ -350,7 +350,7 @@ class Pileup(GenomicFile):
 
         super().__init__(path=path)
 
-        self.verify()
+        #self.verify()
 
         self.sample: str = sample
 

@@ -1,0 +1,31 @@
+class {{ caller }}(VariantCaller):
+
+    FORMAT = {{ format }}
+
+    def __init__(self):
+
+        super().__init__()
+
+    @staticmethod
+    def VAF(variant: list[str], header: dict[str:int]) -> float:
+
+        
+
+    @staticmethod
+    def depth(variant: list[str], header: dict[str:int]) -> int:
+
+        
+
+    @staticmethod
+    def rrc(variant: list[str], header: dict[str:int]) -> tuple[int]:
+
+        
+
+    @staticmethod
+    def arc(variant: list[str], header: dict[str:int]) -> tuple[int]:
+
+        
+    
+    def __str__(self):
+        
+        return "{{ caller }}"
