@@ -118,11 +118,19 @@ class Program:
             "--sbm_homozygous",
             action="store",
             required=False,
-            default=2 / 3,
+            default=(2 / 3),
             type=float,
             help="Define sbm limits for homozygous variants. \
                 By default, a strand bias is considered present if there is a 2/3 imbalance \
                 of reads on one strand and 1/3 on the other strand.",
+        )
+        self.parser.add_argument(
+            "--intermediate-results",
+            action="store_true",
+            dest="intermediate-results",
+            default=False,
+            required=False,
+            help="Should intermediate results be saved."
         )
         self.parser.add_argument(
             "--verbosity",

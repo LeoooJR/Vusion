@@ -11,15 +11,16 @@ import utils as functions
 
 class VariantsRepository():
 
-    def __init__(self, rescue: bool = False):
+    def __init__(self, sample: str, rescue: bool = False):
 
         # Dictionary to store variants
-        self.variants: dict = {}
+        self.repository: dict = {}
 
         self.cache: dict[str:set[str]] = {"common": set(), # Set to store variants possibly found in pileup
                                           "complex": set(), # Set to store complex variants
                                           "rejected": set()} # Set to store rejected variants
-        
+        self.sample: str = sample
+
         self.rescue: bool = rescue
 
     def set_pileup(self, pileup: Pileup):
@@ -411,12 +412,12 @@ class VariantsRepository():
 
                 for line in vcf:
 
-                    # VCF line structure is like [CHROM POS ID REF ALT QUAL FILTER INFO FORMAT SAMPLE]
-                    record = line.strip().split('\t')
-
                     # Skip header
                     if line[0] == '#':
                         continue
+
+                    # VCF line structure is like [CHROM POS ID REF ALT QUAL FILTER INFO FORMAT SAMPLE]
+                    record = line.strip().split('\t')
 
                     # In haplotype caller skip some weird exceptions
                     # If sample part is empty
@@ -453,24 +454,24 @@ class VariantsRepository():
                         # This is to avoid issues with different chromosome naming conventions
                         chromosome: str = record[0].removeprefix('chr')
                         
-                        if not chromosome in self.variants:
+                        if not chromosome in self.repository:
 
-                            self.variants[chromosome] = {}
+                            self.repository[chromosome] = {}
 
                         # Set positiion to integer
                         # Integer reduces memory usage in dictionary as key
                         Positions = namedtuple("Positions", ["vcf_position", "pileup_position"])
                         positions = Positions(vcf_position=int(record[1]), pileup_position=((int(record[1]) + self.pileup.DEL_FIRST_NC) if category == "DEL" else int(record[1])))
                             
-                        if not positions in self.variants[chromosome]:
+                        if not positions in self.repository[chromosome]:
 
-                            self.variants[chromosome][positions] = {}
+                            self.repository[chromosome][positions] = {}
 
                         # New variant
-                        if not mutation in self.variants[chromosome][positions]:
+                        if not mutation in self.repository[chromosome][positions]:
 
                             # Create a new entry in the dictionary for the variant
-                            self.variants[chromosome][positions][mutation] = {"collection": {"REF": ref,
+                            self.repository[chromosome][positions][mutation] = {"collection": {"REF": ref,
                                                                                              "ALT": alt,
                                                                                              'VAF': {},
                                                                                             'GT': {},
@@ -490,7 +491,7 @@ class VariantsRepository():
                             
                             # Create a variable which link to the same memory address as the variant in the global dictionary
                             # It reduce writing complexity and improve readability
-                            variant: dict = self.variants[chromosome][positions][mutation]
+                            variant: dict = self.repository[chromosome][positions][mutation]
 
                             # Define variant type
                             variant['type'] = category
@@ -533,7 +534,7 @@ class VariantsRepository():
 
                             # Create a variable which link to the same memory address as the variant in the global dictionary
                             # It reduce writing complexity and improve readability
-                            variant: dict = self.variants[chromosome][positions][mutation]
+                            variant: dict = self.repository[chromosome][positions][mutation]
 
                         variant['collection']['FILTER'][caller] = record[header['FILTER']]
                         variant['collection']['INFO'][caller] = record[header['INFO']]
@@ -599,7 +600,7 @@ class VariantsRepository():
                             variant['collection'][f"TRC-"][caller] = variant['collection']['ARC-'][caller] + variant['collection']['RRC-'][caller]
 
 
-    def normalize(self, sample: str, pileup: Pileup, thresholds: list[float], length_indels: int, sbm: float, sbm_homozygous: float) -> tuple[dict]:
+    def normalize(self, pileup: Pileup, thresholds: list[float], length_indels: int, sbm: float, sbm_homozygous: float) -> tuple[dict]:
 
         def get_variants(variants, chromosome):
 
@@ -617,29 +618,29 @@ class VariantsRepository():
 
                 datas = record.strip('\n').split('\t')
 
-                if datas[0] == sample:
+                if datas[0] == self.sample:
 
                     chromosome_pileup: str = datas[pileup.HEADER['chromosome']].removeprefix('chr')
                     position_pileup: int = int(datas[pileup.HEADER['position']])
                     reference_pileup: str = datas[pileup.HEADER['reference']]
 
                     # Check if variant is reported in one of the VCF files
-                    if (reference_pileup != 'N') and (chromosome_pileup in self.variants) and (position_pileup in cache.call(args = [self.variants, chromosome_pileup])):
+                    if (reference_pileup != 'N') and (chromosome_pileup in self.repository) and (position_pileup in cache.call(args = [self.repository, chromosome_pileup])):
 
-                        matchs: list[tuple] = [positions for positions in self.variants[chromosome_pileup] if positions.pileup_position == position_pileup]
+                        matchs: list[tuple] = [positions for positions in self.repository[chromosome_pileup] if positions.pileup_position == position_pileup]
 
                         if matchs:
 
                             for positions in matchs:
                         
-                                for mutation in self.variants[chromosome_pileup][positions]:
+                                for mutation in self.repository[chromosome_pileup][positions]:
                                     
                                     # O(1) lookup
                                     if f"{chromosome_pileup}:{positions}:{mutation}" in self.cache["common"]:
                                         
                                         # Create a variable which link to the same memory address as the variant in the global dictionary
                                         # It reduce writing complexity and improve readability
-                                        variant: dict = self.variants[chromosome_pileup][positions][mutation]
+                                        variant: dict = self.repository[chromosome_pileup][positions][mutation]
 
                                         if not 'sample' in variant:
 
@@ -784,7 +785,7 @@ class VariantsRepository():
 
             chromsome, positions, ref, alt = identifier.split(':')
 
-            variant: dict = self.variants[chromsome][eval(positions)][f"{ref}:{alt}"]
+            variant: dict = self.repository[chromsome][eval(positions)][f"{ref}:{alt}"]
 
             if not 'sample' in variant:
 
@@ -795,3 +796,11 @@ class VariantsRepository():
             # --------------------------------------------------------------
 
             VariantsRepository.compute_sample_metrics(variant=variant, thresholds=thresholds, sbm=sbm, sbm_homozygous=sbm_homozygous)
+
+    def __repr__(self):
+        
+        return f"Repository of variants for {self.sample} sample."
+    
+    def __str__(self):
+        
+        return f"Repository of variants for {self.sample} sample."

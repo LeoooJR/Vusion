@@ -18,11 +18,11 @@ def combine(params):
     # Create a variant caller repository
     # This repository will be used to check if the variant callers are supported
     # and to get the variant caller object for each variant caller
-    caller_repository = VariantCallerRepository()
+    callers = VariantCallerRepository()
 
     # Create a variants repository
     # This repository will be used to store the variants and their information
-    variants_repository = VariantsRepository(rescue=params.rescue)
+    variants = VariantsRepository(sample=params.sample, rescue=params.rescue)
 
     # ===========================================================================================
     # Check mandatory options
@@ -40,7 +40,7 @@ def combine(params):
     # Check pileup
     try:
         pileup = io.Pileup(path=params.pileup, sample=params.sample, lazy=True)
-        variants_repository.set_pileup(pileup)
+        variants.set_pileup(pileup)
     except errors.PileupError:
         logger.error(f"{params.pileup} is not a valid PILEUP.")
         raise SystemExit(f"{params.pileup} is not a valid PILEUP.")
@@ -65,12 +65,12 @@ def combine(params):
             logger.error(f"Error was raised by: {input[1]}.")
             raise SystemExit("Wrong type of argument in --vcf option.")
         except ValueError:
-            if not caller_repository.is_supported(input[0]):
+            if not callers.is_supported(input[0]):
                 logger.error(f"{input[0]} caller is not supported in --vcf option.")
                 raise SystemExit("Caller not supported in --vcf options.")
             
         try:
-            vcfs[input[0]] = {"vcf": io.VCF(path=input[1], caller=caller_repository.get_VC(input[0]), lazy=True), "index": None}
+            vcfs[input[0]] = {"vcf": io.VCF(path=input[1], caller=callers.get_VC(input[0]), lazy=True), "index": None}
         except (errors.VCFError, errors.VariantCallerError) as e:
             if isinstance(e,errors.VCFError):
                 logger.error(f"{vcf} is not a valid VCF.")
@@ -135,7 +135,9 @@ def combine(params):
     #         }
     #     }
     # }
-    variants_repository.populate(vcfs=vcfs)
+    logger.debug("Collecting all variants.")
+    
+    variants.populate(vcfs=vcfs)
 
     # ===========================================================================================
     # Process variants with Pileup
@@ -155,14 +157,16 @@ def combine(params):
     #         }
     #     }
     # }
-    variants_repository.normalize(sample=params.sample, pileup=pileup, thresholds=thresholds, length_indels=params.length_indels, sbm=SBM, sbm_homozygous=params.sbm_homozygous)
+    logger.debug("Calculation of final metrics.")
+
+    variants.normalize(pileup=pileup, thresholds=thresholds, length_indels=params.length_indels, sbm=SBM, sbm_homozygous=params.sbm_homozygous)
 
     # ===========================================================================================
     # Write VCFs
     # ===========================================================================================
 
     # Create a writer object to write the VCF file
-    writter: io.GenomicWritter = io.GenomicWritter(file=params.output)
+    writter: io.GenomicWritter = io.GenomicWritter(process=0)
 
     # write rejected calls to file
     # with open(os.path.join(os.getcwd(), f"{params.sample}_failed.vcf"), mode='w',encoding='utf-8') as OUT_TRASH_FILE:
@@ -172,5 +176,8 @@ def combine(params):
     #     for variant_key in ordered_variant_key:
     #         OUT_TRASH_FILE.write(functions.print_var(variant_key, rejected, 'final_metrics'))
 
+    logger.debug(f"Writting VCF file in {params.output}.")
     # Write the VCF file
-    writter.writeVCF(contigs=fasta_index.get_contigs(), variants=variants_repository.variants, samples=[params.sample], thresholds=thresholds)
+    writter.write(output=params.output, template="vcf", collection=variants.repository, sample=variants.sample, contigs=fasta_index.get_contigs(), thresholds=thresholds)
+
+    logger.success(f"VCF file successfully written to {params.output}")

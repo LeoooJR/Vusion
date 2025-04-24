@@ -7,176 +7,6 @@ import os
 import pandas as pd
 import re
 
-
-class GenomicWritter:
-
-    def __init__(self, file: str):
-
-        self.file = file
-
-    def writeVCF(
-        self,
-        contigs: object,
-        variants: object,
-        samples: list[str],
-        thresholds: list[float],
-    ):
-
-        def sort_variant(contigs: object, variants: dict) -> object:
-
-            # First sort the positions for each chromosome
-            for chromosome in variants:
-
-                variants[chromosome] = {
-                    k: v
-                    for k, v in sorted(
-                        variants[chromosome].items(),
-                        key=lambda item: int(item[0].vcf_position),
-                    )
-                }
-
-            # Then sort the chromosomes
-            {
-                k: v
-                for k, v in sorted(variants.items(), key=lambda item: item[0])
-            }
-
-        def format_sample(metrics: dict) -> str:
-
-            return ":".join(
-                [
-                    (
-                        ",".join(
-                            [
-                                str(metrics[f"{format}+"]),
-                                str(metrics[f"{format}-"]),
-                                (
-                                    str(
-                                        metrics[f"{format}+"]
-                                        + metrics[f"{format}-"]
-                                    )
-                                    if metrics[f"{format}+"] != -1
-                                    and metrics[f"{format}+"] != -1
-                                    else str(metrics[f"{format}"])
-                                ),
-                            ]
-                        )
-                        if format in ["RRC", "ARC"]
-                        else str(metrics[format])
-                    )
-                    for format in FORMAT
-                ]
-            )
-
-        FORMAT: list[str] = [
-            "GT",
-            "VAR",
-            "BKG",
-            "TRC",
-            "RRC",
-            "ARC",
-            "BRC",
-            "ARR",
-            "BRR",
-            "BRE",
-            "SBP",
-            "SBM",
-            "LOW",
-            "VCI",
-            "VCN",
-            "PIL",
-            "RES",
-        ]
-
-        HEADER: list[str] = [
-            "CHROM",
-            "POS",
-            "ID",
-            "REF",
-            "ALT",
-            "QUAL",
-            "FILTER",
-            "INFO",
-            "FORMAT",
-        ]
-
-        # Add sample names to the header
-        HEADER.extend(samples)
-
-        INFOS: list[str] = ["VAR"]
-
-        # Path to the template directory
-        ressources = os.path.join(
-            os.path.dirname(os.path.abspath(__file__)), "templates"
-        )
-
-        env = jinja2.Environment(loader=jinja2.FileSystemLoader(ressources))
-
-        # Load the header template
-        template = env.get_template("header")
-
-        with open(self.file, mode="w") as out:
-
-            # Write the rendered header to the file
-            out.writelines(
-                template.render(contigs=contigs, thresholds=thresholds)
-            )
-
-            header: str = "\t".join(HEADER)
-
-            # Write the column names
-            out.write(f"\n#{header}\n")
-
-            # Sort the variants by chromosome and position
-            sort_variant(contigs=contigs, variants=variants)
-
-            # Iterate over each level of the variants dictionary
-            for chromosome in variants:
-
-                for positions in variants[chromosome]:
-
-                    for mutation in variants[chromosome][positions]:
-
-                        variant: dict = variants[chromosome][positions][
-                            mutation
-                        ]
-
-                        ref, alt = mutation.split(":")
-
-                        if variant.get("filter", "REJECTED") != "REJECTED":
-
-                            # Write ONLY if normalized metrics are present
-                            if "sample" in variant:
-
-                                out.write(
-                                    "\t".join(
-                                        [
-                                            f"chr{chromosome}",  # Chromosome field
-                                            str(
-                                                positions.vcf_position
-                                            ),  # Position field
-                                            ".",  # ID field
-                                            ref,  # Reference field
-                                            alt,  # Alternate field
-                                            ".",
-                                            variant["filter"],  # Filter field
-                                            "=".join(
-                                                [INFOS[0], variant["type"]]
-                                            ),  # Info field
-                                            ":".join(FORMAT),  # Format field
-                                            format_sample(variant["sample"]),
-                                        ]
-                                    )
-                                )  # Sample values field
-
-                                out.write("\n")
-
-
-class GenomicReader:
-
-    pass
-
-
 class GenomicFile:
 
     def __init__(self, path: str):
@@ -194,7 +24,6 @@ class GenomicFile:
     def get_path(self) -> str:
 
         return self.path
-
 
 class VCF(GenomicFile):
 
@@ -233,7 +62,11 @@ class VCF(GenomicFile):
 
     def parse(self):
 
-        pass
+        with open(self.path, "r") as vcf:
+
+            for record in vcf:
+
+                yield record
 
     def verify(self):
 
@@ -619,11 +452,15 @@ class FastaIndex(GenomicFile):
         contigs: list[pd.Series] = []
 
         with open(self.path, mode="r") as ref:
+
             for line in ref:
+
                 if line:
+
                     contigs.append(pd.Series(data=line.strip().split("\t")))
 
         self.contigs: pd.DataFrame = pd.DataFrame(data=contigs)
+
         self.contigs.columns = [
             "contig",
             "length",
@@ -677,3 +514,230 @@ class FastaIndex(GenomicFile):
             raise errors.FastaIndexError(
                 f"An error occurred while reading {self.path}"
             )
+
+class GenomicReader:
+
+    def __init__(self, process: int = 0):
+
+        if process < 0:
+
+            raise ValueError("Process parameter cannot be signed integer.")
+        
+        if not isinstance(process, int):
+
+            raise ValueError("Process parameter must be a unsigned integer.")
+
+        self.process: int = process
+
+    def read(self, file: GenomicFile | list[GenomicFile]):
+
+        if isinstance(file, list):
+            
+            # Parallel computing
+            if self.process:
+
+                pass
+            # Sequential computing
+            else:
+
+                pass
+
+        else:
+
+            yield from file.parse()
+
+
+class GenomicWritter:
+
+    def __init__(self, process: int = 0):
+
+        if process < 0:
+
+            raise ValueError("Process parameter cannot be signed integer.")
+        
+        if not isinstance(process, int):
+
+            raise ValueError("Process parameter must be a unsigned integer.")
+
+        self.process: int = process
+
+    def write(self, output: str, template: str, collection: object | list[object], sample: str, contigs: object, thresholds: list[float]):
+
+        def write_pileup():
+
+            pass
+
+        def write_vcf(output: str, contigs: object, variants: object, samples: list[str], thresholds: list[float]):
+        
+            def sort_variant(contigs: object, variants: dict) -> object:
+
+                # First sort the positions for each chromosome
+                for chromosome in variants:
+
+                    variants[chromosome] = {
+                        k: v
+                        for k, v in sorted(
+                            variants[chromosome].items(),
+                            key=lambda item: int(item[0].vcf_position),
+                        )
+                    }
+
+                # Then sort the chromosomes
+                {
+                    k: v
+                    for k, v in sorted(variants.items(), key=lambda item: item[0])
+                }
+
+            def format_sample(metrics: dict) -> str:
+
+                return ":".join(
+                    [
+                        (
+                            ",".join(
+                                [
+                                    str(metrics[f"{format}+"]),
+                                    str(metrics[f"{format}-"]),
+                                    (
+                                        str(
+                                            metrics[f"{format}+"]
+                                            + metrics[f"{format}-"]
+                                        )
+                                        if metrics[f"{format}+"] != -1
+                                        and metrics[f"{format}+"] != -1
+                                        else str(metrics[f"{format}"])
+                                    ),
+                                ]
+                            )
+                            if format in ["RRC", "ARC"]
+                            else str(metrics[format])
+                        )
+                        for format in FORMAT
+                    ]
+                )
+
+            FORMAT: list[str] = [
+                "GT",
+                "VAR",
+                "BKG",
+                "TRC",
+                "RRC",
+                "ARC",
+                "BRC",
+                "ARR",
+                "BRR",
+                "BRE",
+                "SBP",
+                "SBM",
+                "LOW",
+                "VCI",
+                "VCN",
+                "PIL",
+                "RES",
+            ]
+
+            HEADER: list[str] = [
+                "CHROM",
+                "POS",
+                "ID",
+                "REF",
+                "ALT",
+                "QUAL",
+                "FILTER",
+                "INFO",
+                "FORMAT",
+            ]
+
+            # Add sample names to the header
+            HEADER.extend(samples)
+
+            INFOS: list[str] = ["VAR"]
+
+            # Path to the template directory
+            ressources = os.path.join(
+                os.path.dirname(os.path.abspath(__file__)), "templates"
+            )
+
+            env = jinja2.Environment(loader=jinja2.FileSystemLoader(ressources))
+
+            # Load the header template
+            template = env.get_template("header")
+
+            with open(output, mode="w") as out:
+
+                # Write the rendered header to the file
+                out.writelines(
+                    template.render(contigs=contigs, thresholds=thresholds)
+                )
+
+                header: str = "\t".join(HEADER)
+
+                # Write the column names
+                out.write(f"\n#{header}\n")
+
+                # Sort the variants by chromosome and position
+                sort_variant(contigs=contigs, variants=variants)
+
+                # Iterate over each level of the variants dictionary
+                for chromosome in variants:
+
+                    for positions in variants[chromosome]:
+
+                        for mutation in variants[chromosome][positions]:
+
+                            variant: dict = variants[chromosome][positions][
+                                mutation
+                            ]
+
+                            ref, alt = mutation.split(":")
+
+                            if variant.get("filter", "REJECTED") != "REJECTED":
+
+                                # Write ONLY if normalized metrics are present
+                                if "sample" in variant:
+
+                                    out.write(
+                                        "\t".join(
+                                            [
+                                                f"chr{chromosome}",  # Chromosome field
+                                                str(
+                                                    positions.vcf_position
+                                                ),  # Position field
+                                                ".",  # ID field
+                                                ref,  # Reference field
+                                                alt,  # Alternate field
+                                                ".",
+                                                variant["filter"],  # Filter field
+                                                "=".join(
+                                                    [INFOS[0], variant["type"]]
+                                                ),  # Info field
+                                                ":".join(FORMAT),  # Format field
+                                                format_sample(variant["sample"]),
+                                            ]
+                                        )
+                                    )  # Sample values field
+
+                                    out.write("\n")
+
+        if isinstance(collection, list):
+
+            # Parallel computing
+            if self.process:
+
+                pass
+
+            # Sequential computing
+            else:
+
+                pass
+
+        else:
+
+            if template == "vcf":
+
+                output: str = os.path.join(output, f"{sample}.vcf")
+
+                write_vcf(output=output, 
+                         contigs=contigs, 
+                         variants=collection, 
+                         samples=[sample], 
+                         thresholds=thresholds)
