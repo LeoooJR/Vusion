@@ -410,7 +410,7 @@ class VariantsRepository():
 
                 logger.debug(f"Processing {vcfs[caller]['vcf'].get_path()}")
 
-                for line in vcf:
+                for n, line in enumerate(vcf, start=1):
 
                     # Skip header
                     if line[0] == '#':
@@ -419,185 +419,191 @@ class VariantsRepository():
                     # VCF line structure is like [CHROM POS ID REF ALT QUAL FILTER INFO FORMAT SAMPLE]
                     record = line.strip().split('\t')
 
-                    # In haplotype caller skip some weird exceptions
-                    # If sample part is empty
-                    # If AD:DP is not in FORMAT (variant depth and total depth info)
-                    # If total depth is 0
-                    if caller == 'HC' and (
-                        len(record[9])==0 or
-                        not 'AD:DP' in record[8]
-                        or record[9].split(':')[2] == '0'
-                    ):
-                        continue
+                    if vcfs[caller]["vcf"].is_compliant(record):
 
-                    # In pindel skip exceptions
-                    # If it is writen INV instead of variant allele
-                    # If coverage information is 0
-                    if caller == 'PL' and (
-                        int(record[9].split(':')[1].split(',')[0])==0 or
-                        'INV' in record[4]
-                    ):
-                        continue
+                        # In haplotype caller skip some weird exceptions
+                        # If sample part is empty
+                        # If AD:DP is not in FORMAT (variant depth and total depth info)
+                        # If total depth is 0
+                        if caller == 'HC' and (
+                            len(record[9])==0 or
+                            not 'AD:DP' in record[8]
+                            or record[9].split(':')[2] == '0'
+                        ):
+                            continue
 
-                    # Variant identifier is a string that contains the reference and alternative alleles
-                    # It is used to identify the variant in the dictionary
-                    ref: str = record[3]
-                    alt: str = record[4]
+                        # In pindel skip exceptions
+                        # If it is writen INV instead of variant allele
+                        # If coverage information is 0
+                        if caller == 'PL' and (
+                            int(record[9].split(':')[1].split(',')[0])==0 or
+                            'INV' in record[4]
+                        ):
+                            continue
 
-                    if re.match(r"^[ATCG]+$", alt):
+                        # Variant identifier is a string that contains the reference and alternative alleles
+                        # It is used to identify the variant in the dictionary
+                        ref: str = record[3]
+                        alt: str = record[4]
 
-                        mutation: str = f"{ref}:{alt}"
+                        if re.match(r"^[ATCG]+$", alt):
 
-                        category: str = VariantsRepository.get_variant_type(ref=ref, alt=alt)
-                        
-                        # Remove 'chr' from chromosome name if present
-                        # This is to avoid issues with different chromosome naming conventions
-                        chromosome: str = record[0].removeprefix('chr')
-                        
-                        if not chromosome in self.repository:
+                            mutation: str = f"{ref}:{alt}"
 
-                            self.repository[chromosome] = {}
-
-                        # Set positiion to integer
-                        # Integer reduces memory usage in dictionary as key
-                        Positions = namedtuple("Positions", ["vcf_position", "pileup_position"])
-                        positions = Positions(vcf_position=int(record[1]), pileup_position=((int(record[1]) + self.pileup.DEL_FIRST_NC) if category == "DEL" else int(record[1])))
+                            category: str = VariantsRepository.get_variant_type(ref=ref, alt=alt)
                             
-                        if not positions in self.repository[chromosome]:
-
-                            self.repository[chromosome][positions] = {}
-
-                        # New variant
-                        if not mutation in self.repository[chromosome][positions]:
-
-                            # Create a new entry in the dictionary for the variant
-                            self.repository[chromosome][positions][mutation] = {"collection": {"REF": ref,
-                                                                                             "ALT": alt,
-                                                                                             'VAF': {},
-                                                                                            'GT': {},
-                                                                                            'FILTER': {},
-                                                                                            'INFO': {},
-                                                                                            'FORMAT': {},
-                                                                                            'SAMPLE': {},
-                                                                                            'TRC': {},
-                                                                                            'TRC-': {},
-                                                                                            'TRC+': {},
-                                                                                            'ARC':{},
-                                                                                            'ARC-': {},
-                                                                                            'ARC+': {},
-                                                                                            'RRC':{},
-                                                                                            'RRC-': {},
-                                                                                            'RRC+': {},}}
+                            # Remove 'chr' from chromosome name if present
+                            # This is to avoid issues with different chromosome naming conventions
+                            chromosome: str = record[0].removeprefix('chr')
                             
-                            # Create a variable which link to the same memory address as the variant in the global dictionary
-                            # It reduce writing complexity and improve readability
-                            variant: dict = self.repository[chromosome][positions][mutation]
+                            if not chromosome in self.repository:
 
-                            # Define variant type
-                            variant['type'] = category
+                                self.repository[chromosome] = {}
 
-                            display: str = f"{ref}:{alt}"
-
-                            if variant.get("type",'') in ['INV','MNV','CSV']:
-
-                                # Keep trace of the complex variant
-                                # Set allow faster lookup in O(1)
-                                # instead of O(n)
-                                self.cache["complex"].add(f"{chromosome}:{positions}:{mutation}")                                    
+                            # Set positiion to integer
+                            # Integer reduces memory usage in dictionary as key
+                            Positions = namedtuple("Positions", ["vcf_position", "pileup_position"])
+                            positions = Positions(vcf_position=int(record[1]), pileup_position=((int(record[1]) + self.pileup.DEL_FIRST_NC) if category == "DEL" else int(record[1])))
                                 
-                            else:
+                            if not positions in self.repository[chromosome]:
 
-                                # Update data to be consistent with the pileup
-                                # Update <ALT> allele descriptor for <INS> and <DEL>
-                                # (Insertion) A/AA = A; (Deletion) AA/A = A
-                                if variant['type'] == 'INS':
+                                self.repository[chromosome][positions] = {}
+
+                            # New variant
+                            if not mutation in self.repository[chromosome][positions]:
+
+                                # Create a new entry in the dictionary for the variant
+                                self.repository[chromosome][positions][mutation] = {"collection": {"REF": ref,
+                                                                                                "ALT": alt,
+                                                                                                'VAF': {},
+                                                                                                'GT': {},
+                                                                                                'FILTER': {},
+                                                                                                'INFO': {},
+                                                                                                'FORMAT': {},
+                                                                                                'SAMPLE': {},
+                                                                                                'TRC': {},
+                                                                                                'TRC-': {},
+                                                                                                'TRC+': {},
+                                                                                                'ARC':{},
+                                                                                                'ARC-': {},
+                                                                                                'ARC+': {},
+                                                                                                'RRC':{},
+                                                                                                'RRC-': {},
+                                                                                                'RRC+': {},}}
+                                
+                                # Create a variable which link to the same memory address as the variant in the global dictionary
+                                # It reduce writing complexity and improve readability
+                                variant: dict = self.repository[chromosome][positions][mutation]
+
+                                # Define variant type
+                                variant['type'] = category
+
+                                display: str = f"{ref}:{alt}"
+
+                                if variant.get("type",'') in ['INV','MNV','CSV']:
+
+                                    # Keep trace of the complex variant
+                                    # Set allow faster lookup in O(1)
+                                    # instead of O(n)
+                                    self.cache["complex"].add(f"{chromosome}:{positions}:{mutation}")                                    
                                     
-                                    # Pileup display for variant
-                                    display: str = f"{ref}:{alt[1:]}"
+                                else:
 
-                                # reset <POS> if <DEL>
-                                # delA = p+1 in read pile
-                                elif variant['type'] == 'DEL':
+                                    # Update data to be consistent with the pileup
+                                    # Update <ALT> allele descriptor for <INS> and <DEL>
+                                    # (Insertion) A/AA = A; (Deletion) AA/A = A
+                                    if variant['type'] == 'INS':
+                                        
+                                        # Pileup display for variant
+                                        display: str = f"{ref}:{alt[1:]}"
 
-                                    # Pileup display for variant
-                                    display: str = f"{ref[1:]}:{alt}"
+                                    # reset <POS> if <DEL>
+                                    # delA = p+1 in read pile
+                                    elif variant['type'] == 'DEL':
 
-                                # Keep trace of the variant
-                                # Set allow faster lookup in O(1)
-                                # instead of O(n)
-                                self.cache["common"].add(f"{chromosome}:{positions}:{mutation}")
+                                        # Pileup display for variant
+                                        display: str = f"{ref[1:]}:{alt}"
 
-                            variant["display"] = display
+                                    # Keep trace of the variant
+                                    # Set allow faster lookup in O(1)
+                                    # instead of O(n)
+                                    self.cache["common"].add(f"{chromosome}:{positions}:{mutation}")
 
-                        # Variant already present
-                        else:
+                                variant["display"] = display
 
-                            # Create a variable which link to the same memory address as the variant in the global dictionary
-                            # It reduce writing complexity and improve readability
-                            variant: dict = self.repository[chromosome][positions][mutation]
+                            # Variant already present
+                            else:
 
-                        variant['collection']['FILTER'][caller] = record[header['FILTER']]
-                        variant['collection']['INFO'][caller] = record[header['INFO']]
-                        variant['collection']['FORMAT'][caller] = record[header["FORMAT"]]
-                        variant['collection']['SAMPLE'][caller] = record[header["SAMPLE"]]
+                                # Create a variable which link to the same memory address as the variant in the global dictionary
+                                # It reduce writing complexity and improve readability
+                                variant: dict = self.repository[chromosome][positions][mutation]
 
-                        gt = record[header["SAMPLE"]].split(':')[0]
+                            variant['collection']['FILTER'][caller] = record[header['FILTER']]
+                            variant['collection']['INFO'][caller] = record[header['INFO']]
+                            variant['collection']['FORMAT'][caller] = record[header["FORMAT"]]
+                            variant['collection']['SAMPLE'][caller] = record[header["SAMPLE"]]
 
-                        if caller == "VD":
-                            # Save genotype to raise warning if all callers don't report same GT.
-                            # First manage case when Vardict return 1/0 instead of 0/1
-                            if gt == '1/0':
-                                gt = '0/1'
+                            gt = record[header["SAMPLE"]].split(':')[0]
 
-                        variant['collection']['GT'][caller] = gt
+                            if caller == "VD":
+                                # Save genotype to raise warning if all callers don't report same GT.
+                                # First manage case when Vardict return 1/0 instead of 0/1
+                                if gt == '1/0':
+                                    gt = '0/1'
 
-                        variant['collection']['VAF'][caller] = 100 * vcfs[caller]["vcf"].VAF(record)
+                            variant['collection']['GT'][caller] = gt
 
-                        # Store TRC, ARC and RRC for each VC
-                        variant['collection']['TRC'][caller] = vcfs[caller]["vcf"].depth(record)
+                            variant['collection']['VAF'][caller] = 100 * vcfs[caller]["vcf"].VAF(record)
 
-                        arc: tuple[int] = vcfs[caller]["vcf"].arc(record)
+                            # Store TRC, ARC and RRC for each VC
+                            variant['collection']['TRC'][caller] = vcfs[caller]["vcf"].depth(record)
 
-                        if None in arc[1:3]:
+                            arc: tuple[int] = vcfs[caller]["vcf"].arc(record)
 
-                            if isinstance(arc[0], int):
+                            if None in arc[1:3]:
 
-                                variant['collection']['ARC'][caller] = arc[0]
+                                if isinstance(arc[0], int):
+
+                                    variant['collection']['ARC'][caller] = arc[0]
+
+                                else:
+
+                                    pass
+                            
+                            else:
+
+                                variant['collection']['ARC'][caller], variant['collection']['ARC+'][caller], variant['collection']['ARC-'][caller] = arc
+
+                            rrc: tuple[int] = vcfs[caller]["vcf"].rrc(record)
+
+                            if None in rrc[1:3]:
+
+                                if isinstance(rrc[0], int):
+
+                                    variant['collection']['RRC'][caller] = rrc[0]
+
+                                else:
+
+                                    variant['collection']['RRC'][caller] = (
+                                        variant['collection']['TRC'][caller] -
+                                        variant['collection']['ARC'][caller]
+                                    )
 
                             else:
 
-                                pass
-                        
-                        else:
+                                variant['collection']['RRC'][caller], variant['collection']['RRC+'][caller], variant['collection']['RRC-'][caller] = rrc
 
-                            variant['collection']['ARC'][caller], variant['collection']['ARC+'][caller], variant['collection']['ARC-'][caller] = arc
+                            if (caller in variant['collection']['ARC+']) and (caller in variant['collection']['RRC+']):
 
-                        rrc: tuple[int] = vcfs[caller]["vcf"].rrc(record)
+                                variant['collection'][f"TRC+"][caller] = variant['collection']['ARC+'][caller] + variant['collection']['RRC+'][caller]
 
-                        if None in rrc[1:3]:
+                            if (caller in variant['collection']['ARC-']) and (caller in variant['collection']['RRC-']):
 
-                            if isinstance(rrc[0], int):
+                                variant['collection'][f"TRC-"][caller] = variant['collection']['ARC-'][caller] + variant['collection']['RRC-'][caller]
 
-                                variant['collection']['RRC'][caller] = rrc[0]
+                    else:
 
-                            else:
-
-                                variant['collection']['RRC'][caller] = (
-                                    variant['collection']['TRC'][caller] -
-                                    variant['collection']['ARC'][caller]
-                                )
-
-                        else:
-
-                            variant['collection']['RRC'][caller], variant['collection']['RRC+'][caller], variant['collection']['RRC-'][caller] = rrc
-
-                        if (caller in variant['collection']['ARC+']) and (caller in variant['collection']['RRC+']):
-
-                            variant['collection'][f"TRC+"][caller] = variant['collection']['ARC+'][caller] + variant['collection']['RRC+'][caller]
-
-                        if (caller in variant['collection']['ARC-']) and (caller in variant['collection']['RRC-']):
-
-                            variant['collection'][f"TRC-"][caller] = variant['collection']['ARC-'][caller] + variant['collection']['RRC-'][caller]
+                        logger.warning(f"Variant record {n} in {vcfs[caller]["vcf"].get_path()} is not compliant with supported {str(vcfs[caller]["vcf"])} VCF format.")
 
 
     def normalize(self, pileup: Pileup, thresholds: list[float], length_indels: int, sbm: float, sbm_homozygous: float) -> tuple[dict]:

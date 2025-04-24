@@ -59,6 +59,10 @@ class VCF(GenomicFile):
     def get_header(self):
 
         return self.HEADER
+    
+    def is_compliant(self, record: list[str]):
+
+        return (len(record) >= 10 and self.caller.is_compliant(record, self.HEADER))
 
     def parse(self):
 

@@ -1,15 +1,15 @@
 import errors
 
+
 class VariantCaller:
 
     def __init__(self):
 
         pass
 
-
 class VariantCallerRepository:
 
-    __slots__ = ['callers']
+    __slots__ = ["callers"]
 
     # known variant callers are:
     # deepvariant       (DV)
@@ -36,7 +36,7 @@ class VariantCallerRepository:
         try:
 
             return self.callers[caller]
-        
+
         except KeyError:
 
             raise errors.VariantCallerError(
@@ -84,12 +84,26 @@ class BCFTools(VariantCaller):
 
         super().__init__()
 
+    def is_compliant(self, variant: list[str], header: dict[str:int]):
+
+        return len(variant[header["INFO"]]) and any(
+            list(
+                map(
+                    lambda x: f"{x}=" in variant[header["INFO"]], ["DP", "DP4"]
+                )
+            )
+        )
+
     @staticmethod
     def VAF(variant: list[str], header: dict[str:int]) -> float:
 
-        total_depth: int = int(variant[header["INFO"]].split("DP=")[1].split(";")[0])
+        total_depth: int = int(
+            variant[header["INFO"]].split("DP=")[1].split(";")[0]
+        )
 
-        alleles_depth: int = variant[header["INFO"]].split("DP4=")[1].split(";")[0]
+        alleles_depth: int = (
+            variant[header["INFO"]].split("DP4=")[1].split(";")[0]
+        )
 
         variant_depth: int = float(alleles_depth.split(",")[2]) + float(
             alleles_depth.split(",")[3]
@@ -110,7 +124,9 @@ class BCFTools(VariantCaller):
     @staticmethod
     def rrc(variant: list[str], header: dict[str:int]) -> tuple[int]:
 
-        alleles_depth: list[str] = variant[header["INFO"]].split("DP4=")[1].split(";")[0]
+        alleles_depth: list[str] = (
+            variant[header["INFO"]].split("DP4=")[1].split(";")[0]
+        )
         depths: list[str] = alleles_depth.split(",")
         rrc_plus: int = int(depths[0])
         rrc_minus: int = int(depths[1])
@@ -120,15 +136,18 @@ class BCFTools(VariantCaller):
     @staticmethod
     def arc(variant: list[str], header: dict[str:int]) -> tuple[int]:
 
-        alleles_depth: list[str] = variant[header["INFO"]].split("DP4=")[1].split(";")[0]
+        alleles_depth: list[str] = (
+            variant[header["INFO"]].split("DP4=")[1].split(";")[0]
+        )
         depths: list[str] = alleles_depth.split(",")
         arc_plus: int = int(depths[2])
         arc_minus: int = int(depths[3])
         arc: int = arc_plus + arc_minus
         return (arc, arc_plus, arc_minus)
-    
+
     def __str__(self):
         return "BCFTools"
+
 
 class Varscan(VariantCaller):
 
@@ -153,10 +172,18 @@ class Varscan(VariantCaller):
 
         super().__init__()
 
+    def is_compliant(self, variant: list[str], header: dict[str:int]):
+
+        return len(variant[header["SAMPLE"]]) and (
+            ":" in variant[header["SAMPLE"]]
+        )
+
     @staticmethod
     def VAF(variant: list[str], header: dict[str:int]) -> float:
 
-        vaf = float(variant[header["SAMPLE"]].split("%")[0].split(":")[-1]) / 100
+        vaf = (
+            float(variant[header["SAMPLE"]].split("%")[0].split(":")[-1]) / 100
+        )
 
         return vaf
 
@@ -186,7 +213,7 @@ class Varscan(VariantCaller):
         arc_minus = int(values[13])
 
         return (arc, arc_plus, arc_minus)
-    
+
     def __str__(self):
         return "Varscan"
 
@@ -197,6 +224,16 @@ class Vardict(VariantCaller):
 
     def __init__(self):
         super().__init__()
+
+    def is_compliant(self, variant: list[str], header: dict[str:int]):
+
+        return (
+            (len(variant[header["SAMPLE"]]))
+            and (":" in variant[header["SAMPLE"]])
+        ) and (
+            (len(variant[header["INFO"]]))
+            and ("AF=" in variant[header["INFO"]])
+        )
 
     @staticmethod
     def VAF(variant: list[str], header: dict[str:int]) -> float:
@@ -235,7 +272,7 @@ class Vardict(VariantCaller):
         arc_minus: int = int(ald[1])
 
         return (arc, arc_plus, arc_minus)
-    
+
     def __str__(self):
         return "Vardict"
 
@@ -247,6 +284,12 @@ class Pindel(VariantCaller):
     def __init__(self):
         super().__init__()
 
+    def is_compliant(self, variant: list[str], header: dict[str:int]):
+
+        return len(variant[header["SAMPLE"]]) and (
+            ":" in variant[header["SAMPLE"]]
+        )
+
     @staticmethod
     def VAF(variant: list[str], header: dict[str:int]) -> float:
 
@@ -257,7 +300,9 @@ class Pindel(VariantCaller):
     @staticmethod
     def depth(variant: list[str], header: dict[str:int]) -> int:
 
-        alleles_depth: list[str] = variant[header["SAMPLE"]].split(":")[1].split(",")
+        alleles_depth: list[str] = (
+            variant[header["SAMPLE"]].split(":")[1].split(",")
+        )
 
         return int(alleles_depth[0]) + int(alleles_depth[1])
 
@@ -272,10 +317,11 @@ class Pindel(VariantCaller):
         arc = int(variant[header["SAMPLE"]].split(":")[1].split(",")[1])
 
         return (arc, None, None)
-    
+
     def __str__(self):
 
         return "Pindel"
+
 
 class Haplotypecaller(VariantCaller):
 
@@ -284,14 +330,20 @@ class Haplotypecaller(VariantCaller):
     def __init__(self):
         super().__init__()
 
+    def is_compliant(self, variant: list[str], header: dict[str:int]):
+
+        return len(variant[header["SAMPLE"]]) and (
+            ":" in variant[header["SAMPLE"]]
+        )
+
     @staticmethod
     def VAF(variant: list[str], header: dict[str:int]) -> float:
 
-        metrics: list[str] = variant[header["SAMPLE"]].split(":") 
+        metrics: list[str] = variant[header["SAMPLE"]].split(":")
 
         total_depth = float(metrics[2])
         alleles_depth = float(metrics[1].split(",")[1])
-        
+
         return alleles_depth / total_depth
 
     @staticmethod
@@ -310,7 +362,7 @@ class Haplotypecaller(VariantCaller):
         arc = int(variant[header["SAMPLE"]].split(":")[1].split(",")[1])
 
         return (arc, None, None)
-    
+
     def __str__(self):
 
         return "Haplotypecaller"
@@ -350,10 +402,11 @@ class Flit3r(VariantCaller):
         arc = int(variant[6].split(";")[1].split("=")[1])
 
         return (arc, None, None)
-    
+
     def __str__(self):
 
         return "Flit3r"
+
 
 class DeepVariant(VariantCaller):
 
@@ -362,6 +415,12 @@ class DeepVariant(VariantCaller):
     def __init__(self):
 
         super().__init__()
+
+    def is_compliant(self, variant: list[str], header: dict[str:int]):
+
+        return len(variant[header["SAMPLE"]]) and (
+            ":" in variant[header["SAMPLE"]]
+        )
 
     @staticmethod
     def VAF(variant: list[str], header: dict[str:int]) -> float:
@@ -376,7 +435,11 @@ class DeepVariant(VariantCaller):
     @staticmethod
     def rrc(variant: list[str], header: dict[str:int]) -> tuple[int]:
 
-        return (int(variant[header["SAMPLE"]].split(":")[3].split(",")[0]), None, None)
+        return (
+            int(variant[header["SAMPLE"]].split(":")[3].split(",")[0]),
+            None,
+            None,
+        )
 
     @staticmethod
     def arc(variant: list[str], header: dict[str:int]) -> tuple[int]:
@@ -384,6 +447,6 @@ class DeepVariant(VariantCaller):
         arc = int(variant[header["SAMPLE"]].split(":")[3].split(",")[1])
 
         return (arc, None, None)
-    
+
     def __str__(self):
         return "Deepvariant"
