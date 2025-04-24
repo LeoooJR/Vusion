@@ -376,10 +376,16 @@ class Pileup(GenomicFile):
                     record.rstrip("\n").split("\t")
                 )
 
-                try:
-                    position: int = int(position)
-                except ValueError:
+                if position < 0:
+
                     raise errors.PileupError(f"Incorrect position value {position} in pileup file.")
+                
+                else:
+        
+                    try:
+                        position: int = int(position)
+                    except ValueError:
+                        raise errors.PileupError(f"Incorrect position value {position} in pileup file.")
 
                 indels.setdefault(position, {
                         "insertions": defaultdict(
@@ -392,6 +398,17 @@ class Pileup(GenomicFile):
                 )
 
                 reference: str = reference.upper()
+
+                if depth < 0:
+
+                    raise errors.PileupError(f"Incorrect depth value {depth} in pileup file.")
+                
+                else:
+                    
+                    try:
+                        depth: int = int(depth)
+                    except ValueError:
+                        raise errors.PileupError(f"Incorrect depth value {depth} in pileup file.")
 
                 regex: dict[str:str] = {r'\^.': '',
                                         r'\$': '',
@@ -407,6 +424,8 @@ class Pileup(GenomicFile):
                 )
 
                 for insertion in insertions:
+
+                    depth += 1
 
                     size, seq = re.split(r"(?<=\d)(?!.*\d)", insertion)
 
@@ -434,6 +453,8 @@ class Pileup(GenomicFile):
                 )
 
                 for deletion in deletions:
+
+                    depth += 1
 
                     size, seq = re.split(r"(?<=\d)(?!.*\d)", deletion)
 
