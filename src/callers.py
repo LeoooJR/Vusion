@@ -264,7 +264,7 @@ class Pindel(VariantCaller):
     @staticmethod
     def rrc(variant: list[str], header: dict[str:int]) -> tuple[int]:
 
-        pass
+        return (None, None, None)
 
     @staticmethod
     def arc(variant: list[str], header: dict[str:int]) -> tuple[int]:
@@ -302,7 +302,7 @@ class Haplotypecaller(VariantCaller):
     @staticmethod
     def rrc(variant: list[str], header: dict[str:int]) -> tuple[int]:
 
-        pass
+        return (None, None, None)
 
     @staticmethod
     def arc(variant: list[str], header: dict[str:int]) -> tuple[int]:
@@ -342,7 +342,7 @@ class Flit3r(VariantCaller):
     @staticmethod
     def rrc(variant: list[str], header: dict[str:int]) -> tuple[int]:
 
-        pass
+        return (None, None, None)
 
     @staticmethod
     def arc(variant: list[str], header: dict[str:int]) -> tuple[int]:
@@ -376,7 +376,7 @@ class DeepVariant(VariantCaller):
     @staticmethod
     def rrc(variant: list[str], header: dict[str:int]) -> tuple[int]:
 
-        return int(variant[header["SAMPLE"]].split(":")[3].split(",")[0])
+        return (int(variant[header["SAMPLE"]].split(":")[3].split(",")[0]), None, None)
 
     @staticmethod
     def arc(variant: list[str], header: dict[str:int]) -> tuple[int]:

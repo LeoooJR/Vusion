@@ -555,24 +555,49 @@ class VariantsRepository():
                         # Store TRC, ARC and RRC for each VC
                         variant['collection']['TRC'][caller] = vcfs[caller]["vcf"].depth(record)
 
-                        if caller in ['VS','VD','BT']:
+                        arc: tuple[int] = vcfs[caller]["vcf"].arc(record)
 
-                            variant['collection']['ARC'][caller], variant['collection']['ARC+'][caller], variant['collection']['ARC-'][caller] = vcfs[caller]["vcf"].arc(record)
+                        if None in arc[1:3]:
 
-                            variant['collection']['RRC'][caller], variant['collection']['RRC+'][caller], variant['collection']['RRC-'][caller] = vcfs[caller]["vcf"].rrc(record)
+                            if isinstance(arc[0], int):
 
-                            variant['collection'][f"TRC+"][caller] = variant['collection']['ARC+'][caller] + variant['collection']['RRC+'][caller]
+                                variant['collection']['ARC'][caller] = arc[0]
 
-                            variant['collection'][f"TRC-"][caller] = variant['collection']['ARC-'][caller] + variant['collection']['RRC-'][caller]
+                            else:
+
+                                pass
+                        
+                        else:
+
+                            variant['collection']['ARC'][caller], variant['collection']['ARC+'][caller], variant['collection']['ARC-'][caller] = arc
+
+                        rrc: tuple[int] = vcfs[caller]["vcf"].rrc(record)
+
+                        if None in rrc[1:3]:
+
+                            if isinstance(rrc[0], int):
+
+                                variant['collection']['RRC'][caller] = rrc[0]
+
+                            else:
+
+                                variant['collection']['RRC'][caller] = (
+                                    variant['collection']['TRC'][caller] -
+                                    variant['collection']['ARC'][caller]
+                                )
 
                         else:
 
-                            variant['collection']['ARC'][caller] = vcfs[caller]["vcf"].arc(record)[0]
+                            variant['collection']['RRC'][caller], variant['collection']['RRC+'][caller], variant['collection']['RRC-'][caller] = rrc
 
-                            variant['collection']['RRC'][caller] = (
-                                variant['collection']['TRC'][caller] -
-                                variant['collection']['ARC'][caller]
-                            )                       
+                        if (caller in variant['collection']['ARC+']) and (caller in variant['collection']['RRC+']):
+
+                            variant['collection'][f"TRC+"][caller] = variant['collection']['ARC+'][caller] + variant['collection']['RRC+'][caller]
+
+                        if (caller in variant['collection']['ARC-']) and (caller in variant['collection']['RRC-']):
+
+                            variant['collection'][f"TRC-"][caller] = variant['collection']['ARC-'][caller] + variant['collection']['RRC-'][caller]
+
 
     def normalize(self, sample: str, pileup: Pileup, thresholds: list[float], length_indels: int, sbm: float, sbm_homozygous: float) -> tuple[dict]:
 
