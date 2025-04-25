@@ -42,6 +42,7 @@ class VariantsRepository():
         return self.cache["rejected"]
 
     @staticmethod
+    @lru_cache(maxsize=1000)
     def get_variant_type(ref: str, alt: str) -> str:
 
         # Empty string to store variant type
@@ -104,7 +105,6 @@ class VariantsRepository():
         return variant_type
     
     @staticmethod
-    @lru_cache(maxsize=7)
     def classification(arr: float, thresholds: tuple[float]) -> str:
         """
         categorize variant based on ALT Read Count Ratio (ARR) thresholds:
@@ -198,7 +198,6 @@ class VariantsRepository():
 
         thresholds.insert(-1, 100.0)
 
-        @lru_cache
         def classification(bre: float, arr: float, thresholds: tuple[float]) -> str:
 
             MAX_THRESHOLD = 100.0
@@ -406,7 +405,7 @@ class VariantsRepository():
     @staticmethod
     def get_filter(variant: dict, sbm: float):
 
-        return "FAIL" if ((variant["sample"] in ["PNO", "LNO"]) 
+        return "FAIL" if ((variant["sample"]['BKG'] in ["PNO", "LNO"]) 
                             or (variant['sample']['LOW'] == 1) 
                             or ((abs(float(variant['sample']['SBP'])) <= 0.05) and (float(variant['sample']['SBM']) >= sbm))) else "PASS"
 
