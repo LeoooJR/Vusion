@@ -276,7 +276,7 @@ class Pileup(GenomicFile):
 
                     read_base: str = re.sub(fr"\{insertion}", "", read_base)
 
-                insstring: str = ";".join(
+                inss: str = ";".join(
                     list(
                         map(
                             lambda ins: f"{ins[0]}:{ins[1][0][0]}:{ins[1][0][1]}",
@@ -350,10 +350,10 @@ class Pileup(GenomicFile):
 
                     del indels[(position - self.DEL_FIRST_NC)]
 
-                delstring: str = ';'.join(parts) if len(parts) else None
+                delss: str = ';'.join(parts) if len(parts) else None
 
                 yield (
-                    f"{self.sample}\t{chromosome}\t{position}\t{reference}\t{depth}\t{coverage['A+']}\t{coverage['A-']}\t{coverage['T+']}\t{coverage['T-']}\t{coverage['C+']}\t{coverage['C-']}\t{coverage['G+']}\t{coverage['G-']}\t{coverage['N']}\t{insstring}\t{delstring}\n"
+                    f"{self.sample}\t{chromosome}\t{position}\t{reference}\t{depth}\t{coverage['A+']}\t{coverage['A-']}\t{coverage['T+']}\t{coverage['T-']}\t{coverage['C+']}\t{coverage['C-']}\t{coverage['G+']}\t{coverage['G-']}\t{coverage['N']}\t{inss}\t{delss}\n"
                 )
 
     def verify(self):
@@ -565,13 +565,13 @@ class GenomicWritter:
 
         self.process: int = process
 
-    def write(self, output: str, template: str, collection: object | list[object], sample: str, contigs: object, thresholds: list[float]):
+    def write(self, output: str, template: str, collection: object | list[object], lookups: set[tuple], sample: str, contigs: object, thresholds: list[float]):
 
         def write_pileup():
 
             pass
 
-        def write_vcf(output: str, contigs: object, variants: object, samples: list[str], thresholds: list[float]):
+        def write_vcf(output: str, contigs: object, variants: object, lookups: set[tuple], samples: list[str], thresholds: list[float]):
         
             def sort_variant(contigs: object, variants: dict) -> object:
 
@@ -682,45 +682,41 @@ class GenomicWritter:
                 sort_variant(contigs=contigs, variants=variants)
 
                 # Iterate over each level of the variants dictionary
-                for chromosome in variants:
+                for lookup in lookups:
 
-                    for positions in variants[chromosome]:
+                        variant: dict = variants[lookup[0]][lookup[1]][
+                            lookup[2]
+                        ]
 
-                        for mutation in variants[chromosome][positions]:
+                        ref, alt = lookup[2].split(":")
 
-                            variant: dict = variants[chromosome][positions][
-                                mutation
-                            ]
+                        if variant.get("filter", "REJECTED") != "REJECTED":
 
-                            ref, alt = mutation.split(":")
+                            # Write ONLY if normalized metrics are present
+                            if "sample" in variant:
 
-                            if variant.get("filter", "REJECTED") != "REJECTED":
+                                out.write(
+                                    "\t".join(
+                                        [
+                                            f"chr{lookup[0]}",  # Chromosome field
+                                            str(
+                                                lookup[1].vcf_position
+                                            ),  # Position field
+                                            ".",  # ID field
+                                            ref,  # Reference field
+                                            alt,  # Alternate field
+                                            ".",
+                                            variant["filter"],  # Filter field
+                                            "=".join(
+                                                [INFOS[0], variant["type"]]
+                                            ),  # Info field
+                                            ":".join(FORMAT),  # Format field
+                                            format_sample(variant["sample"]),
+                                        ]
+                                    )
+                                )  # Sample values field
 
-                                # Write ONLY if normalized metrics are present
-                                if "sample" in variant:
-
-                                    out.write(
-                                        "\t".join(
-                                            [
-                                                f"chr{chromosome}",  # Chromosome field
-                                                str(
-                                                    positions.vcf_position
-                                                ),  # Position field
-                                                ".",  # ID field
-                                                ref,  # Reference field
-                                                alt,  # Alternate field
-                                                ".",
-                                                variant["filter"],  # Filter field
-                                                "=".join(
-                                                    [INFOS[0], variant["type"]]
-                                                ),  # Info field
-                                                ":".join(FORMAT),  # Format field
-                                                format_sample(variant["sample"]),
-                                            ]
-                                        )
-                                    )  # Sample values field
-
-                                    out.write("\n")
+                                out.write("\n")
 
         if isinstance(collection, list):
 
@@ -742,6 +738,7 @@ class GenomicWritter:
 
                 write_vcf(output=output, 
                          contigs=contigs, 
-                         variants=collection, 
+                         variants=collection,
+                         lookups=lookups, 
                          samples=[sample], 
                          thresholds=thresholds)

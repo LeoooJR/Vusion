@@ -7,6 +7,7 @@ import numpy as np
 from operator import itemgetter
 import re
 from scipy.stats import fisher_exact
+from sortedcontainers import SortedSet
 import utils as functions
 
 class VariantsRepository():
@@ -16,9 +17,9 @@ class VariantsRepository():
         # Dictionary to store variants
         self.repository: dict = {}
 
-        self.cache: dict[str:set[str]] = {"common": set(), # Set to store variants possibly found in pileup
-                                          "complex": set(), # Set to store complex variants
-                                          "rejected": set()} # Set to store rejected variants
+        self.cache: dict[str:set[tuple]] = {"common": SortedSet(key=lambda item: [item[0], item[1].vcf_position]), # Set to store variants possibly found in pileup
+                                          "complex": SortedSet(key=lambda item: [item[0], item[1].vcf_position]), # Set to store complex variants
+                                          "rejected": SortedSet(key=lambda item: [item[0], item[1].vcf_position])} # Set to store rejected variants
         self.sample: str = sample
 
         self.rescue: bool = rescue
@@ -26,6 +27,18 @@ class VariantsRepository():
     def set_pileup(self, pileup: Pileup):
 
         self.pileup = pileup
+
+    def get_common_variants(self) -> SortedSet:
+
+        return self.cache["common"]
+    
+    def get_complex_variants(self) -> SortedSet:
+
+        return self.cache["complex"]
+    
+    def get_rejected_variants(self) -> SortedSet:
+
+        return self.cache["rejected"]
 
     @staticmethod
     def get_variant_type(ref: str, alt: str) -> str:
@@ -463,6 +476,7 @@ class VariantsRepository():
                             # Set positiion to integer
                             # Integer reduces memory usage in dictionary as key
                             Positions = namedtuple("Positions", ["vcf_position", "pileup_position"])
+
                             positions = Positions(vcf_position=int(record[1]), pileup_position=((int(record[1]) + self.pileup.DEL_FIRST_NC) if category == "DEL" else int(record[1])))
                                 
                             if not positions in self.repository[chromosome]:
@@ -505,7 +519,7 @@ class VariantsRepository():
                                     # Keep trace of the complex variant
                                     # Set allow faster lookup in O(1)
                                     # instead of O(n)
-                                    self.cache["complex"].add(f"{chromosome}:{positions}:{mutation}")                                    
+                                    self.cache["complex"].add((chromosome, positions, mutation))                                    
                                     
                                 else:
 
@@ -527,7 +541,7 @@ class VariantsRepository():
                                     # Keep trace of the variant
                                     # Set allow faster lookup in O(1)
                                     # instead of O(n)
-                                    self.cache["common"].add(f"{chromosome}:{positions}:{mutation}")
+                                    self.cache["common"].add((chromosome, positions, mutation))
 
                                 variant["display"] = display
 
@@ -642,7 +656,7 @@ class VariantsRepository():
                                 for mutation in self.repository[chromosome_pileup][positions]:
                                     
                                     # O(1) lookup
-                                    if f"{chromosome_pileup}:{positions}:{mutation}" in self.cache["common"]:
+                                    if (chromosome_pileup, positions, mutation) in self.cache["common"]:
                                         
                                         # Create a variable which link to the same memory address as the variant in the global dictionary
                                         # It reduce writing complexity and improve readability
@@ -769,6 +783,12 @@ class VariantsRepository():
                                                                                               sbm=sbm,
                                                                                               sbm_homozygous=sbm_homozygous,
                                                                                              )
+                                                    
+                                                if variant["filter"] != "PASS":
+
+                                                        self.cache["common"].discard((chromosome_pileup, positions, mutation))
+
+                                                        self.cache["rejected"].add((chromosome_pileup, positions, mutation))
                                         else:
 
                                             # --------------------------------------------------------------
@@ -787,11 +807,9 @@ class VariantsRepository():
 
         for identifier in self.cache["complex"]:
 
-            Positions = namedtuple("Position", ["vcf_position", "pileup_position"])
+            chromsome, positions, mutation = identifier
 
-            chromsome, positions, ref, alt = identifier.split(':')
-
-            variant: dict = self.repository[chromsome][eval(positions)][f"{ref}:{alt}"]
+            variant: dict = self.repository[chromsome][positions][mutation]
 
             if not 'sample' in variant:
 

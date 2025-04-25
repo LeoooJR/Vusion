@@ -178,6 +178,12 @@ def combine(params):
 
     logger.debug(f"Writting VCF file in {params.output}.")
     # Write the VCF file
-    writter.write(output=params.output, template="vcf", collection=variants.repository, sample=variants.sample, contigs=fasta_index.get_contigs(), thresholds=thresholds)
+    writter.write(output=params.output, 
+                  template="vcf", 
+                  collection=variants.repository, 
+                  lookups=variants.get_common_variants() | variants.get_complex_variants() , 
+                  sample=variants.sample, 
+                  contigs=fasta_index.get_contigs(), 
+                  thresholds=thresholds)
 
     logger.success(f"VCF file successfully written to {params.output}")
