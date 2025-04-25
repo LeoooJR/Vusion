@@ -1,4 +1,5 @@
 from collections import deque, Counter, namedtuple
+import errors
 from files import Pileup
 from functools import lru_cache
 from loguru import logger
@@ -429,6 +430,8 @@ class VariantsRepository():
                     if line[0] == '#':
                         continue
 
+                    warning: bool = False
+
                     # VCF line structure is like [CHROM POS ID REF ALT QUAL FILTER INFO FORMAT SAMPLE]
                     record = line.strip().split('\t')
 
@@ -439,7 +442,6 @@ class VariantsRepository():
                         # If AD:DP is not in FORMAT (variant depth and total depth info)
                         # If total depth is 0
                         if caller == 'HC' and (
-                            len(record[9])==0 or
                             not 'AD:DP' in record[8]
                             or record[9].split(':')[2] == '0'
                         ):
@@ -519,6 +521,7 @@ class VariantsRepository():
                                     # Keep trace of the complex variant
                                     # Set allow faster lookup in O(1)
                                     # instead of O(n)
+                                    # Runtime complexity: O(log(n)) – approximate.
                                     self.cache["complex"].add((chromosome, positions, mutation))                                    
                                     
                                 else:
@@ -541,6 +544,7 @@ class VariantsRepository():
                                     # Keep trace of the variant
                                     # Set allow faster lookup in O(1)
                                     # instead of O(n)
+                                    # Runtime complexity: O(log(n)) – approximate.
                                     self.cache["common"].add((chromosome, positions, mutation))
 
                                 variant["display"] = display
@@ -552,69 +556,96 @@ class VariantsRepository():
                                 # It reduce writing complexity and improve readability
                                 variant: dict = self.repository[chromosome][positions][mutation]
 
-                            variant['collection']['FILTER'][caller] = record[header['FILTER']]
-                            variant['collection']['INFO'][caller] = record[header['INFO']]
-                            variant['collection']['FORMAT'][caller] = record[header["FORMAT"]]
-                            variant['collection']['SAMPLE'][caller] = record[header["SAMPLE"]]
+                            try:
 
-                            gt = record[header["SAMPLE"]].split(':')[0]
+                                gt: str = vcfs[caller]["vcf"].genotype(record)
 
-                            if caller == "VD":
+                                vaf: float = vcfs[caller]["vcf"].VAF(record)
+
+                                depth: int = vcfs[caller]["vcf"].depth(record)
+
+                                arc: tuple[int] = vcfs[caller]["vcf"].arc(record)
+
+                                rrc: tuple[int] = vcfs[caller]["vcf"].rrc(record)
+
+                            except errors.VCFError as e:
+
+                                warning: bool = True
+
+                                logger.warning(f"Variant in file {vcfs[caller]["vcf"].get_path()} at position {positions.vcf_position} is not correctly formated.")
+                                logger.warning(f"Reason: {e}")
+
+                            if not warning:
+
+                                variant['collection']['FILTER'][caller] = record[header['FILTER']]
+                                variant['collection']['INFO'][caller] = record[header['INFO']]
+                                variant['collection']['FORMAT'][caller] = record[header["FORMAT"]]
+                                variant['collection']['SAMPLE'][caller] = record[header["SAMPLE"]]
+
                                 # Save genotype to raise warning if all callers don't report same GT.
-                                # First manage case when Vardict return 1/0 instead of 0/1
-                                if gt == '1/0':
-                                    gt = '0/1'
+                                variant['collection']['GT'][caller] = gt
 
-                            variant['collection']['GT'][caller] = gt
+                                variant['collection']['VAF'][caller] = 100 * vaf
 
-                            variant['collection']['VAF'][caller] = 100 * vcfs[caller]["vcf"].VAF(record)
+                                # Store TRC, ARC and RRC for each VC
+                                variant['collection']['TRC'][caller] = depth
 
-                            # Store TRC, ARC and RRC for each VC
-                            variant['collection']['TRC'][caller] = vcfs[caller]["vcf"].depth(record)
+                                if None in arc[1:3]:
 
-                            arc: tuple[int] = vcfs[caller]["vcf"].arc(record)
+                                    if isinstance(arc[0], int):
+                                            
+                                        variant['collection']['ARC'][caller] = arc[0]
 
-                            if None in arc[1:3]:
+                                    else:
 
-                                if isinstance(arc[0], int):
+                                        pass
+                                    
+                                else:
 
-                                    variant['collection']['ARC'][caller] = arc[0]
+                                    variant['collection']['ARC'][caller], variant['collection']['ARC+'][caller], variant['collection']['ARC-'][caller] = arc
+
+                                if None in rrc[1:3]:
+
+                                    if isinstance(rrc[0], int):
+
+                                        variant['collection']['RRC'][caller] = rrc[0]
+
+                                    else:
+
+                                        variant['collection']['RRC'][caller] = (
+                                            variant['collection']['TRC'][caller] -
+                                            variant['collection']['ARC'][caller]
+                                        )
 
                                 else:
 
-                                    pass
-                            
+                                    variant['collection']['RRC'][caller], variant['collection']['RRC+'][caller], variant['collection']['RRC-'][caller] = rrc
+
+                                if (caller in variant['collection']['ARC+']) and (caller in variant['collection']['RRC+']):
+
+                                    variant['collection'][f"TRC+"][caller] = variant['collection']['ARC+'][caller] + variant['collection']['RRC+'][caller]
+
+                                if (caller in variant['collection']['ARC-']) and (caller in variant['collection']['RRC-']):
+
+                                    variant['collection'][f"TRC-"][caller] = variant['collection']['ARC-'][caller] + variant['collection']['RRC-'][caller]
+
+                            # Warning has been raised by current variant
                             else:
 
-                                variant['collection']['ARC'][caller], variant['collection']['ARC+'][caller], variant['collection']['ARC-'][caller] = arc
+                                # Is dictionnary empty ?
+                                if not variant["collection"]["GT"]:
 
-                            rrc: tuple[int] = vcfs[caller]["vcf"].rrc(record)
+                                    # Delete the mutation
+                                    del self.repository[chromosome][positions][mutation]
+                                    
+                                    # Keep cache in sync
+                                    if ((chromosome, positions, mutation) in self.cache["common"]):
 
-                            if None in rrc[1:3]:
+                                        self.cache["common"].remove((chromosome, positions, mutation))
+                                    
+                                    if ((chromosome, positions, mutation) in self.cache["complex"]):
 
-                                if isinstance(rrc[0], int):
-
-                                    variant['collection']['RRC'][caller] = rrc[0]
-
-                                else:
-
-                                    variant['collection']['RRC'][caller] = (
-                                        variant['collection']['TRC'][caller] -
-                                        variant['collection']['ARC'][caller]
-                                    )
-
-                            else:
-
-                                variant['collection']['RRC'][caller], variant['collection']['RRC+'][caller], variant['collection']['RRC-'][caller] = rrc
-
-                            if (caller in variant['collection']['ARC+']) and (caller in variant['collection']['RRC+']):
-
-                                variant['collection'][f"TRC+"][caller] = variant['collection']['ARC+'][caller] + variant['collection']['RRC+'][caller]
-
-                            if (caller in variant['collection']['ARC-']) and (caller in variant['collection']['RRC-']):
-
-                                variant['collection'][f"TRC-"][caller] = variant['collection']['ARC-'][caller] + variant['collection']['RRC-'][caller]
-
+                                        self.cache["complex"].remove((chromosome, positions, mutation))
                     else:
 
                         logger.warning(f"Variant record {n} in {vcfs[caller]["vcf"].get_path()} is not compliant with supported {str(vcfs[caller]["vcf"])} VCF format.")
@@ -783,11 +814,15 @@ class VariantsRepository():
                                                                                               sbm=sbm,
                                                                                               sbm_homozygous=sbm_homozygous,
                                                                                              )
-                                                    
+                                                # Variant has been saved ?
+                                                # If the initially rejected variant now has a filter as PASS, keep it in the shared cache for common variants.
+                                                # Else, add it to the shared cache for rejected variants    
                                                 if variant["filter"] != "PASS":
 
+                                                        # Keep caches in sync
+                                                        # Runtime complexity: O(log(n)) – approximate.
                                                         self.cache["common"].discard((chromosome_pileup, positions, mutation))
-
+                                                        # Runtime complexity: O(log(n)) – approximate.
                                                         self.cache["rejected"].add((chromosome_pileup, positions, mutation))
                                         else:
 

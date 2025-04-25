@@ -139,23 +139,56 @@ class VCF(GenomicFile):
         infos = list(map(lambda item: item.split("="), values.split(";")))
 
         return {k: v for k, v in infos}
+    
+    def genotype(self, variant: list[str]) -> str:
 
-    def VAF(self, variant: str) -> float:
+        try:
 
-        return self.caller.VAF(variant, self.HEADER)
+            return self.caller.genotype(variant, self.HEADER)
+        
+        except IndexError:
 
-    def depth(self, variant: str) -> int:
+            raise errors.VCFError("Genotype cannot be extracted.")
 
-        return self.caller.depth(variant, self.HEADER)
+    def VAF(self, variant: list[str]) -> float:
 
-    def arc(self, variant: str) -> tuple[float]:
+        try: 
 
-        return self.caller.arc(variant, self.HEADER)
+            return self.caller.VAF(variant, self.HEADER)
+        
+        except IndexError:
 
-    def rrc(self, variant: str) -> tuple[float]:
+            raise errors.VCFError("Variant allele frequency cannot be extracted.")
 
-        return self.caller.rrc(variant, self.HEADER)
+    def depth(self, variant: list[str]) -> int:
 
+        try:
+
+            return self.caller.depth(variant, self.HEADER)
+        
+        except IndexError:
+
+            raise errors.VCFError("Coverage cannot be extracted.")
+
+    def arc(self, variant: list[str]) -> tuple[float]:
+
+        try:
+
+            return self.caller.arc(variant, self.HEADER)
+
+        except IndexError:
+
+            raise errors.VCFError("Alternate read count cannot be extracted.")
+        
+    def rrc(self, variant: list[str]) -> tuple[float]:
+
+        try:
+
+            return self.caller.rrc(variant, self.HEADER)
+
+        except IndexError:
+
+            raise errors.VCFError("Reference read count cannot be extracted.")
 
 class Pileup(GenomicFile):
 

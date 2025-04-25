@@ -93,6 +93,11 @@ class BCFTools(VariantCaller):
                 )
             )
         )
+    
+    @staticmethod
+    def genotype(variant: list[str], header: dict[str:int]) -> str:
+
+        return variant[header["SAMPLE"]].split(':')[0]
 
     @staticmethod
     def VAF(variant: list[str], header: dict[str:int]) -> float:
@@ -177,6 +182,11 @@ class Varscan(VariantCaller):
         return len(variant[header["SAMPLE"]]) and (
             ":" in variant[header["SAMPLE"]]
         )
+    
+    @staticmethod
+    def genotype(variant: list[str], header: dict[str:int]) -> str:
+
+        return variant[header["SAMPLE"]].split(':')[0]
 
     @staticmethod
     def VAF(variant: list[str], header: dict[str:int]) -> float:
@@ -234,6 +244,13 @@ class Vardict(VariantCaller):
             (len(variant[header["INFO"]]))
             and ("AF=" in variant[header["INFO"]])
         )
+    
+    @staticmethod
+    def genotype(variant: list[str], header: dict[str:int]) -> str:
+
+        gt: str = variant[header["SAMPLE"]].split(':')[0]
+        # Manage case when Vardict return 1/0 instead of 0/1
+        return "0/1" if gt == "1/0" else gt
 
     @staticmethod
     def VAF(variant: list[str], header: dict[str:int]) -> float:
@@ -289,6 +306,11 @@ class Pindel(VariantCaller):
         return len(variant[header["SAMPLE"]]) and (
             ":" in variant[header["SAMPLE"]]
         )
+    
+    @staticmethod
+    def genotype(variant: list[str], header: dict[str:int]) -> str:
+
+        return variant[header["SAMPLE"]].split(':')[0]
 
     @staticmethod
     def VAF(variant: list[str], header: dict[str:int]) -> float:
@@ -335,6 +357,11 @@ class Haplotypecaller(VariantCaller):
         return len(variant[header["SAMPLE"]]) and (
             ":" in variant[header["SAMPLE"]]
         )
+    
+    @staticmethod
+    def genotype(variant: list[str], header: dict[str:int]) -> str:
+
+        return variant[header["SAMPLE"]].split(':')[0]
 
     @staticmethod
     def VAF(variant: list[str], header: dict[str:int]) -> float:
@@ -374,6 +401,11 @@ class Flit3r(VariantCaller):
 
     def __init__(self):
         super().__init__()
+
+    @staticmethod
+    def genotype(variant: list[str], header: dict[str:int]) -> str:
+
+        return variant[header["SAMPLE"]].split(':')[0]
 
     @staticmethod
     def VAF(variant: list[str], header: dict[str:int]) -> float:
@@ -421,6 +453,11 @@ class DeepVariant(VariantCaller):
         return len(variant[header["SAMPLE"]]) and (
             ":" in variant[header["SAMPLE"]]
         )
+    
+    @staticmethod
+    def genotype(variant: list[str], header: dict[str:int]) -> str:
+
+        return variant[header["SAMPLE"]].split(':')[0]
 
     @staticmethod
     def VAF(variant: list[str], header: dict[str:int]) -> float:
