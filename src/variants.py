@@ -18,9 +18,9 @@ class VariantsRepository():
         # Dictionary to store variants
         self.repository: dict = {}
 
-        self.cache: dict[str:set[tuple]] = {"common": SortedSet(key=lambda item: [item[0], item[1].vcf_position]), # Set to store variants possibly found in pileup
-                                          "complex": SortedSet(key=lambda item: [item[0], item[1].vcf_position]), # Set to store complex variants
-                                          "rejected": SortedSet(key=lambda item: [item[0], item[1].vcf_position])} # Set to store rejected variants
+        self.cache: dict[str:set[tuple]] = {"common": SortedSet(key=lambda item: [VariantsRepository.chromosome_sort_key(item[0]), item[1].vcf_position]), # Set to store variants possibly found in pileup
+                                          "complex": SortedSet(key=lambda item: [VariantsRepository.chromosome_sort_key(item[0]), item[1].vcf_position]), # Set to store complex variants
+                                          "rejected": SortedSet(key=lambda item: [VariantsRepository.chromosome_sort_key(item[0]), item[1].vcf_position])} # Set to store rejected variants
         self.sample: str = sample
 
         self._pileup = pileup
@@ -57,6 +57,17 @@ class VariantsRepository():
     def rejected_variants(self) -> SortedSet:
 
         return self.cache["rejected"]
+    
+    @staticmethod
+    def chromosome_sort_key(item: str):
+
+        if item.isdigit():
+
+            return (0, int(item))
+        
+        else:
+
+            return (1, item)
 
     @staticmethod
     @lru_cache(maxsize=1000)
@@ -410,6 +421,10 @@ class VariantsRepository():
             if filter == "PASS":
 
                 variant['sample']['RES'] = 'Y'
+            
+            else:
+
+                variant['sample']['RES'] = 'N'
 
         else:
 

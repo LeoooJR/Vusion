@@ -127,7 +127,7 @@ class Program:
         self.parser.add_argument(
             "--intermediate-results",
             action="store_true",
-            dest="intermediate-results",
+            dest="intermediate_results",
             default=False,
             required=False,
             help="Should intermediate results be saved."

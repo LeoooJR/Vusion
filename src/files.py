@@ -620,7 +620,7 @@ class GenomicWritter:
 
         self.process: int = process
 
-    def write(self, output: str, template: str, collection: object | list[object], lookups: set[tuple], sample: str, contigs: object, thresholds: list[float]):
+    def write(self, output: str, template: str, collection: object | list[object], lookups: set[tuple], sample: str, contigs: object, thresholds: list[float], suffix: str = None):
 
         def write_pileup():
 
@@ -693,7 +693,7 @@ class GenomicWritter:
             INFOS: list[str] = ["VAR"]
 
             # Path to the template directory
-            ressources = os.path.join(
+            ressources: str = os.path.join(
                 os.path.dirname(os.path.abspath(__file__)), "templates"
             )
 
@@ -723,33 +723,31 @@ class GenomicWritter:
 
                         ref, alt = lookup[2].split(":")
 
-                        if variant.get("filter", "REJECTED") != "REJECTED":
+                        # Write ONLY if normalized metrics are present
+                        if "sample" in variant:
 
-                            # Write ONLY if normalized metrics are present
-                            if "sample" in variant:
+                            out.write(
+                                "\t".join(
+                                    [
+                                        f"chr{lookup[0]}",  # Chromosome field
+                                        str(
+                                            lookup[1].vcf_position
+                                        ),  # Position field
+                                        ".",  # ID field
+                                        ref,  # Reference field
+                                        alt,  # Alternate field
+                                        ".", # Qual field
+                                        variant["filter"],  # Filter field
+                                        "=".join(
+                                            [INFOS[0], variant["type"]]
+                                        ),  # Info field
+                                        ":".join(FORMAT),  # Format field
+                                        format_sample(variant["sample"]), # Sample values field
+                                    ]
+                                )
+                            ) 
 
-                                out.write(
-                                    "\t".join(
-                                        [
-                                            f"chr{lookup[0]}",  # Chromosome field
-                                            str(
-                                                lookup[1].vcf_position
-                                            ),  # Position field
-                                            ".",  # ID field
-                                            ref,  # Reference field
-                                            alt,  # Alternate field
-                                            ".",
-                                            variant["filter"],  # Filter field
-                                            "=".join(
-                                                [INFOS[0], variant["type"]]
-                                            ),  # Info field
-                                            ":".join(FORMAT),  # Format field
-                                            format_sample(variant["sample"]),
-                                        ]
-                                    )
-                                )  # Sample values field
-
-                                out.write("\n")
+                            out.write("\n")
 
         if isinstance(collection, list):
 
@@ -767,7 +765,7 @@ class GenomicWritter:
 
             if template == "vcf":
 
-                output: str = os.path.join(output, f"{sample}.vcf")
+                output: str = os.path.join(output, f"{sample}.{suffix}.vcf" if suffix else f"{sample}.vcf") 
 
                 write_vcf(output=output, 
                          contigs=contigs, 

@@ -30,7 +30,7 @@ def combine(params):
 
     # Check reference genome index
     try:
-        fasta_index = io.FastaIndex(path=params.reference, lazy=False)
+        fai = io.FastaIndex(path=params.reference, lazy=False)
     except errors.FastaIndexError:
         logger.error(f"{params.reference} is not a valid FASTA index.")
         raise SystemExit(f"{params.reference} is not a valid FASTA index.")
@@ -162,7 +162,7 @@ def combine(params):
     variants.normalize(pileup=pileup, thresholds=thresholds, length_indels=params.length_indels, sbm=SBM, sbm_homozygous=params.sbm_homozygous)
 
     # ===========================================================================================
-    # Write VCFs
+    # Write VCF(s)
     # ===========================================================================================
 
     # Create a writer object to write the VCF file
@@ -176,14 +176,31 @@ def combine(params):
     #     for variant_key in ordered_variant_key:
     #         OUT_TRASH_FILE.write(functions.print_var(variant_key, rejected, 'final_metrics'))
 
+    if params.intermediate_results and params.rescue:
+
+        logger.debug((f"Writting VCF file of rejected variants in {params.output}."))
+
+        # Write the VCF file
+        writter.write(output=params.output, 
+                    template="vcf", 
+                    collection=variants.repository, 
+                    lookups=variants.rejected_variants, 
+                    sample=variants.sample, 
+                    contigs=fai.contigs, 
+                    thresholds=thresholds,
+                    suffix="rejected")
+        
+        logger.success(f"VCF file of rejected variants successfully written to {params.output}")
+
     logger.debug(f"Writting VCF file in {params.output}.")
+
     # Write the VCF file
     writter.write(output=params.output, 
                   template="vcf", 
                   collection=variants.repository, 
                   lookups=variants.common_variants | variants.complex_variants, 
                   sample=variants.sample, 
-                  contigs=fasta_index.contigs, 
+                  contigs=fai.contigs, 
                   thresholds=thresholds)
 
     logger.success(f"VCF file successfully written to {params.output}")
