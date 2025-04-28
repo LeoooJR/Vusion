@@ -25,8 +25,7 @@ class Program:
             dest="reference",
             metavar="",
             required=True,
-            help="<reference.fasta.fai>\
-            Path to reference genome fasta index file",
+            help="Path to reference genome fasta index file (.fai)"
         )
         self.parser.add_argument(
             "-o",
@@ -44,10 +43,10 @@ class Program:
             dest="vcfs",
             action="append",
             required=True,
-            help=" <ID,vcf,[yaml]> path to input \
-        VCF file associated with identifier : bcftools (BT), varscan (VS), vardict (VD), pindel (PL), haplotypecaller (HC), FILT3R (FL), deepvariant (DV) \
-        control & hotspot (CS & HS). \
-        Provide a YAML file path for non-integrated variant callers.",
+            help="<ID,vcf,[yaml]> path to \
+                  VCF file associated with identifier : bcftools (BT), varscan (VS), vardict (VD), pindel (PL), haplotypecaller (HC), FILT3R (FL), deepvariant (DV) \
+                  control & hotspot (CS & HS). \
+                  Provide a YAML file path for non-integrated variant callers.",
         )
         self.parser.add_argument(
             "-p",
@@ -79,8 +78,9 @@ class Program:
         )
         self.parser.add_argument(
             "-d",
-            "--disable_strand_bias",
+            "--disable-strand-bias",
             action="store_true",
+            dest="disable_strand_bias",
             default=False,
             required=False,
             help="Disable strand bias based filtering of variants",
@@ -101,28 +101,27 @@ class Program:
             required=False,
             help="Combine two combined callsets; One originated from a hotspot feature list",
         )
-        # Si INDEL not in pileup and <l, will be considered as FP
         self.parser.add_argument(
             "-l",
-            "--length_indels",
+            "--length-indels",
             action="store",
             dest="length_indels",
             required=False,
             default=1,
             type=float,
-            help="Set Del/Ins min length (for cases where Del/Ins are not in Pileup)\
-                Ex : 3:12580629:C:CT len(Ins) = 1 \
-                By default, minimum length is set to 1",
+            help="Set Del/Ins mininmum length for variant not found in pileup. \
+                  Variants below this value are considered false positives. \
+                  By default, minimum length is set to 1",
         )
         self.parser.add_argument(
-            "--sbm_homozygous",
+            "--sbm-homozygous",
             action="store",
             required=False,
             default=(2 / 3),
             type=float,
             help="Define sbm limits for homozygous variants. \
                 By default, a strand bias is considered present if there is a 2/3 imbalance \
-                of reads on one strand and 1/3 on the other strand.",
+                of reads on one strand and 1/3 on the other.",
         )
         self.parser.add_argument(
             "--intermediate-results",
