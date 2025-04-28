@@ -400,7 +400,7 @@ class Haplotypecaller(VariantCaller):
         return "Haplotypecaller"
 
 @final
-class Flit3r(VariantCaller):
+class Filt3r(VariantCaller):
 
     FORMAT = []
 
