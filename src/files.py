@@ -5,6 +5,7 @@ import jinja2
 import numpy as np
 import os
 import pandas as pd
+from typing import Final
 import re
 
 class GenomicFile:
@@ -24,10 +25,18 @@ class GenomicFile:
     def get_path(self) -> str:
 
         return self.path
+    
+    def __str__(self):
+        
+        return f"{self.path}"
+    
+    def __repr__(self):
+        
+        return f"{self.path}"
 
 class VCF(GenomicFile):
 
-    HEADER: dict[str:int] = {
+    HEADER: Final[dict[str:int]] = {
         "CHROM": 0,
         "POS": 1,
         "ID": 2,
@@ -40,7 +49,7 @@ class VCF(GenomicFile):
         "SAMPLE": 9,
     }
 
-    DEL_FIRST_NC: int = -1
+    DEL_FIRST_NC: Final[int] = -1
 
     def __init__(
         self, path: str, caller: callers.VariantCaller, lazy: bool = True
@@ -56,9 +65,10 @@ class VCF(GenomicFile):
 
             self.parse()
 
-    def get_header(self):
+    @property
+    def header(self):
 
-        return self.HEADER
+        return getattr(self, "HEADER", None)
     
     def is_compliant(self, record: list[str]):
 
@@ -192,7 +202,7 @@ class VCF(GenomicFile):
 
 class Pileup(GenomicFile):
 
-    HEADER: dict[str:int] = {
+    HEADER: Final[dict[str:int]] = {
         "barcode": 0,
         "chromosome": 1,
         "position": 2,
@@ -211,10 +221,10 @@ class Pileup(GenomicFile):
         "DEL": 15,
     }
 
-    PLUS_STRAND: list[int] = [0, 2, 4, 6]
-    MINUS_STRAND: list[int] = [1, 3, 5, 7]
+    PLUS_STRAND: Final[list[int]] = [0, 2, 4, 6]
+    MINUS_STRAND: Final[list[int]] = [1, 3, 5, 7]
 
-    DEL_FIRST_NC: int = 1
+    DEL_FIRST_NC: Final[int] = 1
 
     def __init__(self, path: str, sample: str, lazy: bool = True):
 
@@ -228,9 +238,10 @@ class Pileup(GenomicFile):
 
             self.parse()
 
-    def get_header(self):
+    @property
+    def header(self):
 
-        return self.HEADER
+        return getattr(self, "HEADER", None)
 
     def parse(self):
 
@@ -480,9 +491,19 @@ class FastaIndex(GenomicFile):
 
             self.contigs: pd.DataFrame = pd.DataFrame()
 
-    def get_contigs(self):
+    @property
+    def contigs(self):
 
-        return self.contigs
+        return getattr(self, "_contigs", None)
+    
+    @contigs.setter
+    def contigs(self, value: pd.DataFrame):
+
+        if not isinstance(value, pd.DataFrame):
+
+            raise TypeError("Contigs must be a Dataframe.")
+        
+        self._contigs: pd.DataFrame = value
 
     def parse(self):
 
@@ -496,16 +517,17 @@ class FastaIndex(GenomicFile):
 
                     contigs.append(pd.Series(data=line.strip().split("\t")))
 
-        self.contigs: pd.DataFrame = pd.DataFrame(data=contigs)
+        self._contigs: pd.DataFrame = pd.DataFrame(data=contigs)
 
-        self.contigs.columns = [
+        self._contigs.columns = [
             "contig",
             "length",
             "index",
             "pbline",
             "byteline",
         ]
-        self.contigs: pd.DataFrame = self.contigs.astype(
+        
+        self._contigs: pd.DataFrame = self._contigs.astype(
             {"contig": "string", "pbline": "uint8", "byteline": "uint8"}
         )
 
@@ -605,25 +627,6 @@ class GenomicWritter:
             pass
 
         def write_vcf(output: str, contigs: object, variants: object, lookups: set[tuple], samples: list[str], thresholds: list[float]):
-        
-            def sort_variant(contigs: object, variants: dict) -> object:
-
-                # First sort the positions for each chromosome
-                for chromosome in variants:
-
-                    variants[chromosome] = {
-                        k: v
-                        for k, v in sorted(
-                            variants[chromosome].items(),
-                            key=lambda item: int(item[0].vcf_position),
-                        )
-                    }
-
-                # Then sort the chromosomes
-                {
-                    k: v
-                    for k, v in sorted(variants.items(), key=lambda item: item[0])
-                }
 
             def format_sample(metrics: dict) -> str:
 
@@ -710,9 +713,6 @@ class GenomicWritter:
 
                 # Write the column names
                 out.write(f"\n#{header}\n")
-
-                # Sort the variants by chromosome and position
-                sort_variant(contigs=contigs, variants=variants)
 
                 # Iterate over each level of the variants dictionary
                 for lookup in lookups:

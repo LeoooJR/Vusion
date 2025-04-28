@@ -13,7 +13,7 @@ import utils as functions
 
 class VariantsRepository():
 
-    def __init__(self, sample: str, rescue: bool = False):
+    def __init__(self, sample: str, pileup: Pileup = None, rescue: bool = False):
 
         # Dictionary to store variants
         self.repository: dict = {}
@@ -23,21 +23,38 @@ class VariantsRepository():
                                           "rejected": SortedSet(key=lambda item: [item[0], item[1].vcf_position])} # Set to store rejected variants
         self.sample: str = sample
 
-        self.rescue: bool = rescue
+        self._pileup = pileup
 
-    def set_pileup(self, pileup: Pileup):
+        self.rescue: bool = rescue   
 
-        self.pileup = pileup
+    @property
+    def pileup(self):
 
-    def get_common_variants(self) -> SortedSet:
+        return getattr(self, "_pileup", None)
+
+    @pileup.setter
+    def pileup(self, value: Pileup | None):
+
+        if value:
+
+            if not isinstance(value, Pileup):
+
+                raise TypeError("pileup must be a Pileup object.")
+
+        self._pileup = value
+
+    @property
+    def common_variants(self) -> SortedSet:
 
         return self.cache["common"]
     
-    def get_complex_variants(self) -> SortedSet:
+    @property
+    def complex_variants(self) -> SortedSet:
 
         return self.cache["complex"]
     
-    def get_rejected_variants(self) -> SortedSet:
+    @property
+    def rejected_variants(self) -> SortedSet:
 
         return self.cache["rejected"]
 
@@ -417,7 +434,7 @@ class VariantsRepository():
             # Get the header of the VCF file
             # The header contains the names of the columns in the VCF file
             # It is used to map the values in the VCF file to the correct keys in the dictionary
-            header: dict = vcfs[caller]["vcf"].get_header()
+            header: dict = vcfs[caller]["vcf"].header
 
             with open(vcfs[caller]["vcf"].get_path(), mode='r') as vcf:
 
@@ -854,6 +871,10 @@ class VariantsRepository():
             # --------------------------------------------------------------
 
             VariantsRepository.compute_sample_metrics(variant=variant, thresholds=thresholds, sbm=sbm, sbm_homozygous=sbm_homozygous)
+
+    def __len__(self):
+    
+        return sum([len(self.cache[v]) for v in self.cache])
 
     def __repr__(self):
         

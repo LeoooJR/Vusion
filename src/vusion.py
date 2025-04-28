@@ -40,7 +40,7 @@ def combine(params):
     # Check pileup
     try:
         pileup = io.Pileup(path=params.pileup, sample=params.sample, lazy=True)
-        variants.set_pileup(pileup)
+        variants.pileup = pileup
     except errors.PileupError:
         logger.error(f"{params.pileup} is not a valid PILEUP.")
         raise SystemExit(f"{params.pileup} is not a valid PILEUP.")
@@ -181,9 +181,9 @@ def combine(params):
     writter.write(output=params.output, 
                   template="vcf", 
                   collection=variants.repository, 
-                  lookups=variants.get_common_variants() | variants.get_complex_variants() , 
+                  lookups=variants.common_variants | variants.complex_variants, 
                   sample=variants.sample, 
-                  contigs=fasta_index.get_contigs(), 
+                  contigs=fasta_index.contigs, 
                   thresholds=thresholds)
 
     logger.success(f"VCF file successfully written to {params.output}")

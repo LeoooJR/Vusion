@@ -1,4 +1,5 @@
 import errors
+from typing import final
 
 
 class VariantCaller:
@@ -21,7 +22,7 @@ class VariantCallerRepository:
 
     def __init__(self):
 
-        self.callers = {
+        self.callers: dict[str: VariantCaller] = {
             "BT": BCFTools(),
             "VS": Varscan(),
             "VD": Vardict(),
@@ -30,7 +31,7 @@ class VariantCallerRepository:
             "FL": Flit3r(),
             "DV": DeepVariant(),
         }
-
+    
     def get_VC(self, caller: str) -> VariantCaller:
 
         try:
@@ -74,8 +75,12 @@ class VariantCallerRepository:
     def is_supported(self, caller: str) -> bool:
 
         return caller in self.callers
+    
+    def __len__(self):
 
+        return len(self.callers)
 
+@final
 class BCFTools(VariantCaller):
 
     FORMAT = ["GT", "PL"]
@@ -153,7 +158,7 @@ class BCFTools(VariantCaller):
     def __str__(self):
         return "BCFTools"
 
-
+@final
 class Varscan(VariantCaller):
 
     FORMAT = [
@@ -227,7 +232,7 @@ class Varscan(VariantCaller):
     def __str__(self):
         return "Varscan"
 
-
+@final
 class Vardict(VariantCaller):
 
     FORMAT = ["GT", "DP", "VD", "AD", "AF", "RD", "ALD"]
@@ -293,7 +298,7 @@ class Vardict(VariantCaller):
     def __str__(self):
         return "Vardict"
 
-
+@final
 class Pindel(VariantCaller):
 
     FORMAT = ["GT", "AD"]
@@ -344,7 +349,7 @@ class Pindel(VariantCaller):
 
         return "Pindel"
 
-
+@final
 class Haplotypecaller(VariantCaller):
 
     FORMAT = ["GT", "AD", "DP", "GQ", "PL"]
@@ -394,7 +399,7 @@ class Haplotypecaller(VariantCaller):
 
         return "Haplotypecaller"
 
-
+@final
 class Flit3r(VariantCaller):
 
     FORMAT = []
@@ -439,7 +444,7 @@ class Flit3r(VariantCaller):
 
         return "Flit3r"
 
-
+@final
 class DeepVariant(VariantCaller):
 
     FORMAT = ["GT", "GQ", "DP", "AD", "VAF", "PL"]
