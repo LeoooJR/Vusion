@@ -168,14 +168,6 @@ def combine(params):
     # Create a writer object to write the VCF file
     writter: io.GenomicWritter = io.GenomicWritter(process=0)
 
-    # write rejected calls to file
-    # with open(os.path.join(os.getcwd(), f"{params.sample}_failed.vcf"), mode='w',encoding='utf-8') as OUT_TRASH_FILE:
-    #     OUT_TRASH_FILE.write(VCF_HEADER)
-    #     ordered_variant_key = functions.order_var(rejected, contigs["contig"])
-        
-    #     for variant_key in ordered_variant_key:
-    #         OUT_TRASH_FILE.write(functions.print_var(variant_key, rejected, 'final_metrics'))
-
     if params.intermediate_results and params.rescue:
 
         logger.debug((f"Writting VCF file of rejected variants in {params.output}."))

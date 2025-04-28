@@ -116,6 +116,7 @@ class Program:
         self.parser.add_argument(
             "--sbm-homozygous",
             action="store",
+            dest="sbm_homozygous",
             required=False,
             default=(2 / 3),
             type=float,
