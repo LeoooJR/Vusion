@@ -28,7 +28,7 @@ class VariantCallerRepository:
             "VD": Vardict(),
             "PL": Pindel(),
             "HC": Haplotypecaller(),
-            "FL": Flit3r(),
+            "FL": Filt3r(),
             "DV": DeepVariant(),
         }
     
