@@ -154,9 +154,17 @@ class VCF(GenomicFile):
 
         try:
 
-            return self.caller.genotype(variant, self.HEADER)
+            genotype: str = self.caller.genotype(variant, self.HEADER)
         
-        except IndexError:
+            if sum([c in genotype for c in ["/", "|"]]):
+
+                return genotype
+            
+            else:
+
+                raise errors.VCFError("Genotype value does not match the genotype format.")
+        
+        except (IndexError, NotImplementedError):
 
             raise errors.VCFError("Genotype cannot be extracted.")
 
@@ -172,7 +180,7 @@ class VCF(GenomicFile):
             
             return vaf
         
-        except IndexError:
+        except (IndexError, NotImplementedError):
 
             raise errors.VCFError("Variant allele frequency cannot be extracted.")
 
@@ -188,7 +196,7 @@ class VCF(GenomicFile):
             
             return depth
         
-        except IndexError:
+        except (IndexError, NotImplementedError):
 
             raise errors.VCFError("Coverage cannot be extracted.")
 
@@ -204,7 +212,7 @@ class VCF(GenomicFile):
             
             return arc
 
-        except IndexError:
+        except (IndexError, NotImplementedError):
 
             raise errors.VCFError("Alternate read count cannot be extracted.")
         
@@ -220,7 +228,7 @@ class VCF(GenomicFile):
             
             return rcc
 
-        except IndexError:
+        except (IndexError, NotImplementedError):
 
             raise errors.VCFError("Reference read count cannot be extracted.")
 

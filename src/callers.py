@@ -416,7 +416,7 @@ class Filt3r(VariantCaller):
     @staticmethod
     def genotype(variant: list[str], header: dict[str:int]) -> str:
 
-        return variant[header["SAMPLE"]].split(':')[0]
+        raise NotImplementedError
 
     @staticmethod
     def VAF(variant: list[str], header: dict[str:int]) -> float:
