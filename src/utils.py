@@ -12,23 +12,27 @@ class Cache():
 
         self.func: function = func
 
-    def add():
+    def add(self, args: list[str], key: object):
 
-        pass
+        if self.max_size and len(self.cache) >= self.max_size:
 
-    def call(self, args: list[str]):
+            self.cache.clear()
 
-        if args[1].__hash__:
+        self.cache[key] = self.func(*args)
 
-            if not args[1] in self.cache:
+    def call(self, args: list[str], key: object):
 
-                if self.max_size and len(self.cache) >= self.max_size:
+        if key.__hash__:
 
-                    self.cache.clear()
+            if not key in self.cache:
 
-                self.cache[args[1]] = self.func(args[0], args[1])
+                self.add(args, key)
             
-            return self.cache[args[1]]
+            return self.cache[key]
+        
+        else:
+
+            raise TypeError("Key is not hashable.")
 
 # ===========================================================================================
 # Basics functions on dictionary

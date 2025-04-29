@@ -688,7 +688,7 @@ class VariantsRepository():
                     reference_pileup: str = datas[pileup.HEADER['reference']]
 
                     # Check if variant is reported in one of the VCF files
-                    if (reference_pileup != 'N') and (chromosome_pileup in self.repository) and (position_pileup in cache.call(args = [self.repository, chromosome_pileup])):
+                    if (reference_pileup != 'N') and (chromosome_pileup in self.repository) and (position_pileup in cache.call(args = [self.repository, chromosome_pileup], key=chromosome_pileup)):
 
                         matchs: list[tuple] = [positions for positions in self.repository[chromosome_pileup] if positions.pileup_position == position_pileup]
 
