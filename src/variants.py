@@ -220,12 +220,6 @@ class VariantsRepository():
         Returns : a tuple containing the estimated BRC, BRR, and BRE.
         """
 
-        thresholds = thresholds.copy()
-
-        thresholds.insert(0, 0.0)
-
-        thresholds.insert(-1, 100.0)
-
         def classification(bre: float, arr: float, thresholds: tuple[float]) -> str:
 
             MAX_THRESHOLD = 100.0
@@ -267,7 +261,50 @@ class VariantsRepository():
             
             return level
         
-        pass
+        thresholds = thresholds.copy()
+
+        thresholds.insert(0, 0.0)
+
+        thresholds.insert(-1, 100.0)
+        
+        insertions_count: int = 0
+
+        deletions_count: int = 0
+        
+        if record[14] != "None":
+
+            insertions_count += sum([int(count) for count in re.findall(r'\d+', record[14])])
+
+        if variant["type"] == "INS":
+
+            pass
+
+        if variant["type"] == "DEL":
+
+            brc: int = None
+
+        else:
+
+            if record[15] != "None":
+
+                if record[15][0] == '*':
+
+                    if record[15][2].isdigit():
+
+                        deletions_count += int(record[15][2])
+
+                    brc: int = None
+
+            else:
+
+                brc: int = None
+
+        brr: float = round((brr / variant["sample"]["TRC"]) * 100, 5)
+
+        bre: float = round((brr / ((variant["sample"]["ARR"] / 100) + brr)) * 100, 5)
+
+        return (brc, brr, bre, classification(bre, variant["sample"]["ARR"], thresholds))
+    
 
     def compute_strand_bias_metrics(trc: tuple[int], arc: tuple[int], rrc: tuple[int], genotype: str, variant: str,  sbm_homozygous: float) -> tuple[float]:
         """

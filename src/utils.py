@@ -40,11 +40,11 @@ class Cache():
 
 def merge_collections(collections: list[object]) -> object:
     """
-    Merges specified variant dictionaries.
+    Merge collections.
     Parameters:
-        dicts: A list of variant dictionaries
+        collections: A list of collections to merge.
     Returns:
-        A merged variant dictionary
+        A merged collection of the same type as inputed collections.
     """
     if isinstance(collections[0], dict):
 
@@ -109,10 +109,12 @@ def estimate_brc_r_e(variant,pileup_line_info):
 
     # Removing DEL counts if variant is at some position of a DEL.
     # Because we miss valid variants in specific case like that
-    # Clintool bug where non-existing deletion is reported and start with A , C, T or G
+    # Clintool bug where non-existing deletion is reported and start with A, C, T or G
     if (variant['type'] != 'DEL') and (pileup_line_info[15] != 'None'):
-        # Escaping clintool bug where non-existing deletion is reported and start with A , C, T or G
+
+        # Escaping clintool bug where non-existing deletion is reported and start with A, C, T or G
         if pileup_line_info[15][0] == '*':
+
             del_read_count = int(pileup_line_info[15].strip().split(';')[0].split(':')[1])
             tmp_total_read_count = total_read_count - int(del_read_count)
 
@@ -127,6 +129,7 @@ def estimate_brc_r_e(variant,pileup_line_info):
                 )
 
         else:
+
             variant['sample']['BRC'] = (
                 total_read_count +
                 ins_read_counts -
@@ -135,7 +138,9 @@ def estimate_brc_r_e(variant,pileup_line_info):
                     ref_and_alt_read_count
                 ])
             )
+
     elif variant['type'] != 'DEL':
+
         variant['sample']['BRC'] = (
             total_read_count +
             ins_read_counts -
@@ -159,6 +164,7 @@ def estimate_brc_r_e(variant,pileup_line_info):
 
 
     background_read_counts = variant['sample']['BRC']
+    
     variant['sample']['BRR'] = round(
         background_read_counts / total_read_count,
         5
