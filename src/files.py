@@ -164,7 +164,13 @@ class VCF(GenomicFile):
 
         try: 
 
-            return self.caller.VAF(variant, self.HEADER)
+            vaf: float = self.caller.VAF(variant, self.HEADER)
+
+            if vaf <= 0.0:
+
+                raise errors.VCFError("Variant allele frequency cannot be zero or negative.")
+            
+            return vaf
         
         except IndexError:
 
@@ -174,7 +180,13 @@ class VCF(GenomicFile):
 
         try:
 
-            return self.caller.depth(variant, self.HEADER)
+            depth: int = self.caller.depth(variant, self.HEADER)
+
+            if depth <= 0:
+
+                raise errors.VCFError("Coverage cannot be zero or negative.")
+            
+            return depth
         
         except IndexError:
 
@@ -184,7 +196,13 @@ class VCF(GenomicFile):
 
         try:
 
-            return self.caller.arc(variant, self.HEADER)
+            arc: tuple[float] = self.caller.arc(variant, self.HEADER)
+
+            if not all([value > 0 for value in arc if value]):
+
+                raise errors.VCFError("Alternate read count cannot be zero or negative.")
+            
+            return arc
 
         except IndexError:
 
@@ -194,7 +212,13 @@ class VCF(GenomicFile):
 
         try:
 
-            return self.caller.rrc(variant, self.HEADER)
+            rcc: tuple[float] = self.caller.rrc(variant, self.HEADER)
+        
+            if not all([value > 0 for value in rcc if value]):
+
+                raise errors.VCFError("Reference read count cannot be zero or negative.")
+            
+            return rcc
 
         except IndexError:
 

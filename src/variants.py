@@ -316,7 +316,7 @@ class VariantsRepository():
 
                 try:
 
-                    sbm: float = max(product1, product2) / sum([product1, product2])
+                    sbm: float = round((max(product1, product2) / sum([product1, product2])), 5)
 
                 except ZeroDivisionError:
 
@@ -467,25 +467,6 @@ class VariantsRepository():
                     record = line.strip().split('\t')
 
                     if vcfs[caller]["vcf"].is_compliant(record):
-
-                        # In haplotype caller skip some weird exceptions
-                        # If sample part is empty
-                        # If AD:DP is not in FORMAT (variant depth and total depth info)
-                        # If total depth is 0
-                        if caller == 'HC' and (
-                            not 'AD:DP' in record[8]
-                            or record[9].split(':')[2] == '0'
-                        ):
-                            continue
-
-                        # In pindel skip exceptions
-                        # If it is writen INV instead of variant allele
-                        # If coverage information is 0
-                        if caller == 'PL' and (
-                            int(record[9].split(':')[1].split(',')[0])==0 or
-                            'INV' in record[4]
-                        ):
-                            continue
 
                         # Variant identifier is a string that contains the reference and alternative alleles
                         # It is used to identify the variant in the dictionary

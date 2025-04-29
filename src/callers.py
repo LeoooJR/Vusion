@@ -91,13 +91,18 @@ class BCFTools(VariantCaller):
 
     def is_compliant(self, variant: list[str], header: dict[str:int]):
 
-        return len(variant[header["INFO"]]) and any(
+        return (
+            len(variant[header["SAMPLE"]]) and (
+            variant[header["FORMAT"]].split(':') == self.FORMAT            
+            ) and (len(variant[header["SAMPLE"]].split(':')) == len(self.FORMAT))
+        ) and (
+            len(variant[header["INFO"]]) and any(
             list(
                 map(
                     lambda x: f"{x}=" in variant[header["INFO"]], ["DP", "DP4"]
                 )
             )
-        )
+        ))
     
     @staticmethod
     def genotype(variant: list[str], header: dict[str:int]) -> str:
@@ -185,8 +190,8 @@ class Varscan(VariantCaller):
     def is_compliant(self, variant: list[str], header: dict[str:int]):
 
         return len(variant[header["SAMPLE"]]) and (
-            ":" in variant[header["SAMPLE"]]
-        )
+            variant[header["FORMAT"]].split(':') == self.FORMAT            
+        ) and (len(variant[header["SAMPLE"]].split(':')) == len(self.FORMAT))
     
     @staticmethod
     def genotype(variant: list[str], header: dict[str:int]) -> str:
@@ -243,8 +248,9 @@ class Vardict(VariantCaller):
     def is_compliant(self, variant: list[str], header: dict[str:int]):
 
         return (
-            (len(variant[header["SAMPLE"]]))
-            and (":" in variant[header["SAMPLE"]])
+            len(variant[header["SAMPLE"]]) and (
+            variant[header["FORMAT"]].split(':') == self.FORMAT            
+            ) and (len(variant[header["SAMPLE"]].split(':')) == len(self.FORMAT))
         ) and (
             (len(variant[header["INFO"]]))
             and ("AF=" in variant[header["INFO"]])
@@ -309,8 +315,8 @@ class Pindel(VariantCaller):
     def is_compliant(self, variant: list[str], header: dict[str:int]):
 
         return len(variant[header["SAMPLE"]]) and (
-            ":" in variant[header["SAMPLE"]]
-        )
+            variant[header["FORMAT"]].split(':') == self.FORMAT            
+        ) and (len(variant[header["SAMPLE"]].split(':')) == len(self.FORMAT))
     
     @staticmethod
     def genotype(variant: list[str], header: dict[str:int]) -> str:
@@ -360,8 +366,8 @@ class Haplotypecaller(VariantCaller):
     def is_compliant(self, variant: list[str], header: dict[str:int]):
 
         return len(variant[header["SAMPLE"]]) and (
-            ":" in variant[header["SAMPLE"]]
-        )
+            variant[header["FORMAT"]].split(':') == self.FORMAT            
+        ) and (len(variant[header["SAMPLE"]].split(':')) == len(self.FORMAT))
     
     @staticmethod
     def genotype(variant: list[str], header: dict[str:int]) -> str:
@@ -456,8 +462,8 @@ class DeepVariant(VariantCaller):
     def is_compliant(self, variant: list[str], header: dict[str:int]):
 
         return len(variant[header["SAMPLE"]]) and (
-            ":" in variant[header["SAMPLE"]]
-        )
+            variant[header["FORMAT"]].split(':') == self.FORMAT            
+        ) and (len(variant[header["SAMPLE"]].split(':')) == len(self.FORMAT))
     
     @staticmethod
     def genotype(variant: list[str], header: dict[str:int]) -> str:
