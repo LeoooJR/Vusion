@@ -289,16 +289,15 @@ class Pileup(GenomicFile):
                     record.rstrip("\n").split("\t")
                 )
 
+                try:
+                    position: int = int(position)
+                except ValueError:
+                    raise errors.PileupError(f"Incorrect position value {position} in pileup file.")
+
                 if position < 0:
 
                     raise errors.PileupError(f"Incorrect position value {position} in pileup file.")
-                
-                else:
-        
-                    try:
-                        position: int = int(position)
-                    except ValueError:
-                        raise errors.PileupError(f"Incorrect position value {position} in pileup file.")
+                    
 
                 indels.setdefault(position, {
                         "insertions": defaultdict(
@@ -312,16 +311,18 @@ class Pileup(GenomicFile):
 
                 reference: str = reference.upper()
 
+                if not reference.isalpha():
+
+                    raise errors.PileupError(f"Incrorrect reference value {reference} in pileup file.")
+
+                try:
+                    depth: int = int(depth)
+                except ValueError:
+                    raise errors.PileupError(f"Incorrect depth value {depth} in pileup file.")
+
                 if depth < 0:
 
                     raise errors.PileupError(f"Incorrect depth value {depth} in pileup file.")
-                
-                else:
-                    
-                    try:
-                        depth: int = int(depth)
-                    except ValueError:
-                        raise errors.PileupError(f"Incorrect depth value {depth} in pileup file.")
 
                 regex: dict[str:str] = {r'\^.': '',
                                         r'\$': '',
@@ -333,7 +334,7 @@ class Pileup(GenomicFile):
                     read_base: str = re.sub(pattern, regex[pattern], read_base)
 
                 insertions: list[str] = re.findall(
-                    r"(\+[0-9]+[ACGTNacgtn]+)", read_base
+                    r"(\+[0-9]+[ATCGNatcgn]+)", read_base
                 )
 
                 for insertion in insertions:
@@ -341,6 +342,8 @@ class Pileup(GenomicFile):
                     depth += 1
 
                     size, seq = re.split(r"(?<=\d)(?!.*\d)", insertion)
+
+                    seq: str = seq[:int(size[1:])]
 
                     if seq.isupper():
 
@@ -350,19 +353,19 @@ class Pileup(GenomicFile):
 
                         indels[position]["insertions"][seq.upper()][0][1] += 1
 
-                    read_base: str = re.sub(fr"\{insertion}", "", read_base)
+                    read_base: str = re.sub(fr"\{size}{seq}", "", read_base)
 
                 inss: str = ";".join(
                     list(
                         map(
-                            lambda ins: f"{ins[0]}:{ins[1][0][0]}:{ins[1][0][1]}",
+                            lambda ins: f"{ins[0]}:{ins[1][0][0]},{ins[1][0][1]}",
                             indels[position]["insertions"].items(),
                         )
                     )
                 ) if len(indels[position]["insertions"].items()) else None
 
                 deletions: list[str] = re.findall(
-                    r"(\-[0-9]+[ACGTNacgtn]+)", read_base
+                    r"(\-[0-9]+[ATCGNatcgn]+)", read_base
                 )
 
                 for deletion in deletions:
@@ -370,6 +373,8 @@ class Pileup(GenomicFile):
                     depth += 1
 
                     size, seq = re.split(r"(?<=\d)(?!.*\d)", deletion)
+
+                    seq: str = seq[:int(size[1:])]
 
                     if seq.isupper():
 
@@ -379,7 +384,7 @@ class Pileup(GenomicFile):
 
                         indels[position]["deletions"][seq.upper()][0][1] += 1
 
-                    read_base: str = re.sub(fr"\{deletion}", "", read_base)
+                    read_base: str = re.sub(fr"\{size}{seq}", "", read_base)
 
                 for base in read_base:
 
@@ -422,11 +427,13 @@ class Pileup(GenomicFile):
                 
                 if (position - self.DEL_FIRST_NC) in indels:
 
-                    parts.extend([f"{key}:{values[0][0]}:{values[0][1]}" for key, values in indels[(position - self.DEL_FIRST_NC)]["deletions"].items() if key != "*"])
-
-                    del indels[(position - self.DEL_FIRST_NC)]
+                    parts.extend([f"{key}:{values[0][0]},{values[0][1]}" for key, values in indels[(position - self.DEL_FIRST_NC)]["deletions"].items() if key != "*"])
 
                 delss: str = ';'.join(parts) if len(parts) else None
+
+                if len(indels) == 2:
+
+                    del indels[list(indels.keys())[0]]
 
                 yield (
                     f"{self.sample}\t{chromosome}\t{position}\t{reference}\t{depth}\t{coverage['A+']}\t{coverage['A-']}\t{coverage['T+']}\t{coverage['T-']}\t{coverage['C+']}\t{coverage['C-']}\t{coverage['G+']}\t{coverage['G-']}\t{coverage['N']}\t{inss}\t{delss}\n"
