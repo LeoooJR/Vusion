@@ -740,7 +740,7 @@ class VariantsRepository():
                         logger.warning(f"Variant record {n} at position {position} in {vcfs[caller]["vcf"].get_path()} is not compliant with supported {str(vcfs[caller]["vcf"])} VCF format.")
 
 
-    def normalize(self, pileup: Pileup, thresholds: list[float], length_indels: int, sbm: float, sbm_homozygous: float) -> tuple[dict]:
+    def normalize(self, thresholds: list[float], length_indels: int, sbm: float, sbm_homozygous: float) -> tuple[dict]:
 
         def get_variants(variants, chromosome):
 
@@ -756,11 +756,11 @@ class VariantsRepository():
 
             f = open(file=os.path.join(self.intermediate_results, f"{self.sample}.fpileup"), mode="w")
 
-            f.write('\t'.join(list(pileup.header.keys())))
+            f.write('\t'.join(list(self._pileup.header.keys())))
 
             f.write('\n')
 
-        for n, record in enumerate(pileup.parse(), start=1):
+        for n, record in enumerate(self._pileup.parse(), start=1):
 
             warning: bool = False
 
@@ -772,11 +772,11 @@ class VariantsRepository():
 
             if datas[0] == self.sample:
 
-                chromosome_pileup: str = datas[pileup.HEADER['chromosome']]
+                chromosome_pileup: str = datas[self._pileup.HEADER['chromosome']]
 
-                position_pileup: int = int(datas[pileup.HEADER['position']])
+                position_pileup: int = int(datas[self._pileup.HEADER['position']])
 
-                reference_pileup: str = datas[pileup.HEADER['reference']]
+                reference_pileup: str = datas[self._pileup.HEADER['reference']]
 
                 if self._fai:
 
@@ -817,33 +817,33 @@ class VariantsRepository():
                                                                 "-": 0},
                                                     "total": 0}
 
-                                        for column, value in enumerate(datas[pileup.HEADER["A+"]:pileup.HEADER["N"]], start=0):
+                                        for column, value in enumerate(datas[self._pileup.HEADER["A+"]:self._pileup.HEADER["N"]], start=0):
 
                                             try:
                                                 coverage['total'] += int(value)
-                                                if column in pileup.PLUS_STRAND:
+                                                if column in self._pileup.PLUS_STRAND:
                                                     coverage["strand"]['+'] += int(value)
-                                                elif column in pileup.MINUS_STRAND:
+                                                elif column in self._pileup.MINUS_STRAND:
                                                     coverage["strand"]['-'] += int(value)
                                             except ValueError:
                                                 logger.warning("Uknown coverage value present in pileup file.")
                                                 logger.warning(f"Warning was raised by: {value} at line {n} column {column}.")
 
                                         # manage DEL counts
-                                        if datas[pileup.HEADER["DEL"]] != 'None':
+                                        if datas[self._pileup.HEADER["DEL"]] != 'None':
 
-                                            if datas[pileup.HEADER["DEL"]][0] == '*':
+                                            if datas[self._pileup.HEADER["DEL"]][0] == '*':
 
                                                 try:
-                                                    coverage["total"] += int(datas[pileup.HEADER["DEL"]].split(':')[1].split(';')[0])
+                                                    coverage["total"] += int(datas[self._pileup.HEADER["DEL"]].split(':')[1].split(';')[0])
                                                 except ValueError:
                                                     logger.warning("Unknow DEL value present in pileup file.")
-                                                    logger.warning(f"Warning was raised by: {datas[pileup.HEADER['DEL']]} at line {n} column {pileup.HEADER['DEL']}.")
+                                                    logger.warning(f"Warning was raised by: {datas[self._pileup.HEADER['DEL']]} at line {n} column {self._pileup.HEADER['DEL']}.")
 
                                             else:
                                                 # clintools bug where a DEL does not start w/ *:\d+
                                                 # (causing illegal division by zero)
-                                                for deletion in datas[pileup.HEADER["DEL"]].split(';'):
+                                                for deletion in datas[self._pileup.HEADER["DEL"]].split(';'):
                                                     del_cov1, del_cov2 = deletion.split(':')[1].split(',')
                                                     coverage["total"] += (int(del_cov1) + int(del_cov2))
 
@@ -857,7 +857,7 @@ class VariantsRepository():
                                         # ARC : Alternative Read Counts
                                         for strand in coverage["strand"]:
 
-                                            variant['sample'][f"RRC{strand}"] = int(datas[pileup.HEADER[f"{datas[pileup.HEADER['reference']]}{strand}"]])
+                                            variant['sample'][f"RRC{strand}"] = int(datas[self._pileup.HEADER[f"{datas[self._pileup.HEADER['reference']]}{strand}"]])
                                             
                                         variant_count: int = 0
 
@@ -866,7 +866,7 @@ class VariantsRepository():
 
                                             pattern: str = r"\b" + variant["display"].split(':')[0 if variant['type'] == 'DEL' else 1] + r"\b:[0-9]+,[0-9]+"
 
-                                            data: str = datas[pileup.HEADER[variant['type']]]
+                                            data: str = datas[self._pileup.HEADER[variant['type']]]
 
                                             rsearch = re.search(pattern, data)
                                                     
@@ -898,7 +898,7 @@ class VariantsRepository():
 
                                                 variant['sample'].setdefault(arc, 0)
 
-                                                coverage: int = int(datas[pileup.HEADER[f"{mutation.split(':')[1][0]}{strand}"]])
+                                                coverage: int = int(datas[self._pileup.HEADER[f"{mutation.split(':')[1][0]}{strand}"]])
 
                                                 variant['sample'][arc] = coverage
                                                         

@@ -159,7 +159,7 @@ def combine(params):
     # }
     logger.debug("Calculation of final metrics.")
 
-    variants.normalize(pileup=pileup, thresholds=thresholds, length_indels=params.length_indels, sbm=SBM, sbm_homozygous=params.sbm_homozygous)
+    variants.normalize(thresholds=thresholds, length_indels=params.length_indels, sbm=SBM, sbm_homozygous=params.sbm_homozygous)
 
     # ===========================================================================================
     # Write VCF(s)
