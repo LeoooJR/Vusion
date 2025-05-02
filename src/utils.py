@@ -6,28 +6,52 @@ class Cache():
 
     def __init__(self, func, max_size: int = 1):
         
+        # Maximum size of the cache
         self.max_size = max_size
 
+        # Dictionnary to implement the cache
+        # The key is the hash of the arguments
+        # The value is the result of the function
         self.cache: dict = {}
 
+        # Result of the function to be cached
         self.func: function = func
 
     def add(self, args: list[str], key: object):
+        """
+        Add the result of the function to the cache
+        Parameters:
+            args: The arguments of the function
+            key: The key of the cache
+        """
 
+        # If the cache is full, clear it
         if self.max_size and len(self.cache) >= self.max_size:
 
             self.cache.clear()
 
+        # Add the result of the function to the cache
         self.cache[key] = self.func(*args)
 
     def call(self, args: list[str], key: object):
-
+        """
+        Call the function and add the result to the cache
+        Parameters:
+            args: The arguments of the function
+            key: The key of the cache
+        """
+        # If the key is hashable,
         if key.__hash__:
 
+            # If the key is not in the cache,
+            # add the result of the function to the cache
             if not key in self.cache:
 
                 self.add(args, key)
             
+            # O(1) access to the cache
+            # Return the result of the function
+            # from the cache
             return self.cache[key]
         
         else:

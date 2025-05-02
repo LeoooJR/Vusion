@@ -11,7 +11,9 @@ def combine(params):
     # ===========================================================================================
     # Initiate constant variables
     # ===========================================================================================
+    # Set the strand bias metric
     SBM: float = 2.0 if params.disable_strand_bias else 0.95
+    # Maximum and minimum threshold values
     MAX_THRESHOLD: float = 100.0
     MIN_THRESHOLD: float = 0.0
 
@@ -31,8 +33,9 @@ def combine(params):
     # Check reference genome index
     try:
         fai = io.FastaIndex(path=params.reference, lazy=False)
-    except errors.FastaIndexError:
+    except errors.FastaIndexError as e:
         logger.error(f"{params.reference} is not a valid FASTA index.")
+        logger.error(f"Error: {e}")
         raise SystemExit(f"{params.reference} is not a valid FASTA index.")
     
     logger.success(f"Fasta index {params.reference} has been successfully checked.")
@@ -41,8 +44,9 @@ def combine(params):
     try:
         pileup = io.Pileup(path=params.pileup, sample=params.sample, lazy=True)
         variants.pileup = pileup
-    except errors.PileupError:
+    except errors.PileupError as e:
         logger.error(f"{params.pileup} is not a valid PILEUP.")
+        logger.error(f"Error: {e}")
         raise SystemExit(f"{params.pileup} is not a valid PILEUP.")
     
     logger.success(f"Pileup {params.pileup} has been successfully checked.")

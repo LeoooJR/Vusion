@@ -18,22 +18,29 @@ class VariantsRepository():
         # Dictionary to store variants
         self.repository: dict = {}
 
+        # Sorted sets to keep trace of variants
         self.cache: dict[str:set[tuple]] = {"common": SortedSet(key=lambda item: [VariantsRepository.chromosome_sort_key(item[0]), item[1].vcf_position]), # Set to store variants possibly found in pileup
                                           "complex": SortedSet(key=lambda item: [VariantsRepository.chromosome_sort_key(item[0]), item[1].vcf_position]), # Set to store complex variants
                                           "rejected": SortedSet(key=lambda item: [VariantsRepository.chromosome_sort_key(item[0]), item[1].vcf_position])} # Set to store rejected variants
+        
+        # Link the repository to the sample name
         self.sample: str = sample
 
+        # Link the repository to the pileup object
         self._pileup = pileup
 
+        # Should the rejected variant be rescued ?
         self.rescue: bool = rescue   
 
     @property
     def pileup(self):
+        """Get the pileup object."""
 
         return getattr(self, "_pileup", None)
 
     @pileup.setter
     def pileup(self, value: Pileup | None):
+        """Set the pileup object."""
 
         if value:
 
@@ -45,21 +52,29 @@ class VariantsRepository():
 
     @property
     def common_variants(self) -> SortedSet:
+        """Get the common variants."""
 
         return self.cache["common"]
     
     @property
     def complex_variants(self) -> SortedSet:
+        """Get the complex variants."""
 
         return self.cache["complex"]
     
     @property
     def rejected_variants(self) -> SortedSet:
+        """Get the rejected variants."""
 
         return self.cache["rejected"]
     
     @staticmethod
     def chromosome_sort_key(item: str):
+        """Key to be used for sorting chromosomes."""
+
+        # If the item is a digit, return a tuple with 0 and the integer value
+        # If the item is not a digit, return a tuple with 1 and the item itself
+        # This will ensure that digits are sorted before non-digits
 
         if item.isdigit():
 
@@ -70,7 +85,7 @@ class VariantsRepository():
             return (1, item)
 
     @staticmethod
-    @lru_cache(maxsize=1000)
+    @lru_cache(maxsize=1000) # Use Least Recently Used (LRU) cache to store results, SNP are often repeated
     def get_variant_type(ref: str, alt: str) -> str:
 
         # Empty string to store variant type
@@ -78,18 +93,22 @@ class VariantsRepository():
         variant_type: str = ''
 
         def is_snp(ref: str, alt: str) -> str:
+            """Check if the variant is a SNP (Single Nucleotide Polymorphism)."""
 
             return "SNV" if len(ref) == 1 and len(alt) == 1 else ''
 
         def is_ins(ref: str, alt: str) -> str:
+            """Check if the variant is an INS (Insertion)."""
             
             return "INS" if len(ref) == 1 and len(alt) > 1 else ''
 
         def is_del(ref: str, alt: str) -> str:
+            """Check if the variant is a DEL (Deletion)."""
 
             return "DEL" if len(ref) > 1 and len(alt) == 1 else ''
 
         def is_inv(ref: str, alt: str) -> str:
+            """Check if the variant is an INV (Inversion)."""
 
             OLD_CHARS: str = "ACGTacgt"
             REPLACE_CHARS: str = "TGCAtgca"
@@ -99,6 +118,7 @@ class VariantsRepository():
             return "INV" if len(ref) == len(alt) and ref == rev else ''
 
         def is_mnv(ref: str, alt: str) -> str:
+            """Check if the variant is a MNV (Multi Nucleotide Variant)."""
 
             OLD_CHARS: str = "ACGTacgt"
             REPLACE_CHARS: str = "TGCAtgca"
