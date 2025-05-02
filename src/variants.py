@@ -583,7 +583,7 @@ class VariantsRepository():
                                 # Integer reduces memory usage in dictionary as key
                                 Positions = namedtuple("Positions", ["vcf_position", "pileup_position"])
 
-                                positions = Positions(vcf_position=position, pileup_position=((position + self.pileup.DEL_FIRST_NC) if category == "DEL" else int(record[1])))
+                                positions = Positions(vcf_position=position, pileup_position=((position + self.pileup.DEL_FIRST_NC) if category == "DEL" else position))
                                     
                                 if not positions in self.repository[chromosome]:
 
