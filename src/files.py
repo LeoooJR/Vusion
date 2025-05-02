@@ -605,10 +605,12 @@ class FastaIndex(GenomicFile):
 
     @lru_cache(maxsize=23)
     def is_indexed_chromosome(self, chromosome: str) -> bool:
+        """Check if the chromosome is indexed in the Fasta index file"""
 
         return chromosome in self._contigs["contig"].values
     
     def is_correct_position(self, chromsome: str, position: int) -> bool:
+        """Check if the position is correct for the given chromosome"""
 
         if not isinstance(position, int):
 

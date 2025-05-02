@@ -14,6 +14,8 @@ import utils as functions
 
 class VariantsRepository():
 
+    """A class to store variants and their information."""
+
     def __init__(self, sample: str, pileup: Pileup = None, fai: FastaIndex = None, rescue: bool = False, intermediate_results: str = ''):
 
         # Dictionary to store variants
@@ -30,10 +32,13 @@ class VariantsRepository():
         # Link the repository to the pileup object
         self._pileup = pileup
 
+        # Link the repository to the fasta index object
         self._fai = fai
 
+        # Should the rejected variants be rescued ?
         self.rescue: bool = rescue
 
+        # Should intermediate results be saved ?
         self.intermediate_results = intermediate_results   
 
     @property
