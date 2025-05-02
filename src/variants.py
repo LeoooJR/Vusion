@@ -6,6 +6,7 @@ from loguru import logger
 import math
 import numpy as np
 from operator import itemgetter
+import os
 import re
 from scipy.stats import fisher_exact
 from sortedcontainers import SortedSet
@@ -13,7 +14,7 @@ import utils as functions
 
 class VariantsRepository():
 
-    def __init__(self, sample: str, pileup: Pileup = None, rescue: bool = False):
+    def __init__(self, sample: str, pileup: Pileup = None, rescue: bool = False, intermediate_results: str = ''):
 
         # Dictionary to store variants
         self.repository: dict = {}
@@ -25,7 +26,9 @@ class VariantsRepository():
 
         self._pileup = pileup
 
-        self.rescue: bool = rescue   
+        self.rescue: bool = rescue
+
+        self.intermediate_results = intermediate_results   
 
     @property
     def pileup(self):
@@ -712,179 +715,193 @@ class VariantsRepository():
         # Process common variants with Pileup
         # ===========================================================================================
 
-        with open(pileup.get_path(), mode='r') as f:
+        if self.intermediate_results:
 
-            for n, record in enumerate(f, start=1):
+            f = open(file=os.path.join(self.intermediate_results, f"{self.sample}.fpileup"), mode="w")
 
-                datas = record.strip('\n').split('\t')
+            f.write('\t'.join(list(pileup.header.keys())))
 
-                if datas[0] == self.sample:
+            f.write('\n')
 
-                    chromosome_pileup: str = datas[pileup.HEADER['chromosome']].removeprefix('chr')
-                    position_pileup: int = int(datas[pileup.HEADER['position']])
-                    reference_pileup: str = datas[pileup.HEADER['reference']]
+        for n, record in enumerate(pileup.parse(), start=1):
 
-                    # Check if variant is reported in one of the VCF files
-                    if (reference_pileup != 'N') and (chromosome_pileup in self.repository) and (position_pileup in cache.call(args = [self.repository, chromosome_pileup], key=chromosome_pileup)):
+            if self.intermediate_results:
 
-                        matchs: list[tuple] = [positions for positions in self.repository[chromosome_pileup] if positions.pileup_position == position_pileup]
+                f.write(record)
 
-                        if matchs:
+            datas = record.strip('\n').split('\t')
 
-                            for positions in matchs:
+            if datas[0] == self.sample:
+
+                chromosome_pileup: str = datas[pileup.HEADER['chromosome']].removeprefix('chr')
+                position_pileup: int = int(datas[pileup.HEADER['position']])
+                reference_pileup: str = datas[pileup.HEADER['reference']]
+
+                # Check if variant is reported in one of the VCF files
+                if (reference_pileup != 'N') and (chromosome_pileup in self.repository) and (position_pileup in cache.call(args = [self.repository, chromosome_pileup], key=chromosome_pileup)):
+
+                    matchs: list[tuple] = [positions for positions in self.repository[chromosome_pileup] if positions.pileup_position == position_pileup]
+
+                    if matchs:
+
+                        for positions in matchs:
                         
-                                for mutation in self.repository[chromosome_pileup][positions]:
+                            for mutation in self.repository[chromosome_pileup][positions]:
                                     
-                                    # O(1) lookup
-                                    if (chromosome_pileup, positions, mutation) in self.cache["common"]:
+                                # O(1) lookup
+                                if (chromosome_pileup, positions, mutation) in self.cache["common"]:
                                         
-                                        # Create a variable which link to the same memory address as the variant in the global dictionary
-                                        # It reduce writing complexity and improve readability
-                                        variant: dict = self.repository[chromosome_pileup][positions][mutation]
+                                    # Create a variable which link to the same memory address as the variant in the global dictionary
+                                    # It reduce writing complexity and improve readability
+                                    variant: dict = self.repository[chromosome_pileup][positions][mutation]
 
-                                        if not 'sample' in variant:
+                                    if not 'sample' in variant:
 
-                                            variant['sample'] = {}
+                                        variant['sample'] = {}
 
-                                        # depth of coverage at <CHR:POS> = sum(Nt) + #DEL (if any)
-                                        coverage = {"strand": {"+": 0,
-                                                               "-": 0},
-                                                    "total": 0}
+                                    # depth of coverage at <CHR:POS> = sum(Nt) + #DEL (if any)
+                                    coverage = {"strand": {"+": 0,
+                                                            "-": 0},
+                                                "total": 0}
 
-                                        for column, value in enumerate(datas[pileup.HEADER["A+"]:pileup.HEADER["N"]], start=0):
+                                    for column, value in enumerate(datas[pileup.HEADER["A+"]:pileup.HEADER["N"]], start=0):
+
+                                        try:
+                                            coverage['total'] += int(value)
+                                            if column in pileup.PLUS_STRAND:
+                                                coverage["strand"]['+'] += int(value)
+                                            elif column in pileup.MINUS_STRAND:
+                                                coverage["strand"]['-'] += int(value)
+                                        except ValueError:
+                                            logger.warning("Uknown coverage value present in pileup file.")
+                                            logger.warning(f"Warning was raised by: {value} at line {n} column {column}.")
+
+                                    # manage DEL counts
+                                    if datas[pileup.HEADER["DEL"]] != 'None':
+
+                                        if datas[pileup.HEADER["DEL"]][0] == '*':
 
                                             try:
-                                                coverage['total'] += int(value)
-                                                if column in pileup.PLUS_STRAND:
-                                                    coverage["strand"]['+'] += int(value)
-                                                elif column in pileup.MINUS_STRAND:
-                                                    coverage["strand"]['-'] += int(value)
+                                                coverage["total"] += int(datas[pileup.HEADER["DEL"]].split(':')[1].split(';')[0])
                                             except ValueError:
-                                                logger.warning("Uknown coverage value present in pileup file.")
-                                                logger.warning(f"Warning was raised by: {value} at line {n} column {column}.")
+                                                logger.warning("Unknow DEL value present in pileup file.")
+                                                logger.warning(f"Warning was raised by: {datas[pileup.HEADER['DEL']]} at line {n} column {pileup.HEADER['DEL']}.")
 
-                                        # manage DEL counts
-                                        if datas[pileup.HEADER["DEL"]] != 'None':
+                                        else:
+                                            # clintools bug where a DEL does not start w/ *:\d+
+                                            # (causing illegal division by zero)
+                                            for deletion in datas[pileup.HEADER["DEL"]].split(';'):
+                                                del_cov1, del_cov2 = deletion.split(':')[1].split(',')
+                                                coverage["total"] += (int(del_cov1) + int(del_cov2))
 
-                                            if datas[pileup.HEADER["DEL"]][0] == '*':
+                                    variant['sample']['TRC'] = coverage.get("total", 0)
+                                    variant['sample']['TRC-'] = coverage["strand"].get('-', 0)
+                                    variant['sample']['TRC+'] = coverage["strand"].get('+', 0)
 
-                                                try:
-                                                    coverage["total"] += int(datas[pileup.HEADER["DEL"]].split(':')[1].split(';')[0])
-                                                except ValueError:
-                                                    logger.warning("Unknow DEL value present in pileup file.")
-                                                    logger.warning(f"Warning was raised by: {datas[pileup.HEADER['DEL']]} at line {n} column {pileup.HEADER['DEL']}.")
+                                    # Add <REF> strand-specific counts for each <ALT> at <CHR:POS>
+                                    # ie. the matched key in callset
+                                    # RRC : Reference Read Counts
+                                    # ARC : Alternative Read Counts
+                                    for strand in coverage["strand"]:
 
-                                            else:
-                                                # clintools bug where a DEL does not start w/ *:\d+
-                                                # (causing illegal division by zero)
-                                                for deletion in datas[pileup.HEADER["DEL"]].split(';'):
-                                                    del_cov1, del_cov2 = deletion.split(':')[1].split(',')
-                                                    coverage["total"] += (int(del_cov1) + int(del_cov2))
+                                        variant['sample'][f"RRC{strand}"] = int(datas[pileup.HEADER[f"{datas[pileup.HEADER['reference']]}{strand}"]])
+                                        
+                                    variant_count: int = 0
 
-                                        variant['sample']['TRC'] = coverage.get("total", 0)
-                                        variant['sample']['TRC-'] = coverage["strand"].get('-', 0)
-                                        variant['sample']['TRC+'] = coverage["strand"].get('+', 0)
+                                    # if <ALT> is an <INDEL>
+                                    if variant['type'] in ['DEL','INS']:
 
-                                        # Add <REF> strand-specific counts for each <ALT> at <CHR:POS>
-                                        # ie. the matched key in callset
-                                        # RRC : Reference Read Counts
-                                        # ARC : Alternative Read Counts
+                                        pattern: str = r"\b" + variant["display"].split(':')[0 if variant['type'] == 'DEL' else 1] + r"\b:[0-9]+,[0-9]+"
+
+                                        data: str = datas[pileup.HEADER[variant['type']]]
+
+                                        rsearch = re.search(pattern, data)
+                                                
+                                        if rsearch:
+                                            
+                                                # Extract once and split to get counts
+                                                counts = rsearch.group(0).split(':')[-1]
+
+                                                arc_plus_strand, arc_minus_strand = list(map(int, counts.split(',')))
+                                                    
+                                                variant_count: int = arc_plus_strand + arc_minus_strand
+                                                    
+                                                #Save indel count per strand in callset ARC+ and ARC-
+                                                for strand in coverage["strand"]:
+
+                                                    arc: str = f'ARC{strand}'
+
+                                                    variant['sample'].setdefault(arc, 0)
+
+                                                    variant['sample'][arc] = arc_plus_strand if strand == '+' else arc_minus_strand
+
+                                    # any other <VarType>
+                                    else:
+                                        # keep 1st character of <ALT> string (approx. counts for non-SNV variants)
+
                                         for strand in coverage["strand"]:
 
-                                            variant['sample'][f"RRC{strand}"] = int(datas[pileup.HEADER[f"{datas[pileup.HEADER['reference']]}{strand}"]])
+                                            arc: str = f'ARC{strand}'
+
+                                            variant['sample'].setdefault(arc, 0)
+
+                                            coverage: int = int(datas[pileup.HEADER[f"{mutation.split(':')[1][0]}{strand}"]])
+
+                                            variant['sample'][arc] = coverage
+                                                    
+                                            variant_count += coverage
                                         
-                                        variant_count: int = 0
+                                    # --------------------------------------------------------------
+                                    # <ALT> not covered in read pile;
+                                    # keep trace of rejected variants (for test / rescuing purpose)
+                                    # --------------------------------------------------------------
+                                    if not variant_count:
 
-                                        # if <ALT> is an <INDEL>
-                                        if variant['type'] in ['DEL','INS']:
+                                        if (variant['type'] == 'INS') and (len(variant["collection"]["ALT"])-1 > length_indels):
 
-                                            pattern: str = r"\b" + variant["display"].split(':')[0 if variant['type'] == 'DEL' else 1] + r"\b:[0-9]+,[0-9]+"
+                                            VariantsRepository.compute_sample_metrics(variant=variant,
+                                                                                      thresholds=thresholds,
+                                                                                      sbm=sbm,
+                                                                                      sbm_homozygous=sbm_homozygous,
+                                                                                     )
 
-                                            data: str = datas[pileup.HEADER[variant['type']]]
-
-                                            rsearch = re.search(pattern, data)
-                                                
-                                            if rsearch:
-                                            
-                                                    # Extract once and split to get counts
-                                                    counts = rsearch.group(0).split(':')[-1]
-
-                                                    arc_plus_strand, arc_minus_strand = list(map(int, counts.split(',')))
-                                                    
-                                                    variant_count: int = arc_plus_strand + arc_minus_strand
-                                                    
-                                                    #Save indel count per strand in callset ARC+ and ARC-
-                                                    for strand in coverage["strand"]:
-
-                                                        arc: str = f'ARC{strand}'
-
-                                                        variant['sample'].setdefault(arc, 0)
-
-                                                        variant['sample'][arc] = arc_plus_strand if strand == '+' else arc_minus_strand
-
-                                        # any other <VarType>
                                         else:
-                                            # keep 1st character of <ALT> string (approx. counts for non-SNV variants)
 
-                                            for strand in coverage["strand"]:
-
-                                                arc: str = f'ARC{strand}'
-
-                                                variant['sample'].setdefault(arc, 0)
-
-                                                coverage: int = int(datas[pileup.HEADER[f"{mutation.split(':')[1][0]}{strand}"]])
-
-                                                variant['sample'][arc] = coverage
-                                                    
-                                                variant_count += coverage
-                                        
-                                        # --------------------------------------------------------------
-                                        # <ALT> not covered in read pile;
-                                        # keep trace of rejected variants (for test / rescuing purpose)
-                                        # --------------------------------------------------------------
-                                        if not variant_count:
-
-                                            if (variant['type'] == 'INS') and (len(variant["collection"]["ALT"])-1 > length_indels):
+                                            variant["filter"] = "REJECTED"
+                                                
+                                            if self.rescue:
 
                                                 VariantsRepository.compute_sample_metrics(variant=variant,
                                                                                           thresholds=thresholds,
                                                                                           sbm=sbm,
                                                                                           sbm_homozygous=sbm_homozygous,
                                                                                          )
+                                            # Variant has been saved ?
+                                            # If the initially rejected variant now has a filter as PASS, keep it in the shared cache for common variants.
+                                            # Else, add it to the shared cache for rejected variants    
+                                            if variant["filter"] != "PASS":
 
-                                            else:
+                                                    # Keep caches in sync
+                                                    # Runtime complexity: O(log(n)) – approximate.
+                                                    self.cache["common"].discard((chromosome_pileup, positions, mutation))
+                                                    # Runtime complexity: O(log(n)) – approximate.
+                                                    self.cache["rejected"].add((chromosome_pileup, positions, mutation))
+                                    else:
 
-                                                variant["filter"] = "REJECTED"
-                                                
-                                                if self.rescue:
+                                        # --------------------------------------------------------------
+                                        # Compute metrics
+                                        # --------------------------------------------------------------
 
-                                                    VariantsRepository.compute_sample_metrics(variant=variant,
-                                                                                              thresholds=thresholds,
-                                                                                              sbm=sbm,
-                                                                                              sbm_homozygous=sbm_homozygous,
-                                                                                             )
-                                                # Variant has been saved ?
-                                                # If the initially rejected variant now has a filter as PASS, keep it in the shared cache for common variants.
-                                                # Else, add it to the shared cache for rejected variants    
-                                                if variant["filter"] != "PASS":
+                                        VariantsRepository.compute_sample_metrics(variant=variant,
+                                                                                  thresholds=thresholds,
+                                                                                  sbm=sbm,
+                                                                                  sbm_homozygous=sbm_homozygous,
+                                                                                  pileup_record=datas)
 
-                                                        # Keep caches in sync
-                                                        # Runtime complexity: O(log(n)) – approximate.
-                                                        self.cache["common"].discard((chromosome_pileup, positions, mutation))
-                                                        # Runtime complexity: O(log(n)) – approximate.
-                                                        self.cache["rejected"].add((chromosome_pileup, positions, mutation))
-                                        else:
+        if self.intermediate_results:
 
-                                            # --------------------------------------------------------------
-                                            # Compute metrics
-                                            # --------------------------------------------------------------
-
-                                            VariantsRepository.compute_sample_metrics(variant=variant,
-                                                                                      thresholds=thresholds,
-                                                                                      sbm=sbm,
-                                                                                      sbm_homozygous=sbm_homozygous,
-                                                                                      pileup_record=datas)
-                                            
+            f.close()
+                                           
         # ===========================================================================================
         # Process complex variants without Pileup : INV,MNV and CSV
         # ===========================================================================================

@@ -22,7 +22,7 @@ def combine(params):
 
     # Create a variants repository
     # This repository will be used to store the variants and their information
-    variants = VariantsRepository(sample=params.sample, rescue=params.rescue)
+    variants = VariantsRepository(sample=params.sample, rescue=params.rescue, intermediate_results=(params.output if params.intermediate_results else ''))
 
     # ===========================================================================================
     # Check mandatory options
