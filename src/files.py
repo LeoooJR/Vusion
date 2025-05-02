@@ -513,7 +513,7 @@ class Pileup(GenomicFile):
 
                 else:
 
-                    columns: list[str] = len(line.split("\t"))
+                    columns: list[str] = line.split("\t")
 
                     # Check if first line is composed of 5 or 6 columns
                     # Column 6 is optional in pileup
