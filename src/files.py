@@ -1,6 +1,7 @@
 import callers
 from collections import defaultdict
 import errors
+from functools import lru_cache
 import jinja2
 import numpy as np
 import os
@@ -584,7 +585,7 @@ class FastaIndex(GenomicFile):
 
         else:
 
-            self.contigs: pd.DataFrame = pd.DataFrame()
+            self._contigs: pd.DataFrame = pd.DataFrame()
 
     @property
     def contigs(self):
@@ -598,9 +599,30 @@ class FastaIndex(GenomicFile):
 
         if not isinstance(value, pd.DataFrame):
 
-            raise TypeError("Contigs must be a Dataframe.")
+            raise TypeError("value must be a Dataframe.")
         
         self._contigs: pd.DataFrame = value
+
+    @lru_cache(maxsize=23)
+    def is_indexed_chromosome(self, chromosome: str) -> bool:
+
+        return chromosome in self._contigs["contig"].values
+    
+    def is_correct_position(self, chromsome: str, position: int) -> bool:
+
+        if not isinstance(position, int):
+
+            return False
+        
+        try:
+
+            res: bool = position <= (self._contigs.loc[self._contigs["contig"] == chromsome])["length"]
+
+        except (KeyError, pd.errors.IndexingError):
+
+            res: bool = False
+        
+        return res
 
     def parse(self):
         """Parse the Fasta index file"""
@@ -630,7 +652,7 @@ class FastaIndex(GenomicFile):
         
         # Convert the columns to the appropriate types, reducing memory usage
         self._contigs: pd.DataFrame = self._contigs.astype(
-            {"contig": "string", "pbline": "uint8", "byteline": "uint8"}
+            {"contig": "string", "length": "uint", "pbline": "uint8", "byteline": "uint8"}
         )
 
     def verify(self):
