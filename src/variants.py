@@ -108,6 +108,11 @@ class VariantsRepository():
         else:
 
             return (1, item)
+        
+    @staticmethod
+    def is_composed_variant(allele: str) -> bool:
+
+        return ',' in allele
 
     @staticmethod
     @lru_cache(maxsize=1000) # Use Least Recently Used (LRU) cache to store results, SNP are often repeated
@@ -758,6 +763,10 @@ class VariantsRepository():
                         else:
 
                             logger.warning(f"Alternative allele {alt} is not compatible with DNA alphabet for variant record {n} at position {position} in {vcfs[caller]["vcf"].get_path()}.")
+
+                            if VariantsRepository.is_composed_variant(allele=alt):
+
+                                logger.warning(f"Alternative allele {alt} must be decomposed for variant record {n} at position {position} in {vcfs[caller]["vcf"].get_path()}.")
 
                     else:
 
