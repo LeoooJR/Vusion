@@ -11,12 +11,13 @@ class Program:
 
     def __init__(self):
 
-        self.parser = ArgumentParser(description="Combine multiple VCF files.")
+        self.parser = ArgumentParser(prog="Vusion", 
+                                     description="Combine multiple VCF files.")
         self.parser.add_argument(
             "-v",
             "--version",
             action="version",
-            version=f"AFO-VCF {__version__}",
+            version=f"Vusion v{__version__}",
         )
         self.parser.add_argument(
             "-r",
@@ -146,6 +147,7 @@ class Program:
 
         cmd = self.parser.parse_args(argv[1:])
 
+        # Should the log be printed to CLI or saved in a file ?
         if not cmd.verbosity:
 
             logger.remove(0)
@@ -153,3 +155,11 @@ class Program:
             logger.add("vusion.log")
 
         return cmd.func(params=cmd)
+    
+    def __str__(self):
+
+        return "Vusion"
+
+    def __repr__(self):
+        
+        return "Vusion"

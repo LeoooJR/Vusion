@@ -39,6 +39,10 @@ class GenomicFile:
     def __repr__(self):
         
         return f"{self.path}"
+    
+    def __hash__(self):
+        
+        return hash(self.path)
 
 class VCF(GenomicFile):
 
@@ -62,7 +66,7 @@ class VCF(GenomicFile):
     DEL_FIRST_NC: Final[int] = -1
 
     def __init__(
-        self, path: str, caller: callers.VariantCaller, lazy: bool = True
+        self, path: str, caller: callers.VariantCaller, lazy: bool = True, index: str = None
     ):
 
         super().__init__(path=path)
@@ -72,6 +76,8 @@ class VCF(GenomicFile):
 
         # The caller from which the VCF file is generated
         self.caller: callers.VariantCaller = caller
+
+        self.index: VCFIndex = self.index
 
         if not lazy:
 
@@ -561,6 +567,7 @@ class VCFIndex(GenomicFile):
     """Class for VCF index files"""
 
     def __init__(self, path: str, lazy: bool = True):
+        
         super().__init__(path)
 
         self.verify()
