@@ -77,7 +77,7 @@ class VCF(GenomicFile):
         # The caller from which the VCF file is generated
         self.caller: callers.VariantCaller = caller
 
-        self.index: VCFIndex = self.index
+        self.index: VCFIndex = index
 
         if not lazy:
 

@@ -4,6 +4,7 @@ from callers import VariantCallerRepository
 import errors
 import files as io
 from loguru import logger
+import os
 from variants import VariantsRepository
 
 def combine(params):
@@ -29,6 +30,10 @@ def combine(params):
     # ===========================================================================================
     # Check mandatory options
     # ===========================================================================================
+
+    # Check output directory
+    if not os.path.isdir(params.output):
+        raise SystemExit(f"No such directory: '{params.output}'")
 
     # Check reference genome index
     try:
