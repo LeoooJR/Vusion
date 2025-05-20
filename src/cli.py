@@ -24,7 +24,7 @@ class Program:
             "--reference",
             type=str,
             dest="reference",
-            metavar="",
+            metavar="FAI",
             required=True,
             help="Path to reference genome fasta index file (.fai)"
         )
@@ -33,7 +33,7 @@ class Program:
             "--output",
             type=str,
             dest="output",
-            metavar="",
+            metavar="PATH",
             required=True,
             help="Path to the output directory",
         )
@@ -44,6 +44,7 @@ class Program:
             dest="vcfs",
             action="append",
             required=True,
+            metavar="VCF",
             help="<ID,vcf,[yaml]> path to \
                   VCF file associated with identifier : bcftools (BT), varscan (VS), vardict (VD), pindel (PL), haplotypecaller (HC), FILT3R (FL), deepvariant (DV) \
                   control & hotspot (CS & HS). \
@@ -54,8 +55,8 @@ class Program:
             "--pileup",
             dest="pileup",
             type=str,
-            metavar="",
             required=True,
+            metavar="PILEUP",
             help="Path to pileup processed mpileup data file",
         )
         self.parser.add_argument(
@@ -63,7 +64,7 @@ class Program:
             "--sample",
             type=str,
             dest="sample",
-            metavar="",
+            metavar="STR",
             required=True,
             help="The sample identifier as specified in both bam and vcf files",
         )
@@ -73,7 +74,7 @@ class Program:
             type=str,
             dest="thresholds",
             default="10,30,40,60,70,80,20,30,50,1",
-            metavar="",
+            metavar="INT [INT ...]",
             required=False,
             help="Threshold used for variant categorization in VCF callsets",
         )
@@ -110,6 +111,7 @@ class Program:
             required=False,
             default=1,
             type=float,
+            metavar="INT",
             help="Set Del/Ins mininmum length for variant not found in pileup. \
                   Variants below this value are considered false positives. \
                   By default, minimum length is set to 1",
@@ -121,6 +123,7 @@ class Program:
             required=False,
             default=(2 / 3),
             type=float,
+            metavar="FLOAT",
             help="Define sbm limits for homozygous variants. \
                 By default, a strand bias is considered present if there is a 2/3 imbalance \
                 of reads on one strand and 1/3 on the other.",
