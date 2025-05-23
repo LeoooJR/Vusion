@@ -33,7 +33,12 @@ def combine(params):
 
     # Check output directory
     if not os.path.isdir(params.output):
+        logger.error(f"No such directory: '{params.output}'")
         raise SystemExit(f"No such directory: '{params.output}'")
+    else:
+        if not os.access(params.output, os.W_OK):
+                logger.error(f"Write permissions are not granted for the directory: {params.output}")
+                raise SystemExit(f"Write permissions are not granted for the directory: {params.output}")
 
     # Check reference genome index
     try:
