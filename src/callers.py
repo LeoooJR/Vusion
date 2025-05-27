@@ -375,7 +375,11 @@ class Pindel(VariantCaller):
     def VAF(variant: list[str], header: dict[str:int]) -> float:
 
         depths = variant[header["SAMPLE"]].split(":")[1].split(",")
-        vaf = float(depths[1]) / (float(depths[0]) + float(depths[1]))
+        try:
+            vaf: float = float(depths[1]) / (float(depths[0]) + float(depths[1]))
+        except ZeroDivisionError:
+            vaf: float = 0.0
+            
         return vaf
 
     # Extract the depth of the variant
@@ -443,7 +447,12 @@ class Haplotypecaller(VariantCaller):
         total_depth = float(metrics[2])
         alleles_depth = float(metrics[1].split(",")[1])
 
-        return alleles_depth / total_depth
+        try:
+            vaf: float = alleles_depth / total_depth
+        except ZeroDivisionError:
+            vaf: float = 0.0
+
+        return vaf
 
     @staticmethod
     def depth(variant: list[str], header: dict[str:int]) -> int:
