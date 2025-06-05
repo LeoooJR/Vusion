@@ -1,9 +1,9 @@
 from __init__ import __version__
-from argparse import ArgumentParser
+from argparse import ArgumentParser, ArgumentTypeError
 from loguru import logger
 from vusion import combine
 from sys import argv
-
+import validation
 
 class Program:
 
@@ -42,7 +42,8 @@ class Program:
             "--vcf",
             type=str,
             dest="vcfs",
-            action="append",
+            nargs="+",
+            action=validation.ValidateVCFSAction,
             required=True,
             metavar="VCF",
             help="<ID,vcf,[yaml]> path to \
@@ -73,9 +74,10 @@ class Program:
             "--thresholds",
             type=str,
             dest="thresholds",
-            default="10,30,40,60,70,80,20,30,50,1",
+            default=[10, 30, 40, 60, 70, 80, 20, 30, 50, 1],
             metavar="INT [INT ...]",
             required=False,
+            action=validation.ValidateThresholdsAction,
             help="Threshold used for variant categorization in VCF callsets",
         )
         self.parser.add_argument(
@@ -106,11 +108,10 @@ class Program:
         self.parser.add_argument(
             "-l",
             "--length-indels",
-            action="store",
             dest="length_indels",
             required=False,
             default=1,
-            type=float,
+            action=validation.ValidateIndelsLengthAction,
             metavar="INT",
             help="Set Del/Ins mininmum length for variant not found in pileup. \
                   Variants below this value are considered false positives. \
@@ -118,11 +119,10 @@ class Program:
         )
         self.parser.add_argument(
             "--sbm-homozygous",
-            action="store",
             dest="sbm_homozygous",
             required=False,
             default=(2 / 3),
-            type=float,
+            action=validation.ValidateSBMAction,
             metavar="FLOAT",
             help="Define sbm limits for homozygous variants. \
                 By default, a strand bias is considered present if there is a 2/3 imbalance \

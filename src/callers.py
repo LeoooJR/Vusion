@@ -215,24 +215,6 @@ class Varscan(VariantCaller):
     """ A class to manage the Varscan variant caller """
 
     # Varscan FORMAT
-    # FORMAT = [
-    #     "GT",
-    #     "GQ",
-    #     "SDP",
-    #     "DP",
-    #     "RD",
-    #     "AD",
-    #     "FREQ",
-    #     "PVAL",
-    #     "RBQ",
-    #     "ABQ",
-    #     "RDF",
-    #     "RDR",
-    #     "ADF",
-    #     "ADR",
-    # ]
-
-    # Varscan FORMAT
     FORMAT = enum.IntEnum(value="FORMAT",
                           names=','.join(["GT",
                           "GQ",
@@ -318,8 +300,6 @@ class Vardict(VariantCaller):
     """ A class to manage the Vardict variant caller """
 
     # Vardict FORMAT
-    # FORMAT = ["GT", "DP", "VD", "AD", "AF", "RD", "ALD"]
-
     FORMAT = enum.IntEnum(value="FORMAT",
                           names=','.join(["GT", "DP", "VD", "AD", "AF", "RD", "ALD"]),
                           start=0)
@@ -400,8 +380,6 @@ class Pindel(VariantCaller):
     """ A class to manage the Pindel variant caller """
 
     # Pindel FORMAT
-    # FORMAT = ["GT", "AD"]
-
     FORMAT = enum.IntEnum(value="FORMAT",
                           names=','.join(["GT", "AD"]),
                           start=0)
@@ -473,8 +451,6 @@ class Haplotypecaller(VariantCaller):
     """ A class to manage the Haplotypecaller variant caller """
 
     # Haplotypecaller FORMAT
-    # FORMAT = ["GT", "AD", "DP", "GQ", "PL"]
-
     FORMAT = enum.IntEnum(value="FORMAT",
                           names=','.join(["GT", "AD", "DP", "GQ", "PL"]),
                           start=0)
@@ -601,8 +577,6 @@ class DeepVariant(VariantCaller):
     """ A class to manage the DeepVariant variant caller """
 
     # DeepVariant FORMAT
-    # FORMAT = ["GT", "GQ", "DP", "AD", "VAF", "PL"]
-
     FORMAT = enum.IntEnum(value="FORMAT",
                           names=','.join(["GT", "GQ", "DP", "AD", "VAF", "PL"]),
                           start=0)
