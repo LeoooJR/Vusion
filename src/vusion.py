@@ -4,6 +4,7 @@ from callers import VariantCallerRepository
 import errors
 import files as io
 from loguru import logger
+import os
 from variants import VariantsRepository
 
 def combine(params):
@@ -11,7 +12,9 @@ def combine(params):
     # ===========================================================================================
     # Initiate constant variables
     # ===========================================================================================
+    # Set the strand bias metric
     SBM: float = 2.0 if params.disable_strand_bias else 0.95
+    # Maximum and minimum threshold values
     MAX_THRESHOLD: float = 100.0
     MIN_THRESHOLD: float = 0.0
 
@@ -22,17 +25,27 @@ def combine(params):
 
     # Create a variants repository
     # This repository will be used to store the variants and their information
-    variants = VariantsRepository(sample=params.sample, rescue=params.rescue)
+    variants = VariantsRepository(sample=params.sample, rescue=params.rescue, intermediate_results=(params.output if params.intermediate_results else ''))
 
     # ===========================================================================================
     # Check mandatory options
     # ===========================================================================================
 
+    # Check output directory
+    if not os.path.isdir(params.output):
+        logger.error(f"No such directory: '{params.output}'")
+        raise SystemExit(f"No such directory: '{params.output}'")
+    else:
+        if not os.access(params.output, os.W_OK):
+                logger.error(f"Write permissions are not granted for the directory: {params.output}")
+                raise SystemExit(f"Write permissions are not granted for the directory: {params.output}")
+
     # Check reference genome index
     try:
         fai = io.FastaIndex(path=params.reference, lazy=False)
-    except errors.FastaIndexError:
+    except errors.FastaIndexError as e:
         logger.error(f"{params.reference} is not a valid FASTA index.")
+        logger.error(f"Error: {e}")
         raise SystemExit(f"{params.reference} is not a valid FASTA index.")
     
     logger.success(f"Fasta index {params.reference} has been successfully checked.")
@@ -41,8 +54,9 @@ def combine(params):
     try:
         pileup = io.Pileup(path=params.pileup, sample=params.sample, lazy=True)
         variants.pileup = pileup
-    except errors.PileupError:
+    except errors.PileupError as e:
         logger.error(f"{params.pileup} is not a valid PILEUP.")
+        logger.error(f"Error: {e}")
         raise SystemExit(f"{params.pileup} is not a valid PILEUP.")
     
     logger.success(f"Pileup {params.pileup} has been successfully checked.")
@@ -159,7 +173,7 @@ def combine(params):
     # }
     logger.debug("Calculation of final metrics.")
 
-    variants.normalize(pileup=pileup, thresholds=thresholds, length_indels=params.length_indels, sbm=SBM, sbm_homozygous=params.sbm_homozygous)
+    variants.normalize(thresholds=thresholds, length_indels=params.length_indels, sbm=SBM, sbm_homozygous=params.sbm_homozygous)
 
     # ===========================================================================================
     # Write VCF(s)

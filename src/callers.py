@@ -4,11 +4,15 @@ from typing import final
 
 class VariantCaller:
 
+    """ Base class for variant callers """
+
     def __init__(self):
 
         pass
 
 class VariantCallerRepository:
+
+    """ A class to manage the variant callers """
 
     __slots__ = ["callers"]
 
@@ -22,6 +26,7 @@ class VariantCallerRepository:
 
     def __init__(self):
 
+        # Initialize the supported variant callers
         self.callers: dict[str: VariantCaller] = {
             "BT": BCFTools(),
             "VS": Varscan(),
@@ -32,11 +37,13 @@ class VariantCallerRepository:
             "DV": DeepVariant(),
         }
     
+    # Get the variant caller by its name
+    # If the caller is not supported, raise an error
     def get_VC(self, caller: str) -> VariantCaller:
 
         try:
 
-            return self.callers[caller]
+            return self.callers[caller.upper()]
 
         except KeyError:
 
@@ -83,12 +90,17 @@ class VariantCallerRepository:
 @final
 class BCFTools(VariantCaller):
 
+    """ A class to manage the BCFtools variant caller """
+
+    # BCFtools FORMAT
     FORMAT = ["GT", "PL"]
 
     def __init__(self):
 
         super().__init__()
 
+    # Check if the variant is compliant with the BCFtools format.
+    # Ensure the metrics can be later extracted.
     def is_compliant(self, variant: list[str], header: dict[str:int]):
 
         return (
@@ -104,11 +116,14 @@ class BCFTools(VariantCaller):
             )
         ))
     
+    # Extract the genotype from the variant
     @staticmethod
     def genotype(variant: list[str], header: dict[str:int]) -> str:
 
         return variant[header["SAMPLE"]].split(':')[0]
 
+    # Calculate the variant allele frequency (VAF)
+    # The VAF is the depth of the variant allele divided by the total depth
     @staticmethod
     def VAF(variant: list[str], header: dict[str:int]) -> float:
 
@@ -131,11 +146,13 @@ class BCFTools(VariantCaller):
 
         return vaf
 
+    # Extract the depth of the variant
     @staticmethod
     def depth(variant: list[str], header: dict[int]) -> int:
 
         return int(variant[header["INFO"]].split("DP=")[1].split(";")[0])
 
+    # Extract the reference allele counts
     @staticmethod
     def rrc(variant: list[str], header: dict[str:int]) -> tuple[int]:
 
@@ -148,6 +165,7 @@ class BCFTools(VariantCaller):
         rrc: int = rrc_plus + rrc_minus
         return (rrc, rrc_plus, rrc_minus)
 
+    # Extract the alternate allele counts
     @staticmethod
     def arc(variant: list[str], header: dict[str:int]) -> tuple[int]:
 
@@ -166,6 +184,9 @@ class BCFTools(VariantCaller):
 @final
 class Varscan(VariantCaller):
 
+    """ A class to manage the Varscan variant caller """
+
+    # Varscan FORMAT
     FORMAT = [
         "GT",
         "GQ",
@@ -187,17 +208,22 @@ class Varscan(VariantCaller):
 
         super().__init__()
 
+    # Check if the variant is compliant with the Varscan format.
+    # Ensure the metrics can be later extracted.
     def is_compliant(self, variant: list[str], header: dict[str:int]):
 
         return len(variant[header["SAMPLE"]]) and (
             variant[header["FORMAT"]].split(':') == self.FORMAT            
         ) and (len(variant[header["SAMPLE"]].split(':')) == len(self.FORMAT))
     
+    # Extract the genotype from the variant
     @staticmethod
     def genotype(variant: list[str], header: dict[str:int]) -> str:
 
         return variant[header["SAMPLE"]].split(':')[0]
 
+    # Calculate the variant allele frequency (VAF)
+    # The VAF is the depth of the variant allele divided by the total depth
     @staticmethod
     def VAF(variant: list[str], header: dict[str:int]) -> float:
 
@@ -207,11 +233,13 @@ class Varscan(VariantCaller):
 
         return vaf
 
+    # Extract the depth of the variant
     @staticmethod
     def depth(variant: list[str], header: dict[str:int]) -> int:
 
         return int(variant[header["SAMPLE"]].split(":")[2])
 
+    # Extract the reference allele counts
     @staticmethod
     def rrc(variant: list[str], header: dict[str:int]) -> tuple[int]:
 
@@ -223,6 +251,7 @@ class Varscan(VariantCaller):
 
         return (rrc, rrc_plus, rrc_minus)
 
+    # Extract the alternate allele counts
     @staticmethod
     def arc(variant: list[str], header: dict[str:int]) -> tuple[int]:
 
@@ -240,11 +269,16 @@ class Varscan(VariantCaller):
 @final
 class Vardict(VariantCaller):
 
+    """ A class to manage the Vardict variant caller """
+
+    # Vardict FORMAT
     FORMAT = ["GT", "DP", "VD", "AD", "AF", "RD", "ALD"]
 
     def __init__(self):
         super().__init__()
 
+    # Check if the variant is compliant with the Vardict format.
+    # Ensure the metrics can be later extracted.
     def is_compliant(self, variant: list[str], header: dict[str:int]):
 
         return (
@@ -256,6 +290,7 @@ class Vardict(VariantCaller):
             and ("AF=" in variant[header["INFO"]])
         )
     
+    # Extract the genotype from the variant
     @staticmethod
     def genotype(variant: list[str], header: dict[str:int]) -> str:
 
@@ -263,6 +298,8 @@ class Vardict(VariantCaller):
         # Manage case when Vardict return 1/0 instead of 0/1
         return "0/1" if gt == "1/0" else gt
 
+    # Calculate the variant allele frequency (VAF)
+    # The VAF is the depth of the variant allele divided by the total depth
     @staticmethod
     def VAF(variant: list[str], header: dict[str:int]) -> float:
 
@@ -270,11 +307,13 @@ class Vardict(VariantCaller):
 
         return vaf
 
+    # Extract the depth of the variant
     @staticmethod
     def depth(variant: list[str], header: dict[str:int]) -> int:
 
         return int(variant[header["SAMPLE"]].split(":")[1])
 
+    # Extract the reference allele counts
     @staticmethod
     def rrc(variant: list[str], header: dict[str:int]) -> tuple[int]:
 
@@ -288,6 +327,7 @@ class Vardict(VariantCaller):
 
         return (rrc, rrc_plus, rrc_minus)
 
+    # Extract the alternate allele counts
     @staticmethod
     def arc(variant: list[str], header: dict[str:int]) -> tuple[int]:
 
@@ -306,30 +346,43 @@ class Vardict(VariantCaller):
 
 @final
 class Pindel(VariantCaller):
+    
+    """ A class to manage the Pindel variant caller """
 
+    # Pindel FORMAT
     FORMAT = ["GT", "AD"]
 
     def __init__(self):
         super().__init__()
 
+    # Check if the variant is compliant with the Pindel format.
+    # Ensure the metrics can be later extracted.
     def is_compliant(self, variant: list[str], header: dict[str:int]):
 
         return len(variant[header["SAMPLE"]]) and (
             variant[header["FORMAT"]].split(':') == self.FORMAT            
         ) and (len(variant[header["SAMPLE"]].split(':')) == len(self.FORMAT))
     
+    # Extract the genotype from the variant
     @staticmethod
     def genotype(variant: list[str], header: dict[str:int]) -> str:
 
         return variant[header["SAMPLE"]].split(':')[0]
 
+    # Calculate the variant allele frequency (VAF)
+    # The VAF is the depth of the variant allele divided by the total depth
     @staticmethod
     def VAF(variant: list[str], header: dict[str:int]) -> float:
 
         depths = variant[header["SAMPLE"]].split(":")[1].split(",")
-        vaf = float(depths[1]) / (float(depths[0]) + float(depths[1]))
+        try:
+            vaf: float = float(depths[1]) / (float(depths[0]) + float(depths[1]))
+        except ZeroDivisionError:
+            vaf: float = 0.0
+            
         return vaf
 
+    # Extract the depth of the variant
     @staticmethod
     def depth(variant: list[str], header: dict[str:int]) -> int:
 
@@ -339,11 +392,15 @@ class Pindel(VariantCaller):
 
         return int(alleles_depth[0]) + int(alleles_depth[1])
 
+    # Extract the reference allele counts
+    # Pindel does not provide the reference allele counts
     @staticmethod
     def rrc(variant: list[str], header: dict[str:int]) -> tuple[int]:
 
         return (None, None, None)
 
+    # Extract the alternate allele counts
+    # Pindel does not provide the alternate allele counts for each strand
     @staticmethod
     def arc(variant: list[str], header: dict[str:int]) -> tuple[int]:
 
@@ -357,13 +414,18 @@ class Pindel(VariantCaller):
 
 @final
 class Haplotypecaller(VariantCaller):
+    
+    """ A class to manage the Haplotypecaller variant caller """
 
+    # Haplotypecaller FORMAT
     FORMAT = ["GT", "AD", "DP", "GQ", "PL"]
 
     def __init__(self):
         super().__init__()
 
+    # Ensure the metrics can be later extracted.
     def is_compliant(self, variant: list[str], header: dict[str:int]):
+        """Check if the variant is compliant with the Haplotypecaller format."""
 
         return len(variant[header["SAMPLE"]]) and (
             variant[header["FORMAT"]].split(':') == self.FORMAT            
@@ -371,31 +433,44 @@ class Haplotypecaller(VariantCaller):
     
     @staticmethod
     def genotype(variant: list[str], header: dict[str:int]) -> str:
+        """Extract the genotype from the variant."""
 
         return variant[header["SAMPLE"]].split(':')[0]
 
+    # The VAF is the depth of the variant allele divided by the total depth
     @staticmethod
     def VAF(variant: list[str], header: dict[str:int]) -> float:
+        """Calculate the variant allele frequency (VAF)."""
 
         metrics: list[str] = variant[header["SAMPLE"]].split(":")
 
         total_depth = float(metrics[2])
         alleles_depth = float(metrics[1].split(",")[1])
 
-        return alleles_depth / total_depth
+        try:
+            vaf: float = alleles_depth / total_depth
+        except ZeroDivisionError:
+            vaf: float = 0.0
+
+        return vaf
 
     @staticmethod
     def depth(variant: list[str], header: dict[str:int]) -> int:
+        """Extract the depth of the variant."""
 
         return int(variant[header["SAMPLE"]].split(":")[2])
 
+    # Haplotypecaller does not provide the reference allele counts for each strand
     @staticmethod
     def rrc(variant: list[str], header: dict[str:int]) -> tuple[int]:
+        """Extract the reference allele counts."""
 
         return (None, None, None)
 
+    # Haplotypecaller does not provide the alternate allele counts for each strand
     @staticmethod
     def arc(variant: list[str], header: dict[str:int]) -> tuple[int]:
+        """Extract the alternate allele counts."""
 
         arc = int(variant[header["SAMPLE"]].split(":")[1].split(",")[1])
 
@@ -407,7 +482,10 @@ class Haplotypecaller(VariantCaller):
 
 @final
 class Filt3r(VariantCaller):
+    
+    """ A class to manage the Filt3r variant caller """
 
+    # Filt3r FORMAT
     FORMAT = []
 
     def __init__(self):
@@ -415,16 +493,20 @@ class Filt3r(VariantCaller):
 
     @staticmethod
     def genotype(variant: list[str], header: dict[str:int]) -> str:
+        """Extract the genotype from the variant."""
 
         raise NotImplementedError
 
+    # The VAF is the depth of the variant allele divided by the total depth
     @staticmethod
     def VAF(variant: list[str], header: dict[str:int]) -> float:
+        """Calculate the variant allele frequency (VAF)."""
 
         return float(variant[6].split(";")[4].split("=")[1])
 
     @staticmethod
     def depth(variant: list[str], header: dict[str:int]) -> int:
+        """Extract the depth of the variant."""
 
         infos: list[str] = variant[6].split(";")
 
@@ -436,11 +518,13 @@ class Filt3r(VariantCaller):
 
     @staticmethod
     def rrc(variant: list[str], header: dict[str:int]) -> tuple[int]:
+        """Extract the reference allele counts."""
 
         return (None, None, None)
 
     @staticmethod
     def arc(variant: list[str], header: dict[str:int]) -> tuple[int]:
+        """Extract the alternate allele counts."""
 
         arc = int(variant[6].split(";")[1].split("=")[1])
 
@@ -452,14 +536,19 @@ class Filt3r(VariantCaller):
 
 @final
 class DeepVariant(VariantCaller):
+    
+    """ A class to manage the DeepVariant variant caller """
 
+    # DeepVariant FORMAT
     FORMAT = ["GT", "GQ", "DP", "AD", "VAF", "PL"]
 
     def __init__(self):
 
         super().__init__()
 
+    # Ensure the metrics can be later extracted.
     def is_compliant(self, variant: list[str], header: dict[str:int]):
+        """Check if the variant is compliant with the DeepVariant format."""
 
         return len(variant[header["SAMPLE"]]) and (
             variant[header["FORMAT"]].split(':') == self.FORMAT            
@@ -467,21 +556,27 @@ class DeepVariant(VariantCaller):
     
     @staticmethod
     def genotype(variant: list[str], header: dict[str:int]) -> str:
+        """Extract the genotype from the variant."""
 
         return variant[header["SAMPLE"]].split(':')[0]
 
+    # The VAF is the depth of the variant allele divided by the total depth
     @staticmethod
     def VAF(variant: list[str], header: dict[str:int]) -> float:
+        """Calculate the variant allele frequency (VAF)."""
 
         return float(variant[header["SAMPLE"]].split(":")[-2])
 
     @staticmethod
     def depth(variant: list[str], header: dict[str:int]) -> int:
+        """Extract the depth of the variant."""
 
         return float(variant[header["SAMPLE"]].split(":")[2])
 
+    # DeepVariant does not provide the reference allele counts for each strand
     @staticmethod
     def rrc(variant: list[str], header: dict[str:int]) -> tuple[int]:
+        """Extract the reference allele counts."""
 
         return (
             int(variant[header["SAMPLE"]].split(":")[3].split(",")[0]),
@@ -489,8 +584,10 @@ class DeepVariant(VariantCaller):
             None,
         )
 
+    # DeepVariant does not provide the alternate allele counts for each strand
     @staticmethod
     def arc(variant: list[str], header: dict[str:int]) -> tuple[int]:
+        """Extract the alternate allele counts."""
 
         arc = int(variant[header["SAMPLE"]].split(":")[3].split(",")[1])
 
