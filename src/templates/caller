@@ -1,31 +1,54 @@
 class {{ caller }}(VariantCaller):
 
-    FORMAT = {{ format }}
+    # {{ caller }} FORMAT
+    FORMAT = enum.IntEnum(value="FORMAT",
+                          names={{ format }},
+                          start=0)
 
     def __init__(self):
 
         super().__init__()
 
+    # Check if the variant is compliant with the {{ caller }} format.
+    # Ensure the metrics can be later extracted.
+    def is_compliant(self, variant: list[str], header: dict[str:int]):
+
+        pass
+
+    # Extract the genotype from the variant
+    @staticmethod
+    def genotype(variant: list[str], header: dict[str:int]) -> str:
+
+        return variant[header["SAMPLE"]].split(':')[{{ caller }}.FORMAT.{{ GT }}.value]
+    
+    # Calculate the variant allele frequency (VAF)
+    # The VAF is the depth of the variant allele divided by the total depth
     @staticmethod
     def VAF(variant: list[str], header: dict[str:int]) -> float:
 
-        
+        try:
+            
+        except ZeroDivisionError:
 
+    # Extract the depth of the variant
     @staticmethod
     def depth(variant: list[str], header: dict[str:int]) -> int:
 
-        
-
+        return {{ DP }}
+    
+    # Extract the reference allele counts        
     @staticmethod
     def rrc(variant: list[str], header: dict[str:int]) -> tuple[int]:
 
-        
-
+    # Extract the alternate allele counts        
     @staticmethod
     def arc(variant: list[str], header: dict[str:int]) -> tuple[int]:
 
         
-    
     def __str__(self):
+        
+        return "{{ caller }}"
+    
+    def __repr__(self):
         
         return "{{ caller }}"
