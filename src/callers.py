@@ -1,13 +1,40 @@
+from abc import ABC, abstractmethod
 import enum
 import errors
 from typing import final
 
-class VariantCaller:
+class VariantCaller(ABC):
 
-    """ Base class for variant callers """
+    """ Abstract class for variant callers """
+    
+    @staticmethod
+    @abstractmethod
+    def genotype(variant: list[str], header: dict[str:int]) -> str:
+        """Extract the genotype from the variant."""
+        pass
 
-    def __init__(self):
+    @staticmethod
+    @abstractmethod
+    def VAF(variant: list[str], header: dict[str:int]) -> float:
+        """Calculate the variant allele frequency (VAF)."""
+        pass
 
+    @staticmethod
+    @abstractmethod
+    def depth(variant: list[str], header: dict[int]) -> int:
+        """Extract the depth of the variant."""
+        pass
+
+    @staticmethod
+    @abstractmethod
+    def rrc(variant: list[str], header: dict[str:int]) -> tuple[int]:
+        """Extract the reference allele counts."""
+        pass
+
+    @staticmethod
+    @abstractmethod
+    def arc(variant: list[str], header: dict[str:int]) -> tuple[int]:
+        """Extract the alternate allele counts."""
         pass
 
 class VariantCallerRepository:
@@ -96,10 +123,6 @@ class BCFTools(VariantCaller):
     FORMAT = enum.IntEnum(value="FORMAT",
                           names=','.join(["GT", "PL"]),
                           start=0)
-
-    def __init__(self):
-
-        super().__init__()
 
     # Check if the variant is compliant with the BCFtools format.
     # Ensure the metrics can be later extracted.
@@ -228,10 +251,6 @@ class Varscan(VariantCaller):
                           ]),
                           start=0)
 
-    def __init__(self):
-
-        super().__init__()
-
     # Check if the variant is compliant with the Varscan format.
     # Ensure the metrics can be later extracted.
     def is_compliant(self, variant: list[str], header: dict[str:int]):
@@ -304,9 +323,6 @@ class Vardict(VariantCaller):
     FORMAT = enum.IntEnum(value="FORMAT",
                           names=','.join(["GT", "DP", "VD", "AD", "AF", "RD", "ALD"]),
                           start=0)
-
-    def __init__(self):
-        super().__init__()
 
     # Check if the variant is compliant with the Vardict format.
     # Ensure the metrics can be later extracted.
@@ -390,9 +406,6 @@ class Pindel(VariantCaller):
                           names=','.join(["GT", "AD"]),
                           start=0)
 
-    def __init__(self):
-        super().__init__()
-
     # Check if the variant is compliant with the Pindel format.
     # Ensure the metrics can be later extracted.
     def is_compliant(self, variant: list[str], header: dict[str:int]):
@@ -466,9 +479,6 @@ class Haplotypecaller(VariantCaller):
                           names=','.join(["GT", "AD", "DP", "GQ", "PL"]),
                           start=0)
 
-    def __init__(self):
-        super().__init__()
-
     # Ensure the metrics can be later extracted.
     def is_compliant(self, variant: list[str], header: dict[str:int]):
         """Check if the variant is compliant with the Haplotypecaller format."""
@@ -538,9 +548,6 @@ class Filt3r(VariantCaller):
     # Filt3r FORMAT
     FORMAT = []
 
-    def __init__(self):
-        super().__init__()
-
     @staticmethod
     def genotype(variant: list[str], header: dict[str:int]) -> str:
         """Extract the genotype from the variant."""
@@ -599,10 +606,6 @@ class DeepVariant(VariantCaller):
     FORMAT = enum.IntEnum(value="FORMAT",
                           names=','.join(["GT", "GQ", "DP", "AD", "VAF", "PL"]),
                           start=0)
-
-    def __init__(self):
-
-        super().__init__()
 
     # Ensure the metrics can be later extracted.
     def is_compliant(self, variant: list[str], header: dict[str:int]):
