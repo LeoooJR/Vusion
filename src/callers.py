@@ -1,6 +1,8 @@
 from abc import ABC, abstractmethod
 import enum
-import errors
+import exceptions as exceptions
+import jinja2
+import os
 from typing import final
 
 class VariantCaller(ABC):
@@ -74,7 +76,7 @@ class VariantCallerRepository:
 
         except KeyError:
 
-            raise errors.VariantCallerError(
+            raise exceptions.VariantCallerError(
                 f"Variant Caller {caller} not supported."
             )
 
@@ -109,6 +111,28 @@ class VariantCallerRepository:
     def is_supported(self, caller: str) -> bool:
 
         return caller in self.callers
+    
+    def add(self, config):
+
+        # Path to the template directory
+        ressources = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "templates"
+        )
+
+        env = jinja2.Environment(
+            loader=jinja2.FileSystemLoader(ressources)
+        )
+
+        # Load the header template
+        template = env.get_template("caller")
+
+        with open(f"{config['name']}.py", mode="w") as plugin:
+
+            plugin.writelines(
+                template.render(
+                    caller=config["name"], format=config["format"]
+                )
+            )
     
     def __len__(self):
 

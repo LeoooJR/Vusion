@@ -1,6 +1,7 @@
 import callers
+from config import ConfigParser
 from collections import defaultdict
-import errors
+import exceptions as exceptions
 from functools import lru_cache
 import jinja2
 import numpy as np
@@ -108,12 +109,12 @@ class VCF(GenomicFile):
         # Check if the file exists
         if not self.is_file():
 
-            raise errors.VCFError(f"The file {self.path} does not exist.")
+            raise exceptions.VCFError(f"The file {self.path} does not exist.")
 
         # Check if the file is empty
         if self.is_empty():
 
-            raise errors.VCFError(f"The file {self.path} is empty.")
+            raise exceptions.VCFError(f"The file {self.path} is empty.")
 
         try:
 
@@ -125,7 +126,7 @@ class VCF(GenomicFile):
                 # Check if the first line is empty
                 if not line:
 
-                    raise errors.VCFError(
+                    raise exceptions.VCFError(
                         f"First line of {self.path} is empty."
                     )
 
@@ -134,19 +135,29 @@ class VCF(GenomicFile):
                     # Check if first line start with "#"
                     if line[0] != "#":
 
-                        raise errors.VCFError(
+                        raise exceptions.VCFError(
                             f"First line inconsistent with VCF header format. Expected '#', got {line[0]}."
                         )
 
         except FileNotFoundError:
 
-            raise errors.VCFError(f"{self.path} is not a valid path")
+            raise exceptions.VCFError(f"{self.path} is not a valid path")
 
         except IOError:
 
-            raise errors.VCFError(
+            raise exceptions.VCFError(
                 f"An error occurred while reading {self.path}"
             )
+        
+        except Exception as e:
+
+            if isinstance(e, exceptions.VCFError):
+
+                raise
+
+            else:
+
+                raise exceptions.VCFError(f"An unexpected error has occurred when validating VCF file: {e}")
 
     @staticmethod
     def convert(a: object) -> object:
@@ -190,11 +201,21 @@ class VCF(GenomicFile):
             
             else:
 
-                raise errors.VCFError("Genotype value does not match the genotype format.")
+                raise exceptions.VCFError("Genotype value does not match the genotype format.")
         
         except (IndexError, NotImplementedError):
 
-            raise errors.VCFError("Genotype cannot be extracted.")
+            raise exceptions.VCFError("Genotype cannot be extracted.")
+        
+        except Exception as e:
+
+            if isinstance(e, exceptions.VCFError):
+
+                raise
+
+            else:
+
+                raise exceptions.VCFError(f"An unexpected error has occurred when extracting genotype value: {e}")
 
     def VAF(self, variant: list[str]) -> float:
         """Extract the variant allele frequency from the variant record"""
@@ -206,13 +227,23 @@ class VCF(GenomicFile):
             # Check if the VAF is a valid value
             if vaf <= 0.0:
 
-                raise errors.VCFError("Variant allele frequency cannot be zero or negative.")
+                raise exceptions.VCFError("Variant allele frequency cannot be zero or negative.")
             
             return vaf
         
         except (IndexError, NotImplementedError):
 
-            raise errors.VCFError("Variant allele frequency cannot be extracted.")
+            raise exceptions.VCFError("Variant allele frequency cannot be extracted.")
+        
+        except Exception as e:
+
+            if isinstance(e, exceptions.VCFError):
+
+                raise
+
+            else:
+
+                raise exceptions.VCFError(f"An unexpected error has occurred when extracting VAF: {e}")
 
     def depth(self, variant: list[str]) -> int:
         """Extract the depth from the variant record"""
@@ -226,13 +257,23 @@ class VCF(GenomicFile):
             # The depth should be a positive integer
             if depth <= 0:
 
-                raise errors.VCFError("Coverage cannot be zero or negative.")
+                raise exceptions.VCFError("Coverage cannot be zero or negative.")
             
             return depth
         
         except (IndexError, NotImplementedError):
 
-            raise errors.VCFError("Coverage cannot be extracted.")
+            raise exceptions.VCFError("Coverage cannot be extracted.")
+        
+        except Exception as e:
+
+            if isinstance(e, exceptions.VCFError):
+
+                raise
+
+            else:
+
+                raise exceptions.VCFError(f"An unexpected error has occurred when extracting depth: {e}")
 
     def arc(self, variant: list[str]) -> tuple[float]:
         """Extract the alternate read count from the variant record"""
@@ -245,13 +286,23 @@ class VCF(GenomicFile):
             # Alternate read count should be a positive float
             if not all([value > 0 for value in arc if value]):
 
-                raise errors.VCFError("Alternate read count cannot be zero or negative.")
+                raise exceptions.VCFError("Alternate read count cannot be zero or negative.")
             
             return arc
 
         except (IndexError, NotImplementedError):
 
-            raise errors.VCFError("Alternate read count cannot be extracted.")
+            raise exceptions.VCFError("Alternate read count cannot be extracted.")
+        
+        except Exception as e:
+
+            if isinstance(e, exceptions.VCFError):
+
+                raise
+
+            else:
+
+                raise exceptions.VCFError(f"An unexpected error has occurred when extracting ARC: {e}")
         
     def rrc(self, variant: list[str]) -> tuple[float]:
         """Extract the reference read count from the variant record"""
@@ -265,13 +316,23 @@ class VCF(GenomicFile):
             # Reference read count should be a positive float
             if not all([value > 0 for value in rcc if value]):
 
-                raise errors.VCFError("Reference read count cannot be zero or negative.")
+                raise exceptions.VCFError("Reference read count cannot be zero or negative.")
             
             return rcc
 
         except (IndexError, NotImplementedError):
 
-            raise errors.VCFError("Reference read count cannot be extracted.")
+            raise exceptions.VCFError("Reference read count cannot be extracted.")
+        
+        except Exception as e:
+
+            if isinstance(e, exceptions.VCFError):
+
+                raise
+
+            else:
+
+                raise exceptions.VCFError(f"An unexpected error has occurred when extracting RRC: {e}")
 
 class Pileup(GenomicFile):
 
@@ -343,11 +404,11 @@ class Pileup(GenomicFile):
                 try:
                     position: int = int(position)
                 except ValueError:
-                    raise errors.PileupError(f"Incorrect position value {position} in pileup file.")
+                    raise exceptions.PileupError(f"Incorrect position value {position} in pileup file.")
 
                 if position < 0:
 
-                    raise errors.PileupError(f"Incorrect position value {position} in pileup file.")
+                    raise exceptions.PileupError(f"Incorrect position value {position} in pileup file.")
                     
 
                 indels.setdefault(position, {
@@ -364,16 +425,16 @@ class Pileup(GenomicFile):
 
                 if not reference.isalpha():
 
-                    raise errors.PileupError(f"Incrorrect reference value {reference} in pileup file.")
+                    raise exceptions.PileupError(f"Incrorrect reference value {reference} in pileup file.")
 
                 try:
                     depth: int = int(depth)
                 except ValueError:
-                    raise errors.PileupError(f"Incorrect depth value {depth} in pileup file.")
+                    raise exceptions.PileupError(f"Incorrect depth value {depth} in pileup file.")
 
                 if depth < 0:
 
-                    raise errors.PileupError(f"Incorrect depth value {depth} in pileup file.")
+                    raise exceptions.PileupError(f"Incorrect depth value {depth} in pileup file.")
 
                 regex: dict[str:str] = {r'\^.': '',
                                         r'\$': '',
@@ -468,7 +529,7 @@ class Pileup(GenomicFile):
                     elif base == "*":
                         indels[position]["deletions"][base][0][0] += 1
                     else:
-                        raise errors.PileupError(
+                        raise exceptions.PileupError(
                             f"Unknown base {base} in pileup file"
                         )
                     
@@ -496,12 +557,12 @@ class Pileup(GenomicFile):
         # Check if the file exists
         if not self.is_file():
 
-            raise errors.PileupError(f"The file {self.path} does not exist.")
+            raise exceptions.PileupError(f"The file {self.path} does not exist.")
         
         # Check if the file is empty
         if self.is_empty():
 
-            raise errors.PileupError(f"The file {self.path} is empty.")
+            raise exceptions.PileupError(f"The file {self.path} is empty.")
         
         try:
 
@@ -513,7 +574,7 @@ class Pileup(GenomicFile):
                 # Check if the first line is empty
                 if not line:
 
-                    raise errors.PileupError(
+                    raise exceptions.PileupError(
                         f"First line of {self.path} is empty."
                     )
 
@@ -525,7 +586,7 @@ class Pileup(GenomicFile):
                     # Column 6 is optional in pileup
                     if not len(columns) in [5, 6]:
 
-                        raise errors.PileupError(
+                        raise exceptions.PileupError(
                             f"First line inconsistent with Pileup format. Expected 5 or 6 columns, got {len(columns)}."
                         )
                     
@@ -538,12 +599,12 @@ class Pileup(GenomicFile):
 
                         except ValueError:
 
-                            raise errors.PileupError(f"First line inconsistent with Pileup format. Position and depth values must be integers.")
+                            raise exceptions.PileupError(f"First line inconsistent with Pileup format. Position and depth values must be integers.")
                         
                         # Check if reference is a single character and in the list of bases
                         if len(columns[2]) != 1 or (not columns[2] in ['A','T','C','G','N']):
                             
-                            raise errors.PileupError(f"First line inconsistent with Pileup format. Reference value must be a single character in [A,T,C,G,N].")
+                            raise exceptions.PileupError(f"First line inconsistent with Pileup format. Reference value must be a single character in [A,T,C,G,N].")
                         
                         # If the quality column is present
                         if len(columns) == 6:
@@ -551,17 +612,27 @@ class Pileup(GenomicFile):
                             # Check if it is a string of ASCII characters
                             if not (len(columns[5]) and columns[5].isascii()):
 
-                                raise errors.PileupError(f"First line inconsistent with Pileup format. Quality value must be a string of ASCII characters.")
+                                raise exceptions.PileupError(f"First line inconsistent with Pileup format. Quality value must be a string of ASCII characters.")
                             
         except FileNotFoundError:
 
-            raise errors.PileupError(f"{self.path} is not a valid path")
+            raise exceptions.PileupError(f"{self.path} is not a valid path")
 
         except IOError:
 
-            raise errors.PileupError(
+            raise exceptions.PileupError(
                 f"An error occurred while reading {self.path}"
             )
+        
+        except Exception as e:
+
+            if isinstance(e, exceptions.PileupError):
+
+                raise
+
+            else:
+
+                raise exceptions.PileupError(f"An unexpected error has occurred when validating Pileup file: {e}")
 
 class VCFIndex(GenomicFile):
     """Class for VCF index files"""
@@ -670,14 +741,14 @@ class FastaIndex(GenomicFile):
         # Check if the file exists
         if not self.is_file():
 
-            raise errors.FastaIndexError(
+            raise exceptions.FastaIndexError(
                 f"The file {self.path} does not exist."
             )
 
         # Check if the file is empty
         if self.is_empty():
 
-            raise errors.FastaIndexError(f"The file {self.path} is empty.")
+            raise exceptions.FastaIndexError(f"The file {self.path} is empty.")
 
         try:
 
@@ -689,7 +760,7 @@ class FastaIndex(GenomicFile):
                 # Check if the first line is empty
                 if not line:
 
-                    raise errors.FastaIndexError(
+                    raise exceptions.FastaIndexError(
                         f"First line of {self.path} is empty."
                     )
 
@@ -700,19 +771,69 @@ class FastaIndex(GenomicFile):
                     # Check if first line is composed of 5 columns
                     if len(columns) != 5:
 
-                        raise errors.FastaIndexError(
+                        raise exceptions.FastaIndexError(
                             f"First line inconsistent with Fasta index format. Expected 5 columns, got {len(columns)}."
                         )
 
         except FileNotFoundError:
 
-            raise errors.FastaIndexError(f"{self.path} is not a valid path")
+            raise exceptions.FastaIndexError(f"{self.path} is not a valid path")
 
         except IOError:
 
-            raise errors.FastaIndexError(
+            raise exceptions.FastaIndexError(
                 f"An error occurred while reading {self.path}"
             )
+        
+        except Exception as e:
+
+            if isinstance(e, exceptions.FastaIndexError):
+
+                raise
+
+            else:
+
+                raise exceptions.FastaIndexError(f"An unexpected error has occurred when validating FASTA index file: {e}")
+
+class Config(GenomicFile):
+
+    def __init__(self, path: str, lazy: bool = True):
+
+        super().__init__(path)
+
+        self.verify()
+
+        self.parser = ConfigParser(path)
+
+        if not lazy:
+
+            self.parse()
+    
+    def verify(self):
+
+        # Check if the file exists
+        if not self.is_file():
+
+            raise exceptions.FastaIndexError(
+                f"Config file {self.path} does not exist."
+            )
+
+        # Check if the file is empty
+        if self.is_empty():
+
+            raise exceptions.FastaIndexError(f"The file {self.path} is empty.")
+        
+    def parse(self):
+
+        try:
+
+            self.configs = self.parser.load()
+
+            print(self.configs)
+
+        except exceptions.ConfigError as e:
+
+            raise SystemExit(e)
 
 class GenomicReader:
 

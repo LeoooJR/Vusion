@@ -1,5 +1,5 @@
 from collections import deque, Counter, namedtuple
-import errors
+import exceptions as exceptions
 from files import Pileup, FastaIndex
 from functools import lru_cache
 from loguru import logger
@@ -677,7 +677,7 @@ class VariantsRepository():
 
                                     rrc: tuple[int] = vcfs[caller]["vcf"].rrc(record)
 
-                                except errors.VCFError as e:
+                                except exceptions.VCFError as e:
 
                                     warning: bool = True
 

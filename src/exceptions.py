@@ -16,6 +16,13 @@ class PileupError(ValueError):
     """
     pass
 
+class ConfigError(ValueError):
+    """
+    Exception raised for errors in the config file.
+    """
+    pass
+   
+
 class VariantCallerError(ValueError):
     """
     Exception raised for errors related to the variant caller.

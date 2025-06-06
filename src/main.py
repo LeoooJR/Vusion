@@ -1,6 +1,7 @@
+#!/usr/bin/python3
+
 from cli import Program
 from sys import exit, stderr
-
 
 def main():
 

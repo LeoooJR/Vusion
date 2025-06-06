@@ -1,5 +1,5 @@
 from __init__ import __version__
-from argparse import ArgumentParser, ArgumentTypeError
+from argparse import ArgumentParser
 from loguru import logger
 from vusion import combine
 from sys import argv

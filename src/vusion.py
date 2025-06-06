@@ -1,7 +1,5 @@
-#!/usr/bin/python3
-
 from callers import VariantCallerRepository
-import errors
+import exceptions as exceptions
 import files as io
 from loguru import logger
 import os
@@ -42,7 +40,7 @@ def combine(params):
     # Check reference genome index
     try:
         fai = io.FastaIndex(path=params.reference, lazy=False)
-    except errors.FastaIndexError as e:
+    except exceptions.FastaIndexError as e:
         logger.error(f"{params.reference} is not a valid FASTA index.")
         logger.error(f"Error: {e}")
         raise SystemExit(f"{params.reference} is not a valid FASTA index.")
@@ -53,7 +51,7 @@ def combine(params):
     try:
         pileup = io.Pileup(path=params.pileup, sample=params.sample, lazy=True)
         variants.pileup = pileup
-    except errors.PileupError as e:
+    except exceptions.PileupError as e:
         logger.error(f"{params.pileup} is not a valid PILEUP.")
         logger.error(f"Error: {e}")
         raise SystemExit(f"{params.pileup} is not a valid PILEUP.")
@@ -66,25 +64,34 @@ def combine(params):
     for vcf in params.vcfs:
         
         if len(vcf) == 3:
-            logger.debug(f"YAML config file {vcf[2]} provided for the VCF {vcf[0]}")
 
-        if not callers.is_supported(vcf[0]):
-            logger.error(f"{vcf[0]} variant caller is not supported in --vcf option.")
-            raise SystemExit(f"{vcf[0]} variant caller not supported in --vcf options.")
+            id, path, yaml = vcf
+
+            logger.debug(f"YAML config file {yaml} provided for the VCF {id}")
+
+            config = io.Config(path=yaml, lazy=False)
+
+        else:
+
+            id, path = vcf
+
+        if not callers.is_supported(id):
+            logger.error(f"{id} variant caller is not supported in --vcf option.")
+            raise SystemExit(f"{id} variant caller not supported in --vcf options.")
             
         try:
-            vcfs[vcf[0]] = {"vcf": io.VCF(path=vcf[1], caller=callers.get_VC(vcf[0]), lazy=True), "index": None}
-        except (errors.VCFError, errors.VariantCallerError) as e:
-            if isinstance(e,errors.VCFError):
+            vcfs[id] = {"vcf": io.VCF(path=path, caller=callers.get_VC(id), lazy=True), "index": None}
+        except (exceptions.VCFError, exceptions.VariantCallerError) as e:
+            if isinstance(e,exceptions.VCFError):
                 logger.error(f"{vcf} is not a valid VCF.")
                 logger.error(f"Error: {e}")
                 raise SystemExit(f"{vcf} is not a valid VCF.")
             else:
-                logger.error(f"{vcf[0]} is not a supported variant caller.")
+                logger.error(f"{id} is not a supported variant caller.")
                 logger.error(f"Error: {e}")
-                raise SystemExit(f"{vcf[0]} is not a supported variant caller.")
+                raise SystemExit(f"{id} is not a supported variant caller.")
 
-        logger.debug(f"Variant Callers inputed: {vcf[0]}")
+        logger.debug(f"Variant Callers inputed: {id}")
 
     # ============================================================================================
     # Parse VCFs
