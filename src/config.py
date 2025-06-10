@@ -7,25 +7,18 @@ import yaml
 
 class TreeToExpression(Transformer):
     
-    # def INT(self, token):
-    #     return token.update(value=int(token))
-    
     def STRING(self, token):
 
         return str(token.value)
     
-    def METADATA(self, token):
-
-        if token.value.isnumeric():
-
-            return int(token.value)
-        
-        return str(token.value)
-    
+    INDEX = int
+    HEADER = str
+    UNIT = str
     OPERATOR = str
     FIELD = str
+    metadata = list
     indexing = list
-    term = list
+    term = tuple
     expression = list
 
 class ConfigParser:
@@ -203,9 +196,12 @@ class ConfigParser:
     GRAMMAR = r"""
             expression: term (OPERATOR term)*
             term: FIELD indexing? | "(" expression ")"
-            FIELD: STRING
-            indexing: "[" METADATA ("," METADATA)* "]"
-            METADATA: INT | STRING
+            indexing: "[" metadata ("," metadata)* "]"
+            metadata: INDEX | HEADER | UNIT
+            INDEX: INT
+            HEADER: "format" | "info"
+            UNIT: "%"
+            FIELD: STRING            
             OPERATOR: "+"
                         | "-"
                         | "/"
