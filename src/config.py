@@ -4,22 +4,83 @@ from exceptions import ConfigError
 from lark import Lark, Transformer, UnexpectedInput
 from loguru import logger
 import yaml
+from dataclasses import dataclass
+from typing import List, Union, Optional
+
+@dataclass
+class Metadata:
+    header: str
+    index: Optional[int] = None
+    unit: Optional[str] = None
+
+@dataclass
+class Term:
+    field: str
+    metadata: Optional[Metadata] = None
+
+@dataclass
+class Expression:
+    terms: List[Union[Term, 'Expression']]
+    operator: Optional[str] = None
 
 class TreeToExpression(Transformer):
-    
     def STRING(self, token):
-
         return str(token.value)
     
-    INDEX = int
-    HEADER = str
-    UNIT = str
-    OPERATOR = str
-    FIELD = str
-    metadata = list
-    indexing = list
-    term = tuple
-    expression = list
+    def INDEX(self, token):
+        return int(token.value)
+    
+    def HEADER(self, token):
+        return str(token.value)
+    
+    def UNIT(self, token):
+        return str(token.value)
+    
+    def OPERATOR(self, token):
+        return str(token.value)
+    
+    def FIELD(self, token):
+        return str(token.value)
+    
+    def metadata(self, items):
+        header = items[0]
+        index = None
+        unit = None
+        
+        for item in items[1:]:
+            if isinstance(item, int):
+                index = item
+            elif isinstance(item, str) and item == '%':
+                unit = item
+                
+        return Metadata(header=header, index=index, unit=unit)
+    
+    def indexing(self, items):
+        return items[0] if items else None
+    
+    def term(self, items):
+        if len(items) == 1:
+            return Term(field=items[0])
+        return Term(field=items[0], metadata=items[1])
+    
+    def expression(self, items):
+        if len(items) == 1:
+            return items[0]
+            
+        terms = []
+        current_operator = None
+        
+        for item in items:
+            if isinstance(item, str) and item in ['+', '-', '*', '/']:
+                current_operator = item
+            else:
+                if current_operator and terms:
+                    terms.append(Expression(terms=[terms[-1], item], operator=current_operator))
+                    current_operator = None
+                else:
+                    terms.append(item)
+                    
+        return terms[-1] if len(terms) > 1 else terms[0]
 
 class ConfigParser:
 
