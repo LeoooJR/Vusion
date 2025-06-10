@@ -1,54 +1,109 @@
-class {{ caller }}(VariantCaller):
+from abc import ABC, abstractmethod
+import enum
+from typing import final
 
-    # {{ caller }} FORMAT
+class VariantGenericCaller(ABC):
+
+    """ Abstract class for variant callers """
+    
+    @staticmethod
+    @abstractmethod
+    def genotype(variant: list[str], header: dict[str:int]) -> str:
+        """Extract the genotype from the variant."""
+        pass
+
+    @staticmethod
+    @abstractmethod
+    def VAF(variant: list[str], header: dict[str:int]) -> float:
+        """Calculate the variant allele frequency (VAF)."""
+        pass
+
+    @staticmethod
+    @abstractmethod
+    def depth(variant: list[str], header: dict[int]) -> int:
+        """Extract the depth of the variant."""
+        pass
+
+    @staticmethod
+    @abstractmethod
+    def rrc(variant: list[str], header: dict[str:int]) -> tuple[int]:
+        """Extract the reference allele counts."""
+        pass
+
+    @staticmethod
+    @abstractmethod
+    def arc(variant: list[str], header: dict[str:int]) -> tuple[int]:
+        """Extract the alternate allele counts."""
+        pass
+
+@final
+class {{ name }}(VariantGenericCaller):
+
+    # {{ name }} FORMAT
     FORMAT = enum.IntEnum(value="FORMAT",
-                          names={{ format }},
+                          names="{{ format }}",
                           start=0)
 
     def __init__(self):
 
         super().__init__()
 
-    # Check if the variant is compliant with the {{ caller }} format.
+    # Check if the variant is compliant with the {{ name }} format.
     # Ensure the metrics can be later extracted.
     def is_compliant(self, variant: list[str], header: dict[str:int]):
 
-        pass
+        return len(variant[header["SAMPLE"]]) and (
+            variant[header["FORMAT"]].split(':') == [key.name for key in self.FORMAT]) and (
+            len(variant[header["SAMPLE"]].split(':')) == len(self.FORMAT)
+        )
 
     # Extract the genotype from the variant
     @staticmethod
     def genotype(variant: list[str], header: dict[str:int]) -> str:
 
-        return variant[header["SAMPLE"]].split(':')[{{ caller }}.FORMAT.{{ GT }}.value]
+        return variant[header["SAMPLE"]].split(':')[{{ name }}.FORMAT.{{ genotype["extract"].field }}.value]
     
     # Calculate the variant allele frequency (VAF)
     # The VAF is the depth of the variant allele divided by the total depth
     @staticmethod
     def VAF(variant: list[str], header: dict[str:int]) -> float:
 
-        try:
-            
-        except ZeroDivisionError:
+        return variant[header["SAMPLE"]].split(':')[{{ name }}.FORMAT.{{ vaf["extract"].field }}.value]
 
     # Extract the depth of the variant
     @staticmethod
     def depth(variant: list[str], header: dict[str:int]) -> int:
 
-        return {{ DP }}
+        return float(variant[header["SAMPLE"]].split(":")[{{ name }}.FORMAT.{{ depth["extract"].field }}.value])
     
     # Extract the reference allele counts        
     @staticmethod
     def rrc(variant: list[str], header: dict[str:int]) -> tuple[int]:
 
+        forward = float(variant[header["SAMPLE"]].split(":")[{{ name }}.FORMAT.{{ rrc["forward"]["extract"].field }}.value])
+    
+        reverse = float(variant[header["SAMPLE"]].split(":")[{{ name }}.FORMAT.{{ rrc["reverse"]["extract"].field }}.value])
+    
+        total = float(variant[header["SAMPLE"]].split(":")[{{ name }}.FORMAT.{{ rrc["total"]["extract"].field }}.value])
+    
+        return (forward, reverse, total)
+
     # Extract the alternate allele counts        
     @staticmethod
     def arc(variant: list[str], header: dict[str:int]) -> tuple[int]:
 
+        forward = float(variant[header["SAMPLE"]].split(":")[{{ name }}.FORMAT.{{ arc["forward"]["extract"].field }}.value])
+    
+        reverse = float(variant[header["SAMPLE"]].split(":")[{{ name }}.FORMAT.{{ arc["reverse"]["extract"].field }}.value])
+    
+        total = float(variant[header["SAMPLE"]].split(":")[{{ name }}.FORMAT.{{ arc["total"]["extract"].field }}.value])
+
+        return (forward, reverse, total)
         
     def __str__(self):
         
-        return "{{ caller }}"
+        return "{{ name }}"
     
     def __repr__(self):
         
-        return "{{ caller }}"
+        return "{{ name }}"

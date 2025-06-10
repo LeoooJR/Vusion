@@ -1,9 +1,15 @@
 from abc import ABC, abstractmethod
+from config import Term, Expression
 import enum
 import exceptions as exceptions
+import importlib
 import jinja2
+from loguru import logger
 import os
+from pathlib import Path
+import sys
 from typing import final
+import utils 
 
 class VariantCaller(ABC):
 
@@ -112,27 +118,73 @@ class VariantCallerRepository:
 
         return caller in self.callers
     
-    def add(self, config):
+    def add(self, id: str, recipe: dict):
+
+        def is_expression(object):
+
+            return isinstance(object, Expression)
+        
+        def is_term(object):
+
+            return isinstance(object, Term)
 
         # Path to the template directory
         ressources = os.path.join(
-            os.path.dirname(os.path.abspath(__file__)), "templates"
+            utils.get_project_dir(), "templates"
         )
 
         env = jinja2.Environment(
             loader=jinja2.FileSystemLoader(ressources)
         )
 
+        env.tests["expression"] = is_expression
+
+        env.tests["term"] = is_term
+
         # Load the header template
         template = env.get_template("caller")
 
-        with open(f"{config['name']}.py", mode="w") as plugin:
+        package: Path = utils.get_or_create_config_dir()
+
+        source: Path = package.joinpath(f"{recipe["caller"]["name"]}.py")
+
+        with open(source, mode="w") as plugin:
 
             plugin.writelines(
                 template.render(
-                    caller=config["name"], format=config["format"]
+                    name=recipe["caller"]["name"],
+                    info=recipe["caller"]["info"],
+                    format=recipe["caller"]["format"],
+                    genotype=recipe["caller"]["genotype"],
+                    depth=recipe["caller"]["depth"],
+                    vaf=recipe["caller"]["vaf"],
+                    rrc=recipe["caller"]["rrc"],
+                    arc=recipe["caller"]["arc"]
                 )
             )
+
+        try:
+
+            if not package in sys.path:
+
+                sys.path.append(str(package))
+
+            module = importlib.import_module("Octopus", package=str(package))
+
+            self.callers[id] = getattr(module, recipe["caller"]["name"])()
+
+        except ImportError as e:
+
+            logger.error(e)
+
+            raise
+
+        except AttributeError as e:
+
+            logger.error(e)
+
+            raise
+
     
     def __len__(self):
 

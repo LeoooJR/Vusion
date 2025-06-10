@@ -1,6 +1,8 @@
 #!/bin/python3
 
 import re
+from pathlib import Path
+import os
 
 class Cache():
 
@@ -90,6 +92,35 @@ def merge_collections(collections: list[object]) -> object:
 
     return output
 
+# ===========================================================================================
+# Filsystem
+# ===========================================================================================
+
+def get_project_dir() -> str:
+
+    return os.path.dirname(os.path.abspath(__file__))
+
+def get_or_create_config_dir() -> Path:
+    """Get user configuration directory following XDG spec"""
+    if os.name == 'nt':  # Windows
+        base = os.environ.get('APPDATA', Path.home() / 'AppData' / 'Roaming')
+    else:  # Unix-like
+        base = os.environ.get('XDG_CONFIG_HOME', Path.home() / '.config')
+    
+    config = Path(base) / "vusion" / "callers"
+
+    if not config.exists():
+
+        create_config_dir(config)
+
+    return config
+
+def create_config_dir(path: Path) -> Path:
+    """Create filesystem .config directory"""
+
+    path.mkdir(parents=True, exist_ok=True)
+
+    path.joinpath("__init__.py").touch()
 
 # ===========================================================================================
 # Functions on variants

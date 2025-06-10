@@ -814,22 +814,22 @@ class Config(GenomicFile):
         # Check if the file exists
         if not self.is_file():
 
-            raise exceptions.FastaIndexError(
+            raise exceptions.ConfigError(
                 f"Config file {self.path} does not exist."
             )
 
         # Check if the file is empty
         if self.is_empty():
 
-            raise exceptions.FastaIndexError(f"The file {self.path} is empty.")
+            raise exceptions.ConfigError(f"The file {self.path} is empty.")
         
     def parse(self):
 
         try:
 
-            self.configs = self.parser.load()
+            self.params = self.parser.load()
 
-            print(self.configs)
+            # print(self.params)
 
         except exceptions.ConfigError as e:
 

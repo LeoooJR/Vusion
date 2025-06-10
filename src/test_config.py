@@ -1,8 +1,8 @@
+from lark import UnexpectedInput
 import pytest
-from config import ConfigParser, TreeToExpression
+from config import ConfigParser, TreeToExpression, Expression, Term
 from exceptions import ConfigError
 import yaml
-from pathlib import Path
 import tempfile
 
 @pytest.fixture
@@ -52,29 +52,29 @@ def config_parser():
 
 class TestConfigParser:
     @pytest.mark.schema
-    def test_valid_schema(self, config_parser, valid_config):
+    def test_valid_schema(self, config_parser: ConfigParser, valid_config):
         """Test that a valid configuration passes schema validation"""
         assert config_parser.valid_schema(valid_config)
     
     @pytest.mark.schema
-    def test_invalid_caller_name(self, config_parser, valid_config):
+    def test_invalid_caller_name(self, config_parser: ConfigParser, valid_config):
         """Test that forbidden caller names are rejected"""
         invalid_config = valid_config.copy()
         invalid_config["caller"]["name"] = "BCFTools"
         assert not config_parser.valid_schema(invalid_config)
     
     @pytest.mark.schema
-    def test_missing_required_fields(self, config_parser, valid_config):
+    def test_missing_required_fields(self, config_parser: ConfigParser, valid_config):
         """Test that missing required fields are caught"""
         invalid_config = valid_config.copy()
         del invalid_config["caller"]["format"]
         assert not config_parser.valid_schema(invalid_config)
     
     @pytest.mark.schema
-    def test_invalid_format_string(self, config_parser, valid_config):
+    def test_invalid_format_string(self, config_parser: ConfigParser, valid_config):
         """Test that invalid format strings are caught"""
         invalid_config = valid_config.copy()
-        invalid_config["caller"]["format"] = "invalid:format"
+        invalid_config["caller"]["format"] = "GT;DP"
         assert not config_parser.valid_schema(invalid_config)
 
 class TestDSLParser:
@@ -84,26 +84,27 @@ class TestDSLParser:
         return TreeToExpression()
     
     @pytest.mark.dsl
-    def test_simple_field(self, transformer):
+    def test_simple_field(self, transformer: TreeToExpression):
         """Test parsing a simple field without metadata"""
-        result = transformer.transform(transformer.DSL_PARSER.parse("DP"))
+        result = transformer.transform(ConfigParser.DSL_PARSER.parse("DP"))
         assert isinstance(result, Term)
         assert result.field == "DP"
         assert result.metadata is None
     
     @pytest.mark.dsl
-    def test_field_with_index(self, transformer):
+    def test_field_with_index(self, transformer: TreeToExpression):
         """Test parsing a field with index metadata"""
-        result = transformer.transform(transformer.DSL_PARSER.parse("AD[format,0]"))
+        result = transformer.transform(ConfigParser.DSL_PARSER.parse("AD[format,0]"))
+        print(result)
         assert isinstance(result, Term)
         assert result.field == "AD"
         assert result.metadata.header == "format"
         assert result.metadata.index == 0
     
     @pytest.mark.dsl
-    def test_field_with_unit(self, transformer):
+    def test_field_with_unit(self, transformer: TreeToExpression):
         """Test parsing a field with unit metadata"""
-        result = transformer.transform(transformer.DSL_PARSER.parse("AF[format,0,%]"))
+        result = transformer.transform(ConfigParser.DSL_PARSER.parse("AF[format,0,%]"))
         assert isinstance(result, Term)
         assert result.field == "AF"
         assert result.metadata.header == "format"
@@ -111,18 +112,18 @@ class TestDSLParser:
         assert result.metadata.unit == "%"
     
     @pytest.mark.dsl
-    def test_simple_expression(self, transformer):
+    def test_simple_expression(self, transformer: TreeToExpression):
         """Test parsing a simple arithmetic expression"""
-        result = transformer.transform(transformer.DSL_PARSER.parse("AD[0] + AD[1]"))
+        result = transformer.transform(ConfigParser.DSL_PARSER.parse("AD[0] + AD[1]"))
         assert isinstance(result, Expression)
         assert result.operator == "+"
         assert len(result.terms) == 2
         assert all(isinstance(term, Term) for term in result.terms)
     
     @pytest.mark.dsl
-    def test_complex_expression(self, transformer):
+    def test_complex_expression(self, transformer: TreeToExpression):
         """Test parsing a complex arithmetic expression"""
-        result = transformer.transform(transformer.DSL_PARSER.parse("(AD[0] + AD[1]) * 2"))
+        result = transformer.transform(ConfigParser.DSL_PARSER.parse("(AD[0] + AD[1]) * 2"))
         assert isinstance(result, Expression)
         assert result.operator == "*"
         assert len(result.terms) == 2
@@ -130,15 +131,15 @@ class TestDSLParser:
         assert isinstance(result.terms[1], Term)
     
     @pytest.mark.dsl
-    def test_invalid_expression(self, transformer):
+    def test_invalid_expression(self, transformer: TreeToExpression):
         """Test that invalid expressions raise appropriate errors"""
         with pytest.raises(UnexpectedInput):
-            transformer.transform(transformer.DSL_PARSER.parse("invalid[expression"))
+            transformer.transform(ConfigParser.DSL_PARSER.parse("invalid[quality]"))
     
     @pytest.mark.dsl
-    def test_field_with_info_header(self, transformer):
+    def test_field_with_info_header(self, transformer: TreeToExpression):
         """Test parsing a field with info header"""
-        result = transformer.transform(transformer.DSL_PARSER.parse("QUAL[info]"))
+        result = transformer.transform(ConfigParser.DSL_PARSER.parse("QUAL[info]"))
         assert isinstance(result, Term)
         assert result.field == "QUAL"
         assert result.metadata.header == "info"

@@ -69,7 +69,9 @@ def combine(params):
 
             logger.debug(f"YAML config file {yaml} provided for the VCF {id}")
 
-            config = io.Config(path=yaml, lazy=False)
+            config_file = io.Config(path=yaml, lazy=False)
+
+            callers.add(id=id, recipe=config_file.params)
 
         else:
 

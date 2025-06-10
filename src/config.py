@@ -8,15 +8,15 @@ from dataclasses import dataclass
 from typing import List, Union, Optional
 
 @dataclass
-class Metadata:
-    header: str
+class Metadatas:
+    header: Optional[str] = None
     index: Optional[int] = None
     unit: Optional[str] = None
 
 @dataclass
 class Term:
     field: str
-    metadata: Optional[Metadata] = None
+    metadata: Optional[Metadatas] = None
 
 @dataclass
 class Expression:
@@ -42,21 +42,23 @@ class TreeToExpression(Transformer):
     def FIELD(self, token):
         return str(token.value)
     
-    def metadata(self, items):
-        header = items[0]
+    def metadata(self, item):
+        return item[0] 
+    
+    def indexing(self, items: list):
+        header = None
         index = None
         unit = None
         
-        for item in items[1:]:
+        for item in items:
             if isinstance(item, int):
                 index = item
             elif isinstance(item, str) and item == '%':
                 unit = item
-                
-        return Metadata(header=header, index=index, unit=unit)
-    
-    def indexing(self, items):
-        return items[0] if items else None
+            else:
+                header = item
+        
+        return Metadatas(header=header, index=index, unit=unit)
     
     def term(self, items):
         if len(items) == 1:
@@ -288,7 +290,7 @@ class ConfigParser:
     def valid_schema(self, document):
 
         return self.validator.validate(document)
-    
+        
     def valid_dsl(self, document):
 
         fdocument = copy(document)
@@ -311,8 +313,6 @@ class ConfigParser:
 
                 ast = self.DSL_PARSER.parse(fdocument["caller"][field]["extract"])
 
-                print(TreeToExpression().transform(ast))
-
                 fdocument["caller"][field]["extract"] = TreeToExpression().transform(ast)
 
             else:
@@ -327,15 +327,37 @@ class ConfigParser:
 
         return fdocument
     
+    @staticmethod
     def pretty_print_errors(errors):
-
-        pass
+        """Pretty print schema validation errors in a user-friendly format.
+        
+        Args:
+            errors (dict): Dictionary of validation errors from Cerberus
+        """
+        print("\nConfiguration Validation Errors:")
+        print("=" * 40)
+        
+        def print_field_errors(field_path, field_errors):
+            if isinstance(field_errors, dict):
+                for key, value in field_errors.items():
+                    new_path = f"{field_path}.{key}" if field_path else key
+                    print_field_errors(new_path, value)
+            else:
+                print(f"\nField: {field_path}")
+                if isinstance(field_errors, list):
+                    for error in field_errors:
+                        print(f"  - {error}\n")
+                else:
+                    print(f"  - {field_errors}")
+        
+        print_field_errors("", errors)
+        print("\n" + "=" * 40)
 
     def load(self):
 
-        with open(self.path, mode="r") as f:
+        try:
 
-            try:
+            with open(self.path, mode="r") as f:
 
                 configs = yaml.safe_load_all(f)
 
@@ -348,37 +370,38 @@ class ConfigParser:
                     else:
 
                         logger.error(self.validator.errors)
+                        self.pretty_print_errors(self.validator.errors)
 
                         raise ConfigError("Config file schema is not valid.")
-            
-            except FileNotFoundError:
+                
+        except FileNotFoundError:
 
-                logger.error(f"YAML config file {self.path} not found on filesystem.")
+            logger.error(f"YAML config file {self.path} not found on filesystem.")
 
-                raise ConfigError(f"YAML config file {self.path} not found on filesystem.")
-            
-            except yaml.YAMLError as e:
+            raise ConfigError(f"YAML config file {self.path} not found on filesystem.")
+                
+        except yaml.YAMLError as e:
 
-                logger.error(f"Error when parsing YAML config file {self.path}")
+            logger.error(f"Error when parsing YAML config file {self.path}")
 
-                raise ConfigError(f"Error when parsing YAML config file {self.path}")
-            
-            except cerberus.DocumentError as e:
+            raise ConfigError(f"Error when parsing YAML config file {self.path}")
+                
+        except cerberus.DocumentError as e:
 
-                logger.error(f"Error with document when validating YAML config file schema {e}")
+            logger.error(f"Error with document when validating YAML config file schema {e}")
 
-                raise ConfigError(f"Error with document when validating YAML config file schema {e}")
-            
-            except UnexpectedInput as e:
+            raise ConfigError(f"Error with document when validating YAML config file schema {e}")
+                
+        except UnexpectedInput as e:
 
-                raise ConfigError(f"Value is not consistent with config DSL. {e}")
+            raise ConfigError(f"Value is not consistent with config DSL. {e}")
 
-            except Exception as e:
+        except Exception as e:
 
-                if isinstance(e, ConfigError):
+            if isinstance(e, ConfigError):
 
-                    raise
+                raise
 
-                logger.error(f"An unexpected error has occurred with YAML config file: {e}")
+            logger.error(f"An unexpected error has occurred with YAML config file: {e}")
 
-                raise ConfigError(f"An unexpected error has occurred with YAML config file: {e}")
+            raise ConfigError(f"An unexpected error has occurred with YAML config file: {e}")
