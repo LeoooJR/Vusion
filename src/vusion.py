@@ -5,6 +5,12 @@ from loguru import logger
 import os
 from variants import VariantsRepository
 
+try:
+    from icecream import ic
+    ic.configureOutput(prefix='->', includeContext=False)
+except ImportError:  # Graceful fallback if IceCream isn't installed.
+    ic = lambda *a: None if not a else (a[0] if len(a) == 1 else a)  # noqa
+
 def combine(params):
 
     # ===========================================================================================
@@ -42,7 +48,7 @@ def combine(params):
         fai = io.FastaIndex(path=params.reference, lazy=False)
     except exceptions.FastaIndexError as e:
         logger.error(f"{params.reference} is not a valid FASTA index.")
-        logger.error(f"Error: {e}")
+        logger.error(f"{e}")
         raise SystemExit(f"{params.reference} is not a valid FASTA index.")
     
     logger.success(f"Fasta index {params.reference} has been successfully checked.")
@@ -53,7 +59,7 @@ def combine(params):
         variants.pileup = pileup
     except exceptions.PileupError as e:
         logger.error(f"{params.pileup} is not a valid PILEUP.")
-        logger.error(f"Error: {e}")
+        logger.error(f"{e}")
         raise SystemExit(f"{params.pileup} is not a valid PILEUP.")
     
     logger.success(f"Pileup {params.pileup} has been successfully checked.")
@@ -64,17 +70,16 @@ def combine(params):
     for vcf in params.vcfs:
         
         if len(vcf) == 3:
-
             id, path, yaml = vcf
-
             logger.debug(f"YAML config file {yaml} provided for the VCF {id}")
-
             config_file = io.Config(path=yaml, lazy=False)
 
-            callers.add(id=id, recipe=config_file.params)
+            try:
+                callers.add(id=id, recipe=config_file.params)
+            except exceptions.VariantCallerPluginError as e:
+                raise SystemExit(e)
 
         else:
-
             id, path = vcf
 
         if not callers.is_supported(id):
@@ -86,11 +91,11 @@ def combine(params):
         except (exceptions.VCFError, exceptions.VariantCallerError) as e:
             if isinstance(e,exceptions.VCFError):
                 logger.error(f"{vcf} is not a valid VCF.")
-                logger.error(f"Error: {e}")
+                logger.error(f"{e}")
                 raise SystemExit(f"{vcf} is not a valid VCF.")
             else:
                 logger.error(f"{id} is not a supported variant caller.")
-                logger.error(f"Error: {e}")
+                logger.error(f"{e}")
                 raise SystemExit(f"{id} is not a supported variant caller.")
 
         logger.debug(f"Variant Callers inputed: {id}")

@@ -1,14 +1,23 @@
+import ast
 import callers
 from config import ConfigParser
 from collections import defaultdict
+import enum
 import exceptions as exceptions
 from functools import lru_cache
 import jinja2
+from loguru import logger
 import numpy as np
 import os
 import pandas as pd
 from typing import Final
 import re
+import utils
+
+try:
+    from icecream import ic
+except ImportError:  # Graceful fallback if IceCream isn't installed.
+    ic = lambda *a: None if not a else (a[0] if len(a) == 1 else a)  # noqa
 
 class GenomicFile:
 
@@ -32,6 +41,14 @@ class GenomicFile:
     def get_path(self) -> str:
 
         return self.path
+    
+    def basename(self) -> str:
+
+        return os.path.basename(self.path)
+    
+    def informations(self) -> dict:
+
+        return utils.file_infos(self.path)
     
     def __str__(self):
         
@@ -157,7 +174,7 @@ class VCF(GenomicFile):
 
             else:
 
-                raise exceptions.VCFError(f"An unexpected error has occurred when validating VCF file: {e}")
+                raise exceptions.VCFError(f"An unexpected error has occurred when validating VCF file: {ic.format(e)}")
 
     @staticmethod
     def convert(a: object) -> object:
@@ -215,7 +232,7 @@ class VCF(GenomicFile):
 
             else:
 
-                raise exceptions.VCFError(f"An unexpected error has occurred when extracting genotype value: {e}")
+                raise exceptions.VCFError(f"An unexpected error has occurred when extracting genotype value: {ic.format(e)}")
 
     def VAF(self, variant: list[str]) -> float:
         """Extract the variant allele frequency from the variant record"""
@@ -242,8 +259,7 @@ class VCF(GenomicFile):
                 raise
 
             else:
-
-                raise exceptions.VCFError(f"An unexpected error has occurred when extracting VAF: {e}")
+                raise exceptions.VCFError(f"An unexpected error has occurred when extracting VAF: {ic.format(e)}")
 
     def depth(self, variant: list[str]) -> int:
         """Extract the depth from the variant record"""
@@ -273,7 +289,7 @@ class VCF(GenomicFile):
 
             else:
 
-                raise exceptions.VCFError(f"An unexpected error has occurred when extracting depth: {e}")
+                raise exceptions.VCFError(f"An unexpected error has occurred when extracting depth: {ic.format(e)}")
 
     def arc(self, variant: list[str]) -> tuple[float]:
         """Extract the alternate read count from the variant record"""
@@ -302,7 +318,7 @@ class VCF(GenomicFile):
 
             else:
 
-                raise exceptions.VCFError(f"An unexpected error has occurred when extracting ARC: {e}")
+                raise exceptions.VCFError(f"An unexpected error has occurred when extracting ARC: {ic.format(e)}")
         
     def rrc(self, variant: list[str]) -> tuple[float]:
         """Extract the reference read count from the variant record"""
@@ -332,7 +348,7 @@ class VCF(GenomicFile):
 
             else:
 
-                raise exceptions.VCFError(f"An unexpected error has occurred when extracting RRC: {e}")
+                raise exceptions.VCFError(f"An unexpected error has occurred when extracting RRC: {ic.format(e)}")
 
 class Pileup(GenomicFile):
 
@@ -632,7 +648,7 @@ class Pileup(GenomicFile):
 
             else:
 
-                raise exceptions.PileupError(f"An unexpected error has occurred when validating Pileup file: {e}")
+                raise exceptions.PileupError(f"An unexpected error has occurred when validating Pileup file: {ic.format(e)}")
 
 class VCFIndex(GenomicFile):
     """Class for VCF index files"""
@@ -793,7 +809,7 @@ class FastaIndex(GenomicFile):
 
             else:
 
-                raise exceptions.FastaIndexError(f"An unexpected error has occurred when validating FASTA index file: {e}")
+                raise exceptions.FastaIndexError(f"An unexpected error has occurred when validating FASTA index file: {ic.format(e)}")
 
 class Config(GenomicFile):
 
@@ -834,6 +850,115 @@ class Config(GenomicFile):
         except exceptions.ConfigError as e:
 
             raise SystemExit(e)
+class VariantCallerPlugin(GenomicFile):
+
+    # Maximum size of plugin in MB
+    MAX_SIZE = 0.01
+
+    STATES = enum.Enum(value="State",
+                      names="unsafe safe")
+    
+    RESSOURCES = os.path.join(
+            utils.get_project_dir(), "templates"
+        )
+    
+    TEMPLATE = "Caller"
+
+    def __init__(self, path):
+
+        super().__init__(path)
+
+        self.state = VariantCallerPlugin.STATES.unsafe
+
+    def _is_valid_python(self, ast: ast.Module) -> bool:
+        """
+        Securely check if a file is a valid Python code.
+
+        Args:
+        
+        Returns:
+
+        """
+
+        visitor = utils.PluginPythonChecker()
+
+        visitor.visit(ast)
+
+        if len(visitor.not_safe_calls):
+
+            logger.warning(f"Potentially dangerous call in {self.path}")
+
+            return False
+        
+        ic(visitor.imports)
+
+        self.state = VariantCallerPlugin.STATES.safe
+
+        return True
+
+    def verify(self):
+
+        infs = self.informations()
+
+        fsize = infs["size"]
+
+        if fsize >= self.MAX_SIZE:
+
+            raise exceptions.VariantCallerPluginError("Abnormally high plugin size detected.")
+        
+        if not self.path.lower().endswith(".py"):
+
+            raise exceptions.VariantCallerPluginError("File name does not end with the Python extension.")
+        
+        try:
+
+            with open(self.path, mode='r') as plugin:
+
+                content = plugin.read()
+
+            tree: ast.Module = ast.parse(content)
+
+            if not self._is_valid_python(ast=tree):
+
+                raise exceptions.VariantCallerPluginError(f"The plugin file contains code that is either insecure, erroneous or unmanageable in nature.")
+
+        except FileNotFoundError as e:
+
+            raise exceptions.VariantCallerPluginError(f"Cannot found plugin {self.path} on filesystem.")
+        
+        except SyntaxError as e:
+
+            raise exceptions.VariantCallerPluginError(f"Syntax error in plugin {self.path}.")
+        
+        except UnicodeDecodeError:
+
+            raise exceptions.VariantCallerPluginError(f"Invalid UTF-8 encoding for plugin {self.path}.")
+        
+        except Exception as e:
+
+            if isinstance(e, exceptions.VariantCallerPluginError):
+
+                raise
+
+            raise exceptions.VariantCallerPluginError(f"An unexpected error has occurred when reading plugin {self}: {ic.format(e)}")
+
+    def parse(self):
+
+        pass
+
+class CheckSumFile:
+
+    def verify(self):
+
+        pass
+
+    def parse(self):
+
+        pass
+
+    def compare(self, file):
+
+        pass
 
 class GenomicReader:
 

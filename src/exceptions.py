@@ -28,3 +28,15 @@ class VariantCallerError(ValueError):
     Exception raised for errors related to the variant caller.
     """
     pass
+
+class CheckSumFileError(ValueError):
+    """
+    Exception raised for errors related to the checksum file.
+    """
+    pass
+
+class VariantCallerPluginError(ValueError):
+    """
+    Exception raised for errors related to the variant caller plugin file.
+    """
+    pass

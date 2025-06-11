@@ -1,3 +1,4 @@
+import re
 import cerberus
 from copy import copy
 from exceptions import ConfigError
@@ -6,6 +7,11 @@ from loguru import logger
 import yaml
 from dataclasses import dataclass
 from typing import List, Union, Optional
+
+try:
+    from icecream import ic
+except ImportError:  # Graceful fallback if IceCream isn't installed.
+    ic = lambda *a: None if not a else (a[0] if len(a) == 1 else a)  # noqa
 
 @dataclass
 class Metadatas:
@@ -115,7 +121,7 @@ class ConfigParser:
                             "type": "string",
                             "empty": False,
                             "required": True,
-                            # "regex": r"^([A-Z]{1,}:)+[A-Z]{1,}$",
+                            # "regex": "^[A-Z]{1,}(:[A-Z]{1,})*$",
                             "coerce": lambda x: x.replace(":", ","),
                         },
                         "genotype": {
@@ -303,11 +309,15 @@ class ConfigParser:
 
             elif field == "info":
 
-                pass
+                if not re.match(r"^[A-Z]{1,}(;[A-Z]{1,})*$", fdocument["caller"][field]):
+
+                    raise UnexpectedInput()
 
             elif field == "format":
 
-                pass
+                if not re.match(r"^[A-Z]{1,}(,[A-Z]{1,})*$", fdocument["caller"][field]):
+
+                    raise UnexpectedInput()
 
             elif field in ["genotype", "depth", "vaf"]:
 
@@ -388,13 +398,13 @@ class ConfigParser:
                 
         except cerberus.DocumentError as e:
 
-            logger.error(f"Error with document when validating YAML config file schema {e}")
+            logger.error(f"Error with document when validating YAML config file schema {ic.format(e)}")
 
-            raise ConfigError(f"Error with document when validating YAML config file schema {e}")
+            raise ConfigError(f"Error with document when validating YAML config file schema {ic.format(e)}")
                 
         except UnexpectedInput as e:
 
-            raise ConfigError(f"Value is not consistent with config DSL. {e}")
+            raise ConfigError(f"Value is not consistent with config DSL. {ic.format(e)}")
 
         except Exception as e:
 
@@ -402,6 +412,6 @@ class ConfigParser:
 
                 raise
 
-            logger.error(f"An unexpected error has occurred with YAML config file: {e}")
+            logger.error(f"An unexpected error has occurred with YAML config file: {ic.format(e)}")
 
-            raise ConfigError(f"An unexpected error has occurred with YAML config file: {e}")
+            raise ConfigError(f"An unexpected error has occurred with YAML config file: {ic.format(e)}")

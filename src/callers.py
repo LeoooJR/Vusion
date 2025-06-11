@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from config import Term, Expression
 import enum
 import exceptions as exceptions
+from hashlib import sha256
 import importlib
 import jinja2
 from loguru import logger
@@ -9,7 +10,12 @@ import os
 from pathlib import Path
 import sys
 from typing import final
-import utils 
+import utils
+
+try:
+    from icecream import ic
+except ImportError:  # Graceful fallback if IceCream isn't installed.
+    ic = lambda *a: None if not a else (a[0] if len(a) == 1 else a)  # noqa
 
 class VariantCaller(ABC):
 
@@ -118,7 +124,7 @@ class VariantCallerRepository:
 
         return caller in self.callers
     
-    def add(self, id: str, recipe: dict):
+    def write(self, recipe, dest) -> str:
 
         def is_expression(object):
 
@@ -127,6 +133,8 @@ class VariantCallerRepository:
         def is_term(object):
 
             return isinstance(object, Term)
+        
+        logger.debug(f"Rendering python template for {recipe["caller"]["name"]}")
 
         # Path to the template directory
         ressources = os.path.join(
@@ -144,24 +152,28 @@ class VariantCallerRepository:
         # Load the header template
         template = env.get_template("caller")
 
-        package: Path = utils.get_or_create_config_dir()
+        content: str = template.render(
+            name=recipe["caller"]["name"],
+            info=recipe["caller"]["info"],
+            format=recipe["caller"]["format"],
+            genotype=recipe["caller"]["genotype"],
+            depth=recipe["caller"]["depth"],
+            vaf=recipe["caller"]["vaf"],
+            rrc=recipe["caller"]["rrc"],
+            arc=recipe["caller"]["arc"]
+        )
 
-        source: Path = package.joinpath(f"{recipe["caller"]["name"]}.py")
-
-        with open(source, mode="w") as plugin:
+        with open(dest, mode="w") as plugin:
 
             plugin.writelines(
-                template.render(
-                    name=recipe["caller"]["name"],
-                    info=recipe["caller"]["info"],
-                    format=recipe["caller"]["format"],
-                    genotype=recipe["caller"]["genotype"],
-                    depth=recipe["caller"]["depth"],
-                    vaf=recipe["caller"]["vaf"],
-                    rrc=recipe["caller"]["rrc"],
-                    arc=recipe["caller"]["arc"]
-                )
+                content
             )
+
+        plugin_hash = sha256(content.encode()).hexdigest()
+
+        return plugin_hash
+    
+    def load(self, id, package, source):
 
         try:
 
@@ -169,22 +181,111 @@ class VariantCallerRepository:
 
                 sys.path.append(str(package))
 
-            module = importlib.import_module("Octopus", package=str(package))
+            module = importlib.import_module(source, package=str(package))
 
-            self.callers[id] = getattr(module, recipe["caller"]["name"])()
+            self.callers[id] = getattr(module, source)()
 
         except ImportError as e:
 
             logger.error(e)
 
-            raise
+            raise exceptions.VariantCallerPluginError(e)
 
         except AttributeError as e:
 
             logger.error(e)
 
-            raise
+            raise exceptions.VariantCallerPluginError(e)
+        
+        except Exception as e:
 
+            if isinstance(e, ImportError) or isinstance(e, AttributeError):
+
+                raise
+
+            else:
+
+                raise exceptions.VariantCallerPluginError(f"An unexpected error has occurred when loading variant caller plugin: {ic.format(e)}")
+    
+    def add(self, id: str, recipe: dict):
+        
+        config_hash = sha256(str(recipe).encode()).hexdigest()
+
+        package: Path = utils.get_or_create_config_dir()
+
+        sum: Path = package.joinpath(f"{recipe["caller"]["name"]}.sum")
+
+        source: Path = package.joinpath(f"{recipe["caller"]["name"]}.py")
+
+        if sum.exists():
+
+            pfile, phash = None, None
+
+            cfile, chash  = None, None
+
+            try:
+
+                with open(sum, mode="r") as sumfile:
+
+                    try:
+
+                        pfile, phash = next(sumfile).split('\t')
+
+                        cfile, chash  = next(sumfile).split('\t')
+
+                    except ValueError:
+
+                        logger.warning(f"Checksum file {sum} is corrupted.")
+
+                        raise exceptions.CheckSumFileError(f"Checksum file {sum} is corrupted.")
+
+                if (chash.strip('\n') == config_hash) and (source.exists()):
+
+                    hash = utils.hash_file(source)
+
+                    if (f"{recipe["caller"]["name"]}.py" == pfile) and (hash == phash.strip('\n')):
+
+                        logger.debug(f"Using cached file {source}")
+
+                    else:
+
+                        logger.warning(f"Cached python file checksum is not consistent with {source}.")
+
+                        raise exceptions.CheckSumFileError(f"Cached python file checksum is not consistent with {source}.")
+
+                else:
+
+                    logger.warning(f"Cached config file checksum is not consistent with provided config.")
+
+                    raise exceptions.CheckSumFileError(f"Cached config file checksum is not consistent with provided config.")
+
+            except Exception as e:
+
+                if isinstance(e, exceptions.CheckSumFileError):
+
+                    plugin_hash: str = self.write(recipe, source)
+
+                    with open(sum, mode="w") as sumfile:
+
+                        sumfile.write(f"{recipe["caller"]["name"]}.py\t{plugin_hash}\n")
+
+                        sumfile.write(f"{recipe["caller"]["name"]}.yaml\t{config_hash}\n")
+
+                else:
+
+                    raise exceptions.VariantCallerPluginError(f"An unexpected error has occurred when loading variant caller plugin: {ic.format(e)}")
+        
+        else:
+
+            plugin_hash: str = self.write(recipe, source)
+
+            with open(sum, mode="w") as sumfile:
+
+                sumfile.write(f"{recipe["caller"]["name"]}.py\t{plugin_hash}\n")
+
+                sumfile.write(f"{recipe["caller"]["name"]}.yaml\t{config_hash}\n")
+                            
+        self.load(id=id, package=package, source=recipe["caller"]["name"])
     
     def __len__(self):
 

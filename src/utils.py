@@ -1,5 +1,6 @@
-#!/bin/python3
-
+import ast
+from datetime import datetime, timezone
+from hashlib import sha256
 import re
 from pathlib import Path
 import os
@@ -59,6 +60,44 @@ class Cache():
         else:
 
             raise TypeError("Key is not hashable.")
+        
+class PluginPythonChecker(ast.NodeVisitor):
+
+    DANGEROUS_CALL = ['exec', 'eval', 'compile']
+
+    def __init__(self):
+        
+        self.imports = []
+
+        self.calls = []
+
+        self.not_safe_calls = []
+
+    def visit_Import(self, node):
+        
+        for alias in node.names:
+
+            self.imports.append(alias.name)
+
+        self.generic_visit(node)
+
+    def visit_ImportFrom(self, node):
+        
+        if node.module:
+
+            self.imports.append(node.module)
+
+        self.generic_visit(node)
+
+    def visit_Call(self, node):
+        
+        if isinstance(node.func, ast.Name):
+
+            if node.func.id in self.DANGEROUS_CALL:
+
+                self.not_safe_calls.append(node.func.id)
+
+        self.generic_visit(node)
 
 # ===========================================================================================
 # Basics functions on dictionary
@@ -121,6 +160,34 @@ def create_config_dir(path: Path) -> Path:
     path.mkdir(parents=True, exist_ok=True)
 
     path.joinpath("__init__.py").touch()
+
+
+def hash_file(path: Path) -> str:
+
+    if path.exists():
+
+        hash = sha256()
+
+        with open(path, mode="r") as plugin:
+
+            for record in plugin:
+
+                hash.update(record.encode())
+        
+        return hash.hexdigest()
+    
+    else:
+
+        return None
+
+def file_infos(path: str) -> dict:
+    """ Get file stats """
+    statinfo = os.stat(path)
+
+    return {"basename": os.path.basename(path),
+            "path": os.path.dirname(path),
+            "size": round(statinfo.st_size / pow(1024,2),2),
+            "mtime": datetime.fromtimestamp(statinfo.st_mtime, tz=timezone.utc)}
 
 # ===========================================================================================
 # Functions on variants
