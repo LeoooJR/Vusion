@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from config import Term, Expression
+from config import Term, Expression, ExpressionVisitor, ExpressionTemplate
 import enum
 import exceptions as exceptions
 from hashlib import sha256
@@ -81,6 +81,17 @@ class VariantCallerRepository:
     # Get the variant caller by its name
     # If the caller is not supported, raise an error
     def get_VC(self, caller: str) -> VariantCaller:
+        """Get a variant caller by its name.
+        
+        Args:
+            caller (str): The name of the variant caller.
+            
+        Returns:
+            VariantCaller: The variant caller instance.
+            
+        Raises:
+            VariantCallerError: If the caller is not supported.
+        """
 
         try:
 
@@ -93,34 +104,77 @@ class VariantCallerRepository:
             )
 
     def get_BT(self) -> VariantCaller:
+        """Get the BCFTools variant caller.
+        
+        Returns:
+            VariantCaller: The BCFTools variant caller instance.
+        """
 
         return self.callers["BT"]
 
     def get_VS(self) -> VariantCaller:
+        """Get the Varscan variant caller.
+        
+        Returns:
+            VariantCaller: The Varscan variant caller instance.
+        """
 
         return self.callers["VS"]
 
     def get_VD(self) -> VariantCaller:
+        """Get the Vardict variant caller.
+        
+        Returns:
+            VariantCaller: The Vardict variant caller instance.
+        """
 
         return self.callers["VD"]
 
     def get_PL(self) -> VariantCaller:
+        """Get the Pindel variant caller.
+        
+        Returns:
+            VariantCaller: The Pindel variant caller instance.
+        """
 
         return self.callers["PL"]
 
     def get_HS(self) -> VariantCaller:
+        """Get the Haplotypecaller variant caller.
+        
+        Returns:
+            VariantCaller: The Haplotypecaller variant caller instance.
+        """
 
         return self.callers["HS"]
 
     def get_FL(self) -> VariantCaller:
+        """Get the Filt3r variant caller.
+        
+        Returns:
+            VariantCaller: The Filt3r variant caller instance.
+        """
 
         return self.callers["FL"]
 
     def get_DV(self) -> VariantCaller:
+        """Get the DeepVariant caller.
+        
+        Returns:
+            VariantCaller: The DeepVariant caller instance.
+        """
 
         return self.callers["DV"]
 
     def is_supported(self, caller: str) -> bool:
+        """Check if a variant caller is supported.
+        
+        Args:
+            caller (str): The name of the variant caller to check.
+            
+        Returns:
+            bool: True if the caller is supported, False otherwise.
+        """
 
         return caller in self.callers
     
@@ -160,7 +214,9 @@ class VariantCallerRepository:
             depth=recipe["caller"]["depth"],
             vaf=recipe["caller"]["vaf"],
             rrc=recipe["caller"]["rrc"],
-            arc=recipe["caller"]["arc"]
+            arc=recipe["caller"]["arc"],
+            visitor=ExpressionVisitor(),
+            formatter=ExpressionTemplate()
         )
 
         with open(dest, mode="w") as plugin:
@@ -304,6 +360,15 @@ class BCFTools(VariantCaller):
     # Check if the variant is compliant with the BCFtools format.
     # Ensure the metrics can be later extracted.
     def is_compliant(self, variant: list[str], header: dict[str:int]):
+        """Check if the variant is compliant with the BCFtools format.
+        
+        Args:
+            variant (list[str]): The variant to check.
+            header (dict[str:int]): The header of the variant.
+            
+        Returns:
+            bool: True if the variant is compliant, False otherwise.
+        """
         
         return (
             len(variant[header["SAMPLE"]]) and (
@@ -413,6 +478,15 @@ class Varscan(VariantCaller):
     # Check if the variant is compliant with the Varscan format.
     # Ensure the metrics can be later extracted.
     def is_compliant(self, variant: list[str], header: dict[str:int]):
+        """Check if the variant is compliant with the Varscan format.
+        
+        Args:
+            variant (list[str]): The variant to check.
+            header (dict[str:int]): The header of the variant.
+            
+        Returns:
+            bool: True if the variant is compliant, False otherwise.
+        """
 
         return len(variant[header["SAMPLE"]]) and (
             variant[header["FORMAT"]].split(':') == [key.name for key in self.FORMAT]            
@@ -484,7 +558,16 @@ class Vardict(VariantCaller):
     # Check if the variant is compliant with the Vardict format.
     # Ensure the metrics can be later extracted.
     def is_compliant(self, variant: list[str], header: dict[str:int]):
-
+        """Check if the variant is compliant with the Vardict format.
+        
+        Args:
+            variant (list[str]): The variant to check.
+            header (dict[str:int]): The header of the variant.
+            
+        Returns:
+            bool: True if the variant is compliant, False otherwise.
+        """
+        
         return (
             len(variant[header["SAMPLE"]]) and (
             variant[header["FORMAT"]].split(':') == [key.name for key in self.FORMAT]           
@@ -564,7 +647,16 @@ class Pindel(VariantCaller):
     # Check if the variant is compliant with the Pindel format.
     # Ensure the metrics can be later extracted.
     def is_compliant(self, variant: list[str], header: dict[str:int]):
-
+        """Check if the variant is compliant with the Pindel format.
+        
+        Args:
+            variant (list[str]): The variant to check.
+            header (dict[str:int]): The header of the variant.
+            
+        Returns:
+            bool: True if the variant is compliant, False otherwise.
+        """
+        
         return len(variant[header["SAMPLE"]]) and (
             variant[header["FORMAT"]].split(':') == [key.name for key in self.FORMAT]    
         ) and (len(variant[header["SAMPLE"]].split(':')) == len(self.FORMAT))
@@ -634,8 +726,16 @@ class Haplotypecaller(VariantCaller):
 
     # Ensure the metrics can be later extracted.
     def is_compliant(self, variant: list[str], header: dict[str:int]):
-        """Check if the variant is compliant with the Haplotypecaller format."""
-
+        """Check if the variant is compliant with the Haplotypecaller format.
+        
+        Args:
+            variant (list[str]): The variant to check.
+            header (dict[str:int]): The header of the variant.
+            
+        Returns:
+            bool: True if the variant is compliant, False otherwise.
+        """
+        
         return len(variant[header["SAMPLE"]]) and (
             variant[header["FORMAT"]].split(':') == [key.name for key in self.FORMAT]            
         ) and (len(variant[header["SAMPLE"]].split(':')) == len(self.FORMAT))
@@ -760,8 +860,16 @@ class DeepVariant(VariantCaller):
 
     # Ensure the metrics can be later extracted.
     def is_compliant(self, variant: list[str], header: dict[str:int]):
-        """Check if the variant is compliant with the DeepVariant format."""
-
+        """Check if the variant is compliant with the DeepVariant format.
+        
+        Args:
+            variant (list[str]): The variant to check.
+            header (dict[str:int]): The header of the variant.
+            
+        Returns:
+            bool: True if the variant is compliant, False otherwise.
+        """
+        
         return len(variant[header["SAMPLE"]]) and (
             variant[header["FORMAT"]].split(':') == [key.name for key in self.FORMAT]            
         ) and (len(variant[header["SAMPLE"]].split(':')) == len(self.FORMAT))

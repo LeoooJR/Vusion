@@ -21,9 +21,9 @@ class Cache():
         self.func: function = func
 
     def add(self, args: list[str], key: object):
-        """
-        Add the result of the function to the cache
-        Parameters:
+        """Add the result of the function to the cache
+
+        Args:
             args: The arguments of the function
             key: The key of the cache
         """
@@ -37,9 +37,9 @@ class Cache():
         self.cache[key] = self.func(*args)
 
     def call(self, args: list[str], key: object):
-        """
-        Call the function and add the result to the cache
-        Parameters:
+        """Call the function and add the result to the cache
+
+        Args:
             args: The arguments of the function
             key: The key of the cache
         """
@@ -104,10 +104,11 @@ class PluginPythonChecker(ast.NodeVisitor):
 # ===========================================================================================
 
 def merge_collections(collections: list[object]) -> object:
-    """
-    Merge collections.
-    Parameters:
+    """Merge collections.
+
+    Args:
         collections: A list of collections to merge.
+        
     Returns:
         A merged collection of the same type as inputed collections.
     """

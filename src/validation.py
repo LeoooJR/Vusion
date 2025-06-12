@@ -3,6 +3,17 @@ from argparse import Action
 class ValidateThresholdsAction(Action):
 
     def __call__(self, parser, namespace, values, option_string=None):
+        """Validate the thresholds in --thresholds option.
+        
+        Args:
+            parser: The argument parser.
+            namespace: The namespace to store the parsed value.
+            values: The value to validate.
+            option_string: The option string that triggered this action.
+            
+        Raises:
+            ArgumentTypeError: If the value is not consistent with required format.
+        """
 
         # Maximum and minimum threshold values
         MAX_THRESHOLD: float = 100.0
@@ -41,6 +52,17 @@ class ValidateThresholdsAction(Action):
 class ValidateVCFSAction(Action):
 
     def __call__(self, parser, namespace, values, option_string = None):
+        """Validate the VCF input in --vcf option.
+        
+        Args:
+            parser: The argument parser.
+            namespace: The namespace to store the parsed value.
+            values: The value to validate.
+            option_string: The option string that triggered this action.
+            
+        Raises:
+            ArgumentTypeError: If the value is not consistent with required format.
+        """
 
         infs: list[str] = values[0].split(',')
 
@@ -63,6 +85,17 @@ class ValidateVCFSAction(Action):
 class ValidateIndelsLengthAction(Action):
 
     def __call__(self, parser, namespace, values, option_string = None):
+        """Validate the minimum INDELS length value.
+        
+        Args:
+            parser: The argument parser.
+            namespace: The namespace to store the parsed value.
+            values: The value to validate.
+            option_string: The option string that triggered this action.
+            
+        Raises:
+            ArgumentTypeError: If the value is not a positive unsigned integer.
+        """
 
         try:
 
@@ -81,6 +114,17 @@ class ValidateIndelsLengthAction(Action):
 class ValidateSBMAction(Action):
 
     def __call__(self, parser, namespace, values, option_string = None):
+        """Validate the strand bias metric limit value.
+        
+        Args:
+            parser: The argument parser.
+            namespace: The namespace to store the parsed value.
+            values: The value to validate.
+            option_string: The option string that triggered this action.
+            
+        Raises:
+            ArgumentTypeError: If the value is not a positive unsigned value.
+        """
 
         try:
 

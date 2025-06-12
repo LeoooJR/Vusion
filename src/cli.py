@@ -147,6 +147,11 @@ class Program:
         self.parser.set_defaults(func=self.FUNC["combine"])
 
     def launch(self) -> int:
+        """Launch the program with command line arguments.
+        
+        Returns:
+            int: Exit code of the program.
+        """
 
         cmd = self.parser.parse_args(argv[1:])
 
@@ -160,9 +165,19 @@ class Program:
         return cmd.func(params=cmd)
     
     def __str__(self):
+        """String representation of the program.
+        
+        Returns:
+            str: The name of the program.
+        """
 
         return "Vusion"
 
     def __repr__(self):
+        """String representation of the program for debugging.
+        
+        Returns:
+            str: The name of the program.
+        """
         
         return "Vusion"

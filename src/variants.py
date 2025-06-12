@@ -49,7 +49,14 @@ class VariantsRepository():
 
     @pileup.setter
     def pileup(self, value: Pileup | None):
-        """Set the pileup object."""
+        """Set the pileup object.
+        
+        Args:
+            value (Pileup | None): The pileup object to set.
+            
+        Raises:
+            TypeError: If value is not a Pileup object.
+        """
 
         if value:
 
@@ -61,11 +68,20 @@ class VariantsRepository():
 
     @property
     def fai(self):
+        """Get the fasta index object."""
 
         return getattr(self, "_fai", None)
     
     @fai.setter
     def fai(self, value: FastaIndex | None):
+        """Set the fasta index object.
+        
+        Args:
+            value (FastaIndex | None): The fasta index object to set.
+            
+        Raises:
+            TypeError: If value is not a FastaIndex object.
+        """
     
         if value:
 
@@ -111,34 +127,83 @@ class VariantsRepository():
         
     @staticmethod
     def is_composed_variant(allele: str) -> bool:
+        """Check if the variant is composed of multiple alleles.
+        
+        Args:
+            allele (str): The allele to check.
+            
+        Returns:
+            bool: True if the allele contains multiple variants (separated by comma), False otherwise.
+        """
 
         return ',' in allele
 
     @staticmethod
     @lru_cache(maxsize=1000) # Use Least Recently Used (LRU) cache to store results, SNP are often repeated
     def get_variant_type(ref: str, alt: str) -> str:
+        """Determine the type of variant based on reference and alternate alleles.
+        
+        Args:
+            ref (str): The reference allele.
+            alt (str): The alternate allele.
+            
+        Returns:
+            str: The variant type (SNV, INS, DEL, INV, MNV, or CSV).
+        """
 
         # Empty string to store variant type
         # Empty string return False
         variant_type: str = ''
 
         def is_snp(ref: str, alt: str) -> str:
-            """Check if the variant is a SNP (Single Nucleotide Polymorphism)."""
+            """Check if the variant is a SNP (Single Nucleotide Polymorphism).
+
+            Args:
+                ref (str): The reference allele.
+                alt (str): The alternate allele.
+
+            Returns:
+                SNP if found, empty string otherwise.
+            """
 
             return "SNV" if len(ref) == 1 and len(alt) == 1 else ''
 
         def is_ins(ref: str, alt: str) -> str:
-            """Check if the variant is an INS (Insertion)."""
+            """Check if the variant is an INS (Insertion).
+
+            Args:
+                ref (str): The reference allele.
+                alt (str): The alternate allele.
+
+            Returns:
+                INS if found, empty string otherwise.
+            """
             
             return "INS" if len(ref) == 1 and len(alt) > 1 else ''
 
         def is_del(ref: str, alt: str) -> str:
-            """Check if the variant is a DEL (Deletion)."""
+            """Check if the variant is a DEL (Deletion).
+
+            Args:
+                ref (str): The reference allele.
+                alt (str): The alternate allele.
+
+            Returns:
+                DEL if found, empty string otherwise.
+            """
 
             return "DEL" if len(ref) > 1 and len(alt) == 1 else ''
 
         def is_inv(ref: str, alt: str) -> str:
-            """Check if the variant is an INV (Inversion)."""
+            """Check if the variant is an INV (Inversion).
+
+            Args:
+                ref (str): The reference allele.
+                alt (str): The alternate allele.
+
+            Returns:
+                INV if found, empty string otherwise.
+            """
 
             OLD_CHARS: str = "ACGTacgt"
             REPLACE_CHARS: str = "TGCAtgca"
@@ -148,7 +213,15 @@ class VariantsRepository():
             return "INV" if len(ref) == len(alt) and ref == rev else ''
 
         def is_mnv(ref: str, alt: str) -> str:
-            """Check if the variant is a MNV (Multi Nucleotide Variant)."""
+            """Check if the variant is a MNV (Multi Nucleotide Variant).
+
+            Args:
+                ref (str): The reference allele.
+                alt (str): The alternate allele.
+
+            Returns:
+                MNV if found, empty string otherwise.
+            """
 
             OLD_CHARS: str = "ACGTacgt"
             REPLACE_CHARS: str = "TGCAtgca"
@@ -230,6 +303,16 @@ class VariantsRepository():
     
     @staticmethod
     def get_genotype(genotypes: list[str], arr: float, thresholds: list[float]) -> tuple[str]:
+        """ Get the genotype of a variant.
+        
+        Args:
+            genotypes (list[str]): The genotypes of the variant.
+            arr (float): The ARR of the variant.
+            thresholds (list[float]): The thresholds to use for the classification.
+            
+        Returns:
+            tuple[str]: The genotype of the variant.
+        """
 
         thresholds = thresholds.copy()
         

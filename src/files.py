@@ -39,26 +39,56 @@ class GenomicFile:
         return os.path.isfile(self.path)
 
     def get_path(self) -> str:
+        """Get the path of the file.
+        
+        Returns:
+            str: The path of the file.
+        """
 
         return self.path
     
     def basename(self) -> str:
+        """Get the basename of the file.
+        
+        Returns:
+            str: The basename of the file.
+        """
 
         return os.path.basename(self.path)
     
     def informations(self) -> dict:
+        """Get information about the file.
+        
+        Returns:
+            dict: Dictionary containing file information.
+        """
 
         return utils.file_infos(self.path)
     
     def __str__(self):
+        """String representation of the file.
+        
+        Returns:
+            str: The path of the file.
+        """
         
         return f"{self.path}"
     
     def __repr__(self):
+        """String representation of the file for debugging.
+        
+        Returns:
+            str: The path of the file.
+        """
         
         return f"{self.path}"
     
     def __hash__(self):
+        """Hash of the file.
+        
+        Returns:
+            int: Hash value of the file path.
+        """
         
         return hash(self.path)
 
@@ -198,6 +228,14 @@ class VCF(GenomicFile):
         return {f: VCF.convert(v) for f, v in zip(self.caller.FORMAT, values)}
 
     def info_to_values(self, values: str) -> dict:
+        """Convert INFO field string to dictionary of key-value pairs.
+        
+        Args:
+            values (str): INFO field string from VCF record.
+            
+        Returns:
+            dict: Dictionary of INFO field key-value pairs.
+        """
 
         infos = list(map(lambda item: item.split("="), values.split(";")))
 
@@ -814,6 +852,12 @@ class FastaIndex(GenomicFile):
 class Config(GenomicFile):
 
     def __init__(self, path: str, lazy: bool = True):
+        """Initialize a Config object.
+        
+        Args:
+            path (str): Path to the config file.
+            lazy (bool, optional): Whether to parse the file immediately. Defaults to True.
+        """
 
         super().__init__(path)
 
@@ -826,6 +870,11 @@ class Config(GenomicFile):
             self.parse()
     
     def verify(self):
+        """Verify that the config file exists and is not empty.
+        
+        Raises:
+            ConfigError: If the file does not exist or is empty.
+        """
 
         # Check if the file exists
         if not self.is_file():
@@ -840,6 +889,11 @@ class Config(GenomicFile):
             raise exceptions.ConfigError(f"The file {self.path} is empty.")
         
     def parse(self):
+        """Parse the config file and load its parameters.
+        
+        Raises:
+            SystemExit: If there is an error loading the config file.
+        """
 
         try:
 
@@ -850,7 +904,9 @@ class Config(GenomicFile):
         except exceptions.ConfigError as e:
 
             raise SystemExit(e)
+
 class VariantCallerPlugin(GenomicFile):
+    """Class for variant caller plugins"""
 
     # Maximum size of plugin in MB
     MAX_SIZE = 0.01
@@ -947,22 +1003,41 @@ class VariantCallerPlugin(GenomicFile):
         pass
 
 class CheckSumFile:
+    """Class for checksum files"""
 
     def verify(self):
+        """Verify the checksum file."""
 
         pass
 
     def parse(self):
+        """Parse the checksum file."""
 
         pass
 
     def compare(self, file):
+        """Compare the checksum file with a file.
+        
+        Args:
+            file: The file to compare with the checksum file.
+            
+        Raises:
+            ValueError: If the file is not a valid file.
+        """
 
         pass
 
 class GenomicReader:
 
     def __init__(self, process: int = 0):
+        """Initialize a GenomicReader object.
+        
+        Args:
+            process (int, optional): Number of processes to use. Defaults to 0.
+            
+        Raises:
+            ValueError: If process is negative or not an integer.
+        """
 
         if process < 0:
 
@@ -975,6 +1050,14 @@ class GenomicReader:
         self.process: int = process
 
     def read(self, file: GenomicFile | list[GenomicFile]):
+        """Read genomic files.
+        
+        Args:
+            file (GenomicFile | list[GenomicFile]): File or list of files to read.
+            
+        Yields:
+            The parsed content of the files.
+        """
 
         if isinstance(file, list):
             
@@ -995,6 +1078,14 @@ class GenomicReader:
 class GenomicWritter:
 
     def __init__(self, process: int = 0):
+        """Initialize a GenomicWritter object.
+        
+        Args:
+            process (int, optional): Number of processes to use. Defaults to 0.
+            
+        Raises:
+            ValueError: If process is negative or not an integer.
+        """
 
         if process < 0:
 
@@ -1007,14 +1098,45 @@ class GenomicWritter:
         self.process: int = process
 
     def write(self, output: str, template: str, collection: object | list[object], lookups: set[tuple], sample: str, contigs: object, thresholds: list[float], suffix: str = None):
+        """Write genomic data to output files.
+        
+        Args:
+            output (str): Output directory path.
+            template (str): Template to use for writing.
+            collection (object | list[object]): Data to write.
+            lookups (set[tuple]): Lookup data.
+            sample (str): Sample name.
+            contigs (object): Contig information.
+            thresholds (list[float]): Threshold values.
+            suffix (str, optional): Output file suffix. Defaults to None.
+        """
 
         def write_pileup():
+            """Write pileup data."""
 
             pass
 
         def write_vcf(output: str, contigs: object, variants: object, lookups: set[tuple], samples: list[str], thresholds: list[float]):
+            """Write VCF data.
+            
+            Args:
+                output (str): Output directory path.
+                contigs (object): Contig information.
+                variants (object): Variant data.
+                lookups (set[tuple]): Lookup data.
+                samples (list[str]): List of sample names.
+                thresholds (list[float]): Threshold values.
+            """
 
             def format_sample(metrics: dict) -> str:
+                """Format sample metrics for output.
+                
+                Args:
+                    metrics (dict): Sample metrics.
+                    
+                Returns:
+                    str: Formatted metrics string.
+                """
 
                 return ":".join(
                     [

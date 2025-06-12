@@ -12,6 +12,14 @@ except ImportError:  # Graceful fallback if IceCream isn't installed.
     ic = lambda *a: None if not a else (a[0] if len(a) == 1 else a)  # noqa
 
 def combine(params):
+    """Combine variant calls from multiple callers.
+    
+    Args:
+        params: Command line parameters.
+        
+    Raises:
+        SystemExit: If errors occur during the execution.
+    """
 
     # ===========================================================================================
     # Initiate constant variables

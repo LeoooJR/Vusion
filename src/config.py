@@ -89,6 +89,114 @@ class TreeToExpression(Transformer):
                     terms.append(item)
                     
         return terms[-1] if len(terms) > 1 else terms[0]
+    
+class ExpressionVisitor:
+    """Class to handle visiting of expression."""
+
+    def visit_EXPRESSION(self, expression) -> dict:
+        if isinstance(expression, Term):
+            return {
+                "type": "term",
+                "field": expression.field,
+                "metadata": {
+                    "header": expression.metadata.header if expression.metadata else None,
+                    "index": expression.metadata.index if expression.metadata else None,
+                    "unit": expression.metadata.unit if expression.metadata else None
+                } if expression.metadata else None
+            }
+        
+        return {
+            "type": "expression",
+            "operator": expression.operator,
+            "terms": [self.visit_EXPRESSION(term) for term in expression.terms]
+        }
+
+class ExpressionTemplate:
+    """Class to handle templating of expressions into different formats."""
+    
+    def __init__(self, format_fields: list):
+        """Initialize with the list of valid format fields.
+        
+        Args:
+            format_fields (list): List of valid format field names
+        """
+        self.format_fields = format_fields
+
+    def _is_valid_field(self, field: str) -> bool:
+        return field in self.format_fields
+    
+    def _format_term(self, term: dict) -> str:
+        """Format a single term into a template string.
+        
+        Args:
+            term (dict): Term dictionary from ExpressionVisitor
+            
+        Returns:
+            str: Formatted term string
+        """
+        if not self._is_valid_field(term["field"]):
+            raise ValueError(f"Field {term['field']} not in format fields")
+            
+        result = term["field"]
+        
+        # Add metadata if present
+        if term["metadata"]:
+            metadata = []
+            if term["metadata"]["index"] is not None:
+                metadata.append(str(term["metadata"]["index"]))
+            if term["metadata"]["header"]:
+                metadata.append(term["metadata"]["header"])
+            if term["metadata"]["unit"]:
+                metadata.append(term["metadata"]["unit"])
+                
+            if metadata:
+                result += f"[{','.join(metadata)}]"
+                
+        return result
+    
+    def _format_expression(self, expr: dict) -> str:
+        """Format an expression into a template string.
+        
+        Args:
+            expr (dict): Expression dictionary from ExpressionVisitor
+            
+        Returns:
+            str: Formatted expression string
+        """
+        if expr["type"] == "term":
+            return self._format_term(expr)
+            
+        # Format each term and join with operator
+        terms = [self._format_expression(term) for term in expr["terms"]]
+        return f"({terms[0]} {expr['operator']} {terms[1]})"
+    
+    def to_template(self, expression: dict) -> str:
+        """Convert an expression structure to a template string.
+        
+        Args:
+            expression (dict): Expression dictionary from ExpressionVisitor
+            
+        Returns:
+            str: Template string
+        """
+        return self._format_expression(expression)
+    
+    def to_python(self, expression: dict) -> str:
+        """Convert an expression structure to Python code.
+        
+        Args:
+            expression (dict): Expression dictionary from ExpressionVisitor
+            
+        Returns:
+            str: Python code string
+        """
+        if expression["type"] == "term":
+            term = self._format_term(expression)
+            # Convert VCF format notation to Python dictionary access
+            return term.replace("[", "[").replace("]", "]")
+            
+        terms = [self.to_python(term) for term in expression["terms"]]
+        return f"({terms[0]} {expression['operator']} {terms[1]})"
 
 class ConfigParser:
 
@@ -305,19 +413,21 @@ class ConfigParser:
 
             if field == "name":
 
-                pass
+                if not fdocument["caller"][field].isidentifier():
+
+                    raise UnexpectedInput("Name value is not a valid identifier.")
 
             elif field == "info":
 
                 if not re.match(r"^[A-Z]{1,}(;[A-Z]{1,})*$", fdocument["caller"][field]):
 
-                    raise UnexpectedInput()
+                    raise UnexpectedInput("Info value is not consistent with requested format.")
 
             elif field == "format":
 
                 if not re.match(r"^[A-Z]{1,}(,[A-Z]{1,})*$", fdocument["caller"][field]):
 
-                    raise UnexpectedInput()
+                    raise UnexpectedInput("Format value is not consistent with VCF format.")
 
             elif field in ["genotype", "depth", "vaf"]:
 
@@ -380,6 +490,7 @@ class ConfigParser:
                     else:
 
                         logger.error(self.validator.errors)
+
                         self.pretty_print_errors(self.validator.errors)
 
                         raise ConfigError("Config file schema is not valid.")

@@ -1,6 +1,6 @@
 from lark import UnexpectedInput
 import pytest
-from config import ConfigParser, TreeToExpression, Expression, Term
+from config import ConfigParser, ExpressionTemplate, TreeToExpression, Expression, Term
 from exceptions import ConfigError
 import yaml
 import tempfile
@@ -173,4 +173,86 @@ class TestConfigParserIntegration:
         """Test loading a nonexistent file"""
         config_parser.path = "nonexistent.yaml"
         with pytest.raises(ConfigError):
-            config_parser.load() 
+            config_parser.load()
+
+class TestExpressionVisitor:
+
+    @pytest.fixture
+    def transformer(self):
+        return TreeToExpression()
+
+    @pytest.mark.templating
+    def test_expression_visitor(self, transformer: TreeToExpression):
+        """Test the expression visitor."""
+        pass
+
+
+class TestExpressionTemplating:
+
+    @pytest.mark.templating
+    def test_expression_templating(self):
+        """Test the expression templating system."""
+        # Example format fields
+        format_fields = ["DP", "AD", "AF", "GT"]
+        
+        # Create template handler
+        template = ExpressionTemplate(format_fields)
+        
+        # Example 1: Simple term with index
+        term_expr = {
+            "type": "term",
+            "field": "DP",
+            "metadata": {
+                "index": 0,
+                "header": None,
+                "unit": None
+            }
+        }
+        
+        # Example 2: Complex expression
+        complex_expr = {
+            "type": "expression",
+            "operator": "+",
+            "terms": [
+                {
+                    "type": "term",
+                    "field": "AD",
+                    "metadata": {
+                        "index": 0,
+                        "header": None,
+                        "unit": None
+                    }
+                },
+                {
+                    "type": "term",
+                    "field": "AD",
+                    "metadata": {
+                        "index": 1,
+                        "header": None,
+                        "unit": None
+                    }
+                }
+            ]
+        }
+        
+        # Test template formatting
+        assert template.to_template(term_expr) == "DP[0]"
+        assert template.to_template(complex_expr) == "(AD[0] + AD[1])"
+        
+        # Test Python code generation
+        assert template.to_python(term_expr) == "DP[0]"
+        assert template.to_python(complex_expr) == "(AD[0] + AD[1])"
+            
+        # Test with header and unit
+        term_with_metadata = {
+            "type": "term",
+            "field": "AF",
+            "metadata": {
+                "index": 0,
+                "header": "format",
+                "unit": "%"
+            }
+        }
+        
+        assert template.to_template(term_with_metadata) == "AF[0,format,%]"
+        assert template.to_python(term_with_metadata) == "AF[0,format,%]"
