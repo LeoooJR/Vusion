@@ -95,15 +95,22 @@ class ExpressionVisitor:
 
     def visit_EXPRESSION(self, expression) -> dict:
         if isinstance(expression, Term):
-            return {
-                "type": "term",
-                "field": expression.field,
-                "metadata": {
-                    "header": expression.metadata.header if expression.metadata else None,
-                    "index": expression.metadata.index if expression.metadata else None,
-                    "unit": expression.metadata.unit if expression.metadata else None
-                } if expression.metadata else None
-            }
+            if isinstance(expression.field, Expression):
+                return {
+                    "type": "expression",
+                    "operator": expression.field.operator,
+                    "terms": [self.visit_EXPRESSION(term) for term in expression.field.terms]
+                }
+            else:
+                return {
+                    "type": "term",
+                    "field": expression.field,
+                    "metadata": {
+                        "header": expression.metadata.header if expression.metadata else None,
+                        "index": expression.metadata.index if expression.metadata else None,
+                        "unit": expression.metadata.unit if expression.metadata else None
+                    } if expression.metadata else None
+                }
         
         return {
             "type": "expression",
@@ -114,16 +121,71 @@ class ExpressionVisitor:
 class ExpressionTemplate:
     """Class to handle templating of expressions into different formats."""
     
-    def __init__(self, format_fields: list):
+    def __init__(self, format_fields: list = None, infos_fields: list = None):
         """Initialize with the list of valid format fields.
         
         Args:
             format_fields (list): List of valid format field names
         """
-        self.format_fields = format_fields
+        self._format_fields = format_fields
 
-    def _is_valid_field(self, field: str) -> bool:
-        return field in self.format_fields
+        self._infos_fields = infos_fields
+
+    @property
+    def format(self):
+
+        return getattr(self, "_format_fields", None)
+
+    @format.setter
+    def format(self, value):
+
+        self._format_fields = value
+
+    @property
+    def infos(self):
+
+        return getattr(self, '_infos_field', None)
+    
+    @infos.setter
+    def infos(self, value):
+
+        self._infos_fields = value
+
+    def _is_valid_field(self, field: list) -> bool:
+
+        is_in_format: bool = False
+        is_in_info: bool = False
+
+        if self._format_fields:
+            is_in_format = field in self._format_fields
+        
+        if self._infos_fields:
+            is_in_info = field in self._infos_fields
+
+        return is_in_format or is_in_info
+    
+    def _is_valid_metadata(self, field, index: int = None, header: str = None, unit: str = None) -> bool:
+
+        is_valid_index: bool = False if index else True
+        is_valid_header: bool = False if header else True
+        is_valid_unit: bool = False if unit else True
+
+        if index:
+
+            is_valid_index = True
+
+        if header:
+
+            if header == "format":
+                is_valid_header = field in self._format_fields if self._format_fields else False 
+            else:
+                is_valid_header = field in self._infos_fields if self._infos_fields else False
+
+        if unit:
+
+            is_valid_unit = True
+
+        return is_valid_index and is_valid_header and is_valid_unit
     
     def _format_term(self, term: dict) -> str:
         """Format a single term into a template string.
@@ -134,8 +196,10 @@ class ExpressionTemplate:
         Returns:
             str: Formatted term string
         """
-        if not self._is_valid_field(term["field"]):
-            raise ValueError(f"Field {term['field']} not in format fields")
+        if self._format_fields or self._infos_fields:
+
+            if not self._is_valid_field(term["field"]):
+                raise UnexpectedInput(f"Key {term['field']} not in FORMAT or INFOS fields")
             
         result = term["field"]
         
@@ -143,10 +207,16 @@ class ExpressionTemplate:
         if term["metadata"]:
             metadata = []
             if term["metadata"]["index"] is not None:
+                if not self._is_valid_metadata(field=term["field"], index=term["metadata"]["index"]):
+                    raise UnexpectedInput(f"Index metadata in term {term} is not valid.")
                 metadata.append(str(term["metadata"]["index"]))
             if term["metadata"]["header"]:
+                if not self._is_valid_metadata(field=term["field"], header=term["metadata"]["header"]):
+                    raise UnexpectedInput(f"{term["field"]} is not in {term["metadata"]["header"].upper()}.")
                 metadata.append(term["metadata"]["header"])
             if term["metadata"]["unit"]:
+                if not self._is_valid_metadata(field=term["field"], unit=term["metadata"]["unit"]):
+                    raise UnexpectedInput(f"Unit metadata in term {term} is not valid.")
                 metadata.append(term["metadata"]["unit"])
                 
             if metadata:
@@ -409,6 +479,12 @@ class ConfigParser:
 
         fdocument = copy(document)
 
+        transformer = TreeToExpression()
+
+        visitor = ExpressionVisitor()
+
+        formatter = ExpressionTemplate()
+
         for field in fdocument["caller"]:
 
             if field == "name":
@@ -422,18 +498,24 @@ class ConfigParser:
                 if not re.match(r"^[A-Z]{1,}(;[A-Z]{1,})*$", fdocument["caller"][field]):
 
                     raise UnexpectedInput("Info value is not consistent with requested format.")
+                
+                formatter.infos = fdocument["caller"][field]
 
             elif field == "format":
 
                 if not re.match(r"^[A-Z]{1,}(,[A-Z]{1,})*$", fdocument["caller"][field]):
 
                     raise UnexpectedInput("Format value is not consistent with VCF format.")
+                
+                formatter.format = fdocument["caller"][field].split(',')
 
             elif field in ["genotype", "depth", "vaf"]:
 
                 ast = self.DSL_PARSER.parse(fdocument["caller"][field]["extract"])
 
-                fdocument["caller"][field]["extract"] = TreeToExpression().transform(ast)
+                fdocument["caller"][field]["extract"] = transformer.transform(ast)
+
+                formatter.to_template(visitor.visit_EXPRESSION(fdocument["caller"][field]["extract"]))
 
             else:
 
@@ -443,7 +525,9 @@ class ConfigParser:
 
                         ast = self.DSL_PARSER.parse(fdocument["caller"][field][subfield]["extract"])
 
-                        fdocument["caller"][field][subfield]["extract"] = TreeToExpression().transform(ast)
+                        fdocument["caller"][field][subfield]["extract"] = transformer.transform(ast)
+
+                        formatter.to_template(visitor.visit_EXPRESSION(fdocument["caller"][field][subfield]["extract"]))
 
         return fdocument
     

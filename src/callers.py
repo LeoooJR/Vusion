@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
-from config import Term, Expression, ExpressionVisitor, ExpressionTemplate
+import autopep8
+from config import Term, Expression
 import enum
 import exceptions as exceptions
 from hashlib import sha256
@@ -180,13 +181,41 @@ class VariantCallerRepository:
     
     def write(self, recipe, dest) -> str:
 
-        def is_expression(object):
+        def is_expression(object) -> bool:
 
             return isinstance(object, Expression)
         
-        def is_term(object):
+        def is_term(object) -> bool:
 
             return isinstance(object, Term)
+        
+        def is_pourcentage(object: Term) -> bool:
+
+            return object.metadata.unit == '%' if object.metadata else False
+        
+        def is_indexed(object: Term):
+
+            return isinstance(object.metadata.index, int) if object.metadata else False
+        
+        def is_in_format(object: Term, format: str):
+
+            if object.metadata and object.metadata.header:
+
+                return object.metadata.header == "format"
+            
+            else:
+
+                return object.field in format
+            
+        def is_in_infos(object: Term, infos: str):
+
+            if object.metadata and object.metadata.header:
+
+                return object.metadata.header == "info"
+            
+            else:
+
+                return object.field in infos            
         
         logger.debug(f"Rendering python template for {recipe["caller"]["name"]}")
 
@@ -203,6 +232,14 @@ class VariantCallerRepository:
 
         env.tests["term"] = is_term
 
+        env.tests["pourcentage"] = is_pourcentage
+
+        env.tests["indexed"] = is_indexed
+
+        env.tests["in_format"] = is_in_format
+
+        env.tests["in_infos"] = is_in_infos
+
         # Load the header template
         template = env.get_template("caller")
 
@@ -215,14 +252,12 @@ class VariantCallerRepository:
             vaf=recipe["caller"]["vaf"],
             rrc=recipe["caller"]["rrc"],
             arc=recipe["caller"]["arc"],
-            visitor=ExpressionVisitor(),
-            formatter=ExpressionTemplate()
         )
 
         with open(dest, mode="w") as plugin:
 
             plugin.writelines(
-                content
+                autopep8.fix_code(content)
             )
 
         plugin_hash = sha256(content.encode()).hexdigest()
@@ -261,7 +296,13 @@ class VariantCallerRepository:
 
             else:
 
-                raise exceptions.VariantCallerPluginError(f"An unexpected error has occurred when loading variant caller plugin: {ic.format(e)}")
+                raise exceptions.VariantCallerPluginError(f"An unexpected error has occurred when loading variant caller plugin: {e}")
+            
+    def clean(self, files: list[Path]):
+
+        for file in files:
+
+            file.unlink()
     
     def add(self, id: str, recipe: dict):
         
@@ -329,6 +370,8 @@ class VariantCallerRepository:
 
                 else:
 
+                    self.clean(files=[source, sum])
+
                     raise exceptions.VariantCallerPluginError(f"An unexpected error has occurred when loading variant caller plugin: {ic.format(e)}")
         
         else:
@@ -340,8 +383,16 @@ class VariantCallerRepository:
                 sumfile.write(f"{recipe["caller"]["name"]}.py\t{plugin_hash}\n")
 
                 sumfile.write(f"{recipe["caller"]["name"]}.yaml\t{config_hash}\n")
+
+        try:
                             
-        self.load(id=id, package=package, source=recipe["caller"]["name"])
+            self.load(id=id, package=package, source=recipe["caller"]["name"])
+
+        except Exception:
+            
+            self.clean(files=[source, sum])
+
+            raise
     
     def __len__(self):
 
