@@ -190,6 +190,12 @@ def file_infos(path: str) -> dict:
             "size": round(statinfo.st_size / pow(1024,2),2),
             "mtime": datetime.fromtimestamp(statinfo.st_mtime, tz=timezone.utc)}
 
+def clean(files: list[Path]):
+
+    for file in files:
+
+        file.unlink(missing_ok=True)
+
 # ===========================================================================================
 # Functions on variants
 # ===========================================================================================

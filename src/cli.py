@@ -1,13 +1,13 @@
 from __init__ import __version__
 from argparse import ArgumentParser
 from loguru import logger
-from vusion import combine
+from supervisor import supervisor
 from sys import argv
 import validation
 
 class Program:
 
-    FUNC = {"combine": combine}
+    FUNC = {"call": supervisor}
 
     def __init__(self):
 
@@ -81,7 +81,6 @@ class Program:
             help="Threshold used for variant categorization in VCF callsets",
         )
         self.parser.add_argument(
-            "-d",
             "--disable-strand-bias",
             action="store_true",
             dest="disable_strand_bias",
@@ -137,14 +136,15 @@ class Program:
             help="Should intermediate results be saved."
         )
         self.parser.add_argument(
-            "--verbosity",
+            "-d",
+            "--debug",
+            dest="debug",
             action="store_true",
+            help="Should logs be saved?",
             default=False,
-            required=False,
-            help="Should logs be printed to the shell.",
         )
 
-        self.parser.set_defaults(func=self.FUNC["combine"])
+        self.parser.set_defaults(func=self.FUNC["call"])
 
     def launch(self) -> int:
         """Launch the program with command line arguments.
@@ -155,10 +155,10 @@ class Program:
 
         cmd = self.parser.parse_args(argv[1:])
 
-        # Should the log be printed to CLI or saved in a file ?
-        if not cmd.verbosity:
+        logger.remove(0)
 
-            logger.remove(0)
+        # Should the log be saved in a file ?
+        if cmd.debug:
 
             logger.add("vusion.log")
 

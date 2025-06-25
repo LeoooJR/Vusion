@@ -1,6 +1,8 @@
 import ast
+import autopep8
+from hashlib import sha256
 import callers
-from config import ConfigParser
+from config import ConfigParser, Term, Expression
 from collections import defaultdict
 import enum
 import exceptions as exceptions
@@ -10,6 +12,7 @@ from loguru import logger
 import numpy as np
 import os
 import pandas as pd
+from pathlib import Path
 from typing import Final
 import re
 import utils
@@ -918,22 +921,116 @@ class VariantCallerPlugin(GenomicFile):
             utils.get_project_dir(), "templates"
         )
     
-    TEMPLATE = "Caller"
+    TEMPLATE = "caller"
 
-    def __init__(self, path):
-
-        super().__init__(path)
+    def __init__(self, id: str, config: Config, path: str = None):
 
         self.state = VariantCallerPlugin.STATES.unsafe
+
+        self.id = id
+
+        self.config = config
+
+        self.config_hash: str = sha256(str(config.params).encode()).hexdigest()
+
+        if path:
+
+            super().__init__(path)
+
+        else:
+
+            self.package: Path = utils.get_or_create_config_dir()
+
+            self.source: Path = self.package.joinpath(f"{config.params["caller"]["name"]}.py")
+
+            self.sum: Path = self.package.joinpath(f"{config.params["caller"]["name"]}.sum")
+
+            if self.sum.exists():
+
+                pfile, phash = None, None
+
+                cfile, chash  = None, None
+
+                try:
+                    # Read the sums
+                    with open(self.sum, mode="r") as sumfile:
+
+                        try:
+
+                            pfile, phash = next(sumfile).split('\t')
+
+                            cfile, chash  = next(sumfile).split('\t')
+
+                        except ValueError:
+
+                            logger.warning(f"Checksum file {self.sum} is corrupted.")
+
+                            raise exceptions.CheckSumFileError(f"Checksum file {self.sum} is corrupted.")
+
+                    # Check if the config file is consistent with the cached config file
+                    if (chash.strip('\n') == self.config_hash) and (self.source.exists()):
+
+                        hash = utils.hash_file(self.source)
+
+                        # Check if the plugin file is consistent with the cached plugin file
+                        if (f"{config.params["caller"]["name"]}.py" == pfile) and (hash == phash.strip('\n')):
+
+                            logger.debug(f"Using cached file {self.source}")
+
+                            super().__init__(self.source)
+
+                            self.verify()
+
+                        else:
+
+                            logger.warning(f"Cached python file checksum is not consistent with {self.source}.")
+
+                            raise exceptions.CheckSumFileError(f"Cached python file checksum is not consistent with {self.source}.")
+
+                    else:
+
+                        logger.warning(f"Cached config file checksum is not consistent with provided config.")
+
+                        raise exceptions.CheckSumFileError(f"Cached config file checksum is not consistent with provided config.")
+
+                except Exception as e:
+
+                    self.remove()
+
+                    if isinstance(e, (exceptions.CheckSumFileError, exceptions.VariantCallerPluginError)):
+
+                        self.write()
+
+                        super().__init__(self.source)
+
+                    else:
+
+                        raise exceptions.VariantCallerPluginError(f"An unexpected error has occurred when loading variant caller plugin: {e}")
+            
+            else:
+
+                self.write()
+
+                super().__init__(self.source)
+
+    def remove(self):
+        """Remove the plugin file and the checksum file."""
+
+        utils.clean(files=[self.source, self.sum])
+
+    def is_safe(self):
+        """Check if the plugin file is safe."""
+        return self.state == VariantCallerPlugin.STATES.safe
 
     def _is_valid_python(self, ast: ast.Module) -> bool:
         """
         Securely check if a file is a valid Python code.
 
         Args:
-        
-        Returns:
+            ast (ast.Module): The abstract syntax tree of the plugin file.
 
+        Returns:
+            bool: True if the plugin file is valid, False otherwise.
         """
 
         visitor = utils.PluginPythonChecker()
@@ -942,17 +1039,20 @@ class VariantCallerPlugin(GenomicFile):
 
         if len(visitor.not_safe_calls):
 
-            logger.warning(f"Potentially dangerous call in {self.path}")
+            logger.warning(f"Potentially dangerous call {visitor.not_safe_calls} in {self.path}")
 
             return False
         
-        ic(visitor.imports)
+        elif visitor.imports != ["abc", "enum", "typing"]:
 
-        self.state = VariantCallerPlugin.STATES.safe
+            logger.warning(f"Importing forbidden modules {visitor.imports} in {self.path}")
 
+            return False
+                
         return True
 
     def verify(self):
+        """Verify the plugin file."""
 
         infs = self.informations()
 
@@ -962,7 +1062,7 @@ class VariantCallerPlugin(GenomicFile):
 
             raise exceptions.VariantCallerPluginError("Abnormally high plugin size detected.")
         
-        if not self.path.lower().endswith(".py"):
+        if not self.path.suffix == ".py":
 
             raise exceptions.VariantCallerPluginError("File name does not end with the Python extension.")
         
@@ -996,11 +1096,99 @@ class VariantCallerPlugin(GenomicFile):
 
                 raise
 
-            raise exceptions.VariantCallerPluginError(f"An unexpected error has occurred when reading plugin {self}: {ic.format(e)}")
+            raise exceptions.VariantCallerPluginError(f"An unexpected error has occurred when reading plugin {self}: {e}")
+        # If it come to this instruction, the plugin is safe
+        self.state = VariantCallerPlugin.STATES.safe
 
     def parse(self):
-
+        """Parse the plugin file."""
         pass
+
+    def write(self) -> str:
+        """Write the plugin file."""
+        def is_expression(object) -> bool:
+            """Check if the object is an expression."""
+            return isinstance(object, Expression)
+        
+        def is_term(object) -> bool:
+            """Check if the object is a term."""
+            return isinstance(object, Term)
+        
+        def is_pourcentage(object: Term) -> bool:
+            """Check if the object is a pourcentage."""
+            return object.metadata.unit == '%' if object.metadata else False
+        
+        def is_indexed(object: Term):
+            """Check if the object is indexed."""
+            return isinstance(object.metadata.index, int) if object.metadata else False
+        
+        def is_in_format(object: Term, format: str):
+            """Check if the object is in the format field."""
+            if object.metadata and object.metadata.header:
+
+                return object.metadata.header == "format"
+            
+            else:
+
+                return object.field in format
+            
+        def is_in_infos(object: Term, infos: str):
+            """Check if the object is in the info field."""
+            if object.metadata and object.metadata.header:
+
+                return object.metadata.header == "info"
+            
+            else:
+
+                return object.field in infos            
+        
+        logger.debug(f"Rendering python template for {self.config.params["caller"]["name"]}")
+
+        env = jinja2.Environment(
+            loader=jinja2.FileSystemLoader(self.RESSOURCES)
+        )
+
+        env.tests["expression"] = is_expression
+
+        env.tests["term"] = is_term
+
+        env.tests["pourcentage"] = is_pourcentage
+
+        env.tests["indexed"] = is_indexed
+
+        env.tests["in_format"] = is_in_format
+
+        env.tests["in_infos"] = is_in_infos
+
+        # Load the header template
+        template = env.get_template(self.TEMPLATE)
+
+        content: str = template.render(
+            name=self.config.params["caller"]["name"],
+            info=self.config.params["caller"]["info"],
+            format=self.config.params["caller"]["format"],
+            genotype=self.config.params["caller"]["genotype"],
+            depth=self.config.params["caller"]["depth"],
+            vaf=self.config.params["caller"]["vaf"],
+            rrc=self.config.params["caller"]["rrc"],
+            arc=self.config.params["caller"]["arc"],
+        )
+
+        fcontent: str = autopep8.fix_code(content)
+
+        with open(self.source, mode="w") as plugin:
+
+            plugin.writelines(
+                fcontent
+            )
+
+        plugin_hash = sha256(fcontent.encode()).hexdigest()
+
+        with open(self.sum, mode="w") as sumfile:
+
+            sumfile.write(f"{self.config.params["caller"]["name"]}.py\t{plugin_hash}\n")
+
+            sumfile.write(f"{self.config.params["caller"]["name"]}.yaml\t{self.config_hash}\n")
 
 class CheckSumFile:
     """Class for checksum files"""

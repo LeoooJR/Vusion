@@ -11,7 +11,7 @@ try:
 except ImportError:  # Graceful fallback if IceCream isn't installed.
     ic = lambda *a: None if not a else (a[0] if len(a) == 1 else a)  # noqa
 
-def combine(params):
+def supervisor(params: object):
     """Combine variant calls from multiple callers.
     
     Args:
@@ -81,9 +81,9 @@ def combine(params):
             id, path, yaml = vcf
             logger.debug(f"YAML config file {yaml} provided for the VCF {id}")
             config_file = io.Config(path=yaml, lazy=False)
-
             try:
-                callers.add(id=id, recipe=config_file.params)
+                plugin = io.VariantCallerPlugin(id=id, config=config_file)
+                callers.add(plugin)
             except exceptions.VariantCallerPluginError as e:
                 raise SystemExit(e)
 

@@ -1,17 +1,10 @@
 from abc import ABC, abstractmethod
-import autopep8
-from config import Term, Expression
 import enum
 import exceptions as exceptions
-from hashlib import sha256
 import importlib
-import jinja2
 from loguru import logger
-import os
-from pathlib import Path
 import sys
 from typing import final
-import utils
 
 try:
     from icecream import ic
@@ -178,103 +171,18 @@ class VariantCallerRepository:
         """
 
         return caller in self.callers
-    
-    def write(self, recipe, dest) -> str:
-
-        def is_expression(object) -> bool:
-
-            return isinstance(object, Expression)
         
-        def is_term(object) -> bool:
-
-            return isinstance(object, Term)
-        
-        def is_pourcentage(object: Term) -> bool:
-
-            return object.metadata.unit == '%' if object.metadata else False
-        
-        def is_indexed(object: Term):
-
-            return isinstance(object.metadata.index, int) if object.metadata else False
-        
-        def is_in_format(object: Term, format: str):
-
-            if object.metadata and object.metadata.header:
-
-                return object.metadata.header == "format"
-            
-            else:
-
-                return object.field in format
-            
-        def is_in_infos(object: Term, infos: str):
-
-            if object.metadata and object.metadata.header:
-
-                return object.metadata.header == "info"
-            
-            else:
-
-                return object.field in infos            
-        
-        logger.debug(f"Rendering python template for {recipe["caller"]["name"]}")
-
-        # Path to the template directory
-        ressources = os.path.join(
-            utils.get_project_dir(), "templates"
-        )
-
-        env = jinja2.Environment(
-            loader=jinja2.FileSystemLoader(ressources)
-        )
-
-        env.tests["expression"] = is_expression
-
-        env.tests["term"] = is_term
-
-        env.tests["pourcentage"] = is_pourcentage
-
-        env.tests["indexed"] = is_indexed
-
-        env.tests["in_format"] = is_in_format
-
-        env.tests["in_infos"] = is_in_infos
-
-        # Load the header template
-        template = env.get_template("caller")
-
-        content: str = template.render(
-            name=recipe["caller"]["name"],
-            info=recipe["caller"]["info"],
-            format=recipe["caller"]["format"],
-            genotype=recipe["caller"]["genotype"],
-            depth=recipe["caller"]["depth"],
-            vaf=recipe["caller"]["vaf"],
-            rrc=recipe["caller"]["rrc"],
-            arc=recipe["caller"]["arc"],
-        )
-
-        with open(dest, mode="w") as plugin:
-
-            plugin.writelines(
-                autopep8.fix_code(content)
-            )
-
-        plugin_hash = sha256(content.encode()).hexdigest()
-
-        return plugin_hash
-    
-    def load(self, id, package, source):
+    def load(self, plugin):
 
         try:
 
-            if not package in sys.path:
+            if not plugin.package in sys.path:
 
-                sys.path.append(str(package))
+                sys.path.append(str(plugin.package))
 
-            module = importlib.import_module(source, package=str(package))
+            module = importlib.import_module(plugin.config.params["caller"]["name"], package=str(plugin.package))
 
-            self.callers[id] = getattr(module, source)()
+            self.callers[plugin.id] = getattr(module, plugin.config.params["caller"]["name"])()
 
         except ImportError as e:
 
@@ -298,99 +206,15 @@ class VariantCallerRepository:
 
                 raise exceptions.VariantCallerPluginError(f"An unexpected error has occurred when loading variant caller plugin: {e}")
             
-    def clean(self, files: list[Path]):
-
-        for file in files:
-
-            file.unlink()
-    
-    def add(self, id: str, recipe: dict):
+    def add(self, plugin):
         
-        config_hash = sha256(str(recipe).encode()).hexdigest()
-
-        package: Path = utils.get_or_create_config_dir()
-
-        sum: Path = package.joinpath(f"{recipe["caller"]["name"]}.sum")
-
-        source: Path = package.joinpath(f"{recipe["caller"]["name"]}.py")
-
-        if sum.exists():
-
-            pfile, phash = None, None
-
-            cfile, chash  = None, None
-
-            try:
-
-                with open(sum, mode="r") as sumfile:
-
-                    try:
-
-                        pfile, phash = next(sumfile).split('\t')
-
-                        cfile, chash  = next(sumfile).split('\t')
-
-                    except ValueError:
-
-                        logger.warning(f"Checksum file {sum} is corrupted.")
-
-                        raise exceptions.CheckSumFileError(f"Checksum file {sum} is corrupted.")
-
-                if (chash.strip('\n') == config_hash) and (source.exists()):
-
-                    hash = utils.hash_file(source)
-
-                    if (f"{recipe["caller"]["name"]}.py" == pfile) and (hash == phash.strip('\n')):
-
-                        logger.debug(f"Using cached file {source}")
-
-                    else:
-
-                        logger.warning(f"Cached python file checksum is not consistent with {source}.")
-
-                        raise exceptions.CheckSumFileError(f"Cached python file checksum is not consistent with {source}.")
-
-                else:
-
-                    logger.warning(f"Cached config file checksum is not consistent with provided config.")
-
-                    raise exceptions.CheckSumFileError(f"Cached config file checksum is not consistent with provided config.")
-
-            except Exception as e:
-
-                if isinstance(e, exceptions.CheckSumFileError):
-
-                    plugin_hash: str = self.write(recipe, source)
-
-                    with open(sum, mode="w") as sumfile:
-
-                        sumfile.write(f"{recipe["caller"]["name"]}.py\t{plugin_hash}\n")
-
-                        sumfile.write(f"{recipe["caller"]["name"]}.yaml\t{config_hash}\n")
-
-                else:
-
-                    self.clean(files=[source, sum])
-
-                    raise exceptions.VariantCallerPluginError(f"An unexpected error has occurred when loading variant caller plugin: {ic.format(e)}")
-        
-        else:
-
-            plugin_hash: str = self.write(recipe, source)
-
-            with open(sum, mode="w") as sumfile:
-
-                sumfile.write(f"{recipe["caller"]["name"]}.py\t{plugin_hash}\n")
-
-                sumfile.write(f"{recipe["caller"]["name"]}.yaml\t{config_hash}\n")
-
         try:
                             
-            self.load(id=id, package=package, source=recipe["caller"]["name"])
+            self.load(plugin)
 
         except Exception:
             
-            self.clean(files=[source, sum])
+            plugin.remove()
 
             raise
     
