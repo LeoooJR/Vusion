@@ -15,6 +15,7 @@ import pandas as pd
 from pathlib import Path
 from typing import Final
 import re
+from repository import Repository
 import utils
 
 try:
@@ -390,6 +391,30 @@ class VCF(GenomicFile):
             else:
 
                 raise exceptions.VCFError(f"An unexpected error has occurred when extracting RRC: {ic.format(e)}")
+
+class VCFRepository(Repository):
+
+    def __init__(self):
+        
+        self.repository: dict = {}
+
+    def populate(self, items: list[tuple[str, VCF]]):
+
+        for item in items:
+
+            self.add(item)
+
+    def add(self, item: tuple[str, VCF]):
+
+        self.repository[item[0]] = item[1]
+
+    def remove(self, item: tuple[str, VCF]):
+        
+        self.repository.pop(item[0])
+
+    def __iter__(self):
+
+        yield from self.repository.items()
 
 class Pileup(GenomicFile):
 

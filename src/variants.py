@@ -1,7 +1,7 @@
 from callers import VariantCaller
 from collections import deque, Counter, namedtuple
 import exceptions as exceptions
-from files import Pileup, FastaIndex
+from files import Pileup, FastaIndex, VCFRepository
 from functools import lru_cache
 from loguru import logger
 import math
@@ -612,21 +612,21 @@ class VariantsRepository():
                             or (variant['sample']['LOW'] == 1) 
                             or ((abs(float(variant['sample']['SBP'])) <= 0.05) and (float(variant['sample']['SBM']) >= sbm))) else "PASS"
 
-    def populate(self, vcfs: dict):
+    def populate(self, vcfs: VCFRepository):
 
         # Loop through each VCF file
-        for caller in vcfs:
+        for caller, vcf in vcfs:
 
             # Get the header of the VCF file
             # The header contains the names of the columns in the VCF file
             # It is used to map the values in the VCF file to the correct keys in the dictionary
-            header: dict = vcfs[caller]["vcf"].header
+            header: dict = vcf.header
 
-            with open(vcfs[caller]["vcf"].get_path(), mode='r') as vcf:
+            with open(vcf.get_path(), mode='r') as file:
 
-                logger.debug(f"Processing {vcfs[caller]['vcf'].get_path()}")
+                logger.debug(f"Processing {vcf}")
 
-                for n, line in enumerate(vcf, start=1):
+                for n, line in enumerate(file, start=1):
 
                     # Skip header
                     if line[0] == '#':
@@ -639,7 +639,7 @@ class VariantsRepository():
 
                     position: int = int(record[1])
 
-                    if vcfs[caller]["vcf"].is_compliant(record):
+                    if vcf.is_compliant(record):
 
                         # Variant identifier is a string that contains the reference and alternative alleles
                         # It is used to identify the variant in the dictionary
@@ -751,23 +751,23 @@ class VariantsRepository():
 
                                 try:
 
-                                    gt: str = vcfs[caller]["vcf"].genotype(record)
+                                    gt: str = vcf.genotype(record)
 
-                                    vaf: float = vcfs[caller]["vcf"].VAF(record)
+                                    vaf: float = vcf.VAF(record)
 
-                                    depth: int = vcfs[caller]["vcf"].depth(record)
+                                    depth: int = vcf.depth(record)
 
-                                    arc: tuple[int] = vcfs[caller]["vcf"].arc(record)
+                                    arc: tuple[int] = vcf.arc(record)
 
-                                    rrc: tuple[int] = vcfs[caller]["vcf"].rrc(record)
+                                    rrc: tuple[int] = vcf.rrc(record)
 
                                 except exceptions.VCFError as e:
 
-                                    if isinstance(vcfs[caller]["vcf"].caller, VariantCaller):
+                                    if isinstance(vcf.caller, VariantCaller):
 
                                         warning: bool = True
 
-                                        logger.warning(f"Variant in file {vcfs[caller]["vcf"].get_path()} at position {positions.vcf_position} is not correctly formated.")
+                                        logger.warning(f"Variant in file {vcf} at position {positions.vcf_position} is not correctly formated.")
                                         logger.warning(f"Reason: {e}")
 
                                     else:
@@ -849,19 +849,19 @@ class VariantsRepository():
 
                             else:
 
-                                logger.warning(f"Variant record {n} at position {position} in {vcfs[caller]["vcf"].get_path()} is not consistent with fasta index.")
+                                logger.warning(f"Variant record {n} at position {position} in {vcf} is not consistent with fasta index.")
 
                         else:
 
-                            logger.warning(f"Alternative allele {alt} is not compatible with DNA alphabet for variant record {n} at position {position} in {vcfs[caller]["vcf"].get_path()}.")
+                            logger.warning(f"Alternative allele {alt} is not compatible with DNA alphabet for variant record {n} at position {position} in {vcf}.")
 
                             if VariantsRepository.is_composed_variant(allele=alt):
 
-                                logger.warning(f"Alternative allele {alt} must be decomposed for variant record {n} at position {position} in {vcfs[caller]["vcf"].get_path()}.")
+                                logger.warning(f"Alternative allele {alt} must be decomposed for variant record {n} at position {position} in {vcf}.")
 
                     else:
 
-                        logger.warning(f"Variant record {n} at position {position} in {vcfs[caller]["vcf"].get_path()} is not compliant with supported {str(vcfs[caller]["vcf"])} VCF format.")
+                        logger.warning(f"Variant record {n} at position {position} in {vcf} is not compliant with supported {str(vcf)} VCF format.")
 
 
     def normalize(self, thresholds: list[float], length_indels: int, sbm: float, sbm_homozygous: float) -> tuple[dict]:

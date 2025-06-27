@@ -3,6 +3,7 @@ import enum
 import exceptions as exceptions
 import importlib
 from loguru import logger
+from repository import Repository
 import sys
 from typing import final
 
@@ -45,7 +46,7 @@ class VariantCaller(ABC):
         """Extract the alternate allele counts."""
         pass
 
-class VariantCallerRepository:
+class VariantCallerRepository(Repository):
 
     """ A class to manage the variant callers """
 
@@ -71,7 +72,7 @@ class VariantCallerRepository:
             "FL": Filt3r(),
             "DV": DeepVariant(),
         }
-
+        # Save the plugins in a dictionary
         self.plugins: dict[str: VariantCaller] = {}
     
     # Get the variant caller by its name
@@ -224,21 +225,37 @@ class VariantCallerRepository:
 
                 raise exceptions.VariantCallerPluginError(f"An unexpected error has occurred when loading variant caller plugin: {e}")
             
-    def add(self, plugin):
+    def populate(self, items: list):
+
+        for item in items:
+
+            self.add(item)
+            
+    def add(self, item):
         
         try:
                             
-            self.load(plugin)
+            self.load(item)
 
         except Exception:
             
-            plugin.remove()
+            item.remove()
 
             raise
+
+    def remove(self, item):
+
+        self.plugins.pop(item.id)
+
+        self.callers.pop(item.id)
     
     def __len__(self):
 
         return len(self.callers)
+    
+    def __iter__(self):
+
+        yield from self.callers.items()
 
 @final
 class BCFTools(VariantCaller):

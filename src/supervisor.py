@@ -34,6 +34,10 @@ def supervisor(params: object):
     # and to get the variant caller object for each variant caller
     callers = VariantCallerRepository()
 
+    # Create a VCF repository
+    # This repository will be used to store the VCF files
+    vcfs = io.VCFRepository()
+
     # Create a variants repository
     # This repository will be used to store the variants and their information
     variants = VariantsRepository(sample=params.sample, rescue=params.rescue, intermediate_results=(params.output if params.intermediate_results else ''))
@@ -73,8 +77,6 @@ def supervisor(params: object):
     logger.success(f"Pileup {params.pileup} has been successfully checked.")
 
     # Check VCFs
-    vcfs: dict = {}
-
     for vcf in params.vcfs:
         
         if len(vcf) == 3:
@@ -95,7 +97,7 @@ def supervisor(params: object):
             raise SystemExit(f"{id} variant caller not supported in --vcf options.")
             
         try:
-            vcfs[id] = {"vcf": io.VCF(path=path, caller=callers.get_VC(id), lazy=True), "index": None}
+            vcfs.add(item=(id, io.VCF(path=path, caller=callers.get_VC(id), lazy=True)))
         except (exceptions.VCFError, exceptions.VariantCallerError) as e:
             if isinstance(e,exceptions.VCFError):
                 logger.error(f"{vcf} is not a valid VCF.")
