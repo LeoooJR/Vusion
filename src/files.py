@@ -291,7 +291,7 @@ class VCF(GenomicFile):
         
         except (IndexError, NotImplementedError):
 
-            raise exceptions.VCFError("Variant allele frequency cannot be extracted.")
+            raise exceptions.VCFError("Variant allele frequency cannot be extracted from the variant record.")
         
         except Exception as e:
 

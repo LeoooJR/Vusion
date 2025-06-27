@@ -49,7 +49,7 @@ class VariantCallerRepository:
 
     """ A class to manage the variant callers """
 
-    __slots__ = ["callers"]
+    __slots__ = ["callers", "plugins"]
 
     # known variant callers are:
     # deepvariant       (DV)
@@ -71,6 +71,8 @@ class VariantCallerRepository:
             "FL": Filt3r(),
             "DV": DeepVariant(),
         }
+
+        self.plugins: dict[str: VariantCaller] = {}
     
     # Get the variant caller by its name
     # If the caller is not supported, raise an error
@@ -171,7 +173,19 @@ class VariantCallerRepository:
         """
 
         return caller in self.callers
+    
+    def is_plugin(self, caller: str) -> bool:
+        """Check if a variant caller is a plugin.
         
+        Args:
+            caller (str): The name of the variant caller to check.
+            
+        Returns:
+            bool: True if the caller is a plugin, False otherwise.
+        """        
+
+        return caller in self.plugins
+    
     def load(self, plugin):
 
         try:
@@ -182,7 +196,11 @@ class VariantCallerRepository:
 
             module = importlib.import_module(plugin.config.params["caller"]["name"], package=str(plugin.package))
 
-            self.callers[plugin.id] = getattr(module, plugin.config.params["caller"]["name"])()
+            caller = getattr(module, plugin.config.params["caller"]["name"])()
+
+            self.callers[plugin.id] = caller
+
+            self.plugins[plugin.id] = caller
 
         except ImportError as e:
 

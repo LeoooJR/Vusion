@@ -1,3 +1,4 @@
+from callers import VariantCaller
 from collections import deque, Counter, namedtuple
 import exceptions as exceptions
 from files import Pileup, FastaIndex
@@ -762,10 +763,17 @@ class VariantsRepository():
 
                                 except exceptions.VCFError as e:
 
-                                    warning: bool = True
+                                    if isinstance(vcfs[caller]["vcf"].caller, VariantCaller):
 
-                                    logger.warning(f"Variant in file {vcfs[caller]["vcf"].get_path()} at position {positions.vcf_position} is not correctly formated.")
-                                    logger.warning(f"Reason: {e}")
+                                        warning: bool = True
+
+                                        logger.warning(f"Variant in file {vcfs[caller]["vcf"].get_path()} at position {positions.vcf_position} is not correctly formated.")
+                                        logger.warning(f"Reason: {e}")
+
+                                    else:
+                                        logger.error(f"Not able to retrieve variant data from provided config parameters.")
+                                        logger.error(f"Reason: {e}")
+                                        raise exceptions.VariantCallerPluginError(f"Not able to retrieve variant data from provided config parameters. Reason: {e}")
 
                                 if not warning:
 

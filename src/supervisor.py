@@ -79,7 +79,7 @@ def supervisor(params: object):
         
         if len(vcf) == 3:
             id, path, yaml = vcf
-            logger.debug(f"YAML config file {yaml} provided for the VCF {id}")
+            logger.debug(f"YAML config file {yaml} provided for the VCF {path}")
             config_file = io.Config(path=yaml, lazy=False)
             try:
                 plugin = io.VariantCallerPlugin(id=id, config=config_file)
@@ -125,7 +125,10 @@ def supervisor(params: object):
     # }
     logger.debug("Collecting all variants.")
     
-    variants.populate(vcfs=vcfs)
+    try:
+        variants.populate(vcfs=vcfs)
+    except exceptions.VariantCallerPluginError as e:
+        raise SystemExit(e)
 
     # ===========================================================================================
     # Process variants with Pileup
