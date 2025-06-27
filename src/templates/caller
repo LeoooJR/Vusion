@@ -34,8 +34,10 @@
             {{ metric }}: {%- if metric == "vaf" -%}float{%- else -%}int{%- endif -%} = {{ render_expression(object["extract"]) }}
         except ZeroDivisionError:
             {{ metric }}: {%- if metric == "vaf" -%}float{%- else -%}int{%- endif -%} = 0
-        {% else %}
+        {% elif object["extract"] is term %}
         {{ metric }}: {%- if metric == "vaf" -%}float{%- else -%}int{%- endif -%} = {{ render_term(object["extract"]) }}
+        {%- else -%}
+        {{ metric }}: {%- if metric == "vaf" -%}float{%- else -%}int{%- endif -%} = object["extract"]
         {% endif %}
         return {{ metric }}
     {%- else -%}
@@ -44,24 +46,30 @@
             forward: int = {{ render_expression(object["forward"]["extract"]) }}
         except ZeroDivisionError:
             forward: int = 0
-        {% else %}
+        {% elif object["forward"]["extract"] is term %}
         forward: int = {{ render_term(object["forward"]["extract"]) }}
+        {%- else -%}
+        forward: int = {{ object["forward"]["extract"] }}
         {% endif %}
         {% if object["reverse"]["extract"] is expression %}
         try:
             reverse: int = {{ render_expression(object["reverse"]["extract"]) }}
         except ZeroDivisionError:
             reverse: int = 0
-        {% else %}
+        {% elif object["reverse"]["extract"] is term %}
         reverse: int = {{ render_term(object["reverse"]["extract"]) }}
+        {% else %}
+        reverse: int = {{ object["reverse"]["extract"] }}
         {% endif %}    
         {% if object["total"]["extract"] is expression %}
         try:
             total: int = {{ render_expression(object["total"]["extract"]) }}
         except ZeroDivisionError:
             total: int = 0
-        {% else %}
+        {% elif object["total"]["extract"] is term %}
         total: int = {{ render_term(object["total"]["extract"]) }}
+        {% else %}
+        total: int = {{ object["total"]["extract"] }}
         {% endif %}   
         return (forward, reverse, total)
     {%- endif -%}

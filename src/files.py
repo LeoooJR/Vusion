@@ -902,8 +902,6 @@ class Config(GenomicFile):
 
             self.params = self.parser.load()
 
-            # print(self.params)
-
         except exceptions.ConfigError as e:
 
             raise SystemExit(e)
@@ -1116,31 +1114,43 @@ class VariantCallerPlugin(GenomicFile):
         
         def is_pourcentage(object: Term) -> bool:
             """Check if the object is a pourcentage."""
-            return object.metadata.unit == '%' if object.metadata else False
+            if object:
+                return object.metadata.unit == '%' if object.metadata else False
+            else:
+                return False
         
-        def is_indexed(object: Term):
+        def is_indexed(object: Term) -> bool:
             """Check if the object is indexed."""
-            return isinstance(object.metadata.index, int) if object.metadata else False
+            if object:
+                return isinstance(object.metadata.index, int) if object.metadata else False
+            else:
+                return False
         
-        def is_in_format(object: Term, format: str):
+        def is_in_format(object: Term, format: str) -> bool:
             """Check if the object is in the format field."""
-            if object.metadata and object.metadata.header:
+            if object:
+                if object.metadata and object.metadata.header:
 
-                return object.metadata.header == "format"
-            
+                    return object.metadata.header == "format"
+                
+                else:
+
+                    return object.field in format
             else:
-
-                return object.field in format
+                return False
             
-        def is_in_infos(object: Term, infos: str):
+        def is_in_infos(object: Term, infos: str) -> bool:
             """Check if the object is in the info field."""
-            if object.metadata and object.metadata.header:
+            if object:
+                if object.metadata and object.metadata.header:
 
-                return object.metadata.header == "info"
-            
+                    return object.metadata.header == "info"
+                
+                else:
+
+                    return object.field in infos
             else:
-
-                return object.field in infos            
+                 return False
         
         logger.debug(f"Rendering python template for {self.config.params["caller"]["name"]}")
 

@@ -294,6 +294,7 @@ class ConfigParser:
                             "required": False,
                             "nullable": True,
                             "default": None,
+                            "coerce": lambda x: x.replace(";", ",")
                         },
                         "format": {
                             "type": "string",
@@ -381,6 +382,7 @@ class ConfigParser:
                             },
                             "required": True,
                             "empty": False,
+                            "nullable": True,
                             "dependencies": "format",
                         },
                         "arc": {
@@ -434,6 +436,7 @@ class ConfigParser:
                             },
                             "required": True,
                             "empty": False,
+                            "nullable": False,
                             "dependencies": "format",
                         },
                     },
@@ -495,11 +498,11 @@ class ConfigParser:
 
             elif field == "info":
 
-                if not re.match(r"^[A-Z]{1,}(;[A-Z]{1,})*$", fdocument["caller"][field]):
+                if not re.match(r"^[A-Z]{1,}(,[A-Z]{1,})*$", fdocument["caller"][field]):
 
                     raise UnexpectedInput("Info value is not consistent with requested format.")
                 
-                formatter.infos = fdocument["caller"][field]
+                formatter.infos = fdocument["caller"][field].split(',')
 
             elif field == "format":
 
@@ -519,15 +522,27 @@ class ConfigParser:
 
             else:
 
-                for subfield in fdocument["caller"][field]:
+                if fdocument["caller"][field]:
 
-                    if fdocument["caller"][field][subfield]["extract"]:
+                    for subfield in ["forward", "reverse", "total"]:
 
-                        ast = self.DSL_PARSER.parse(fdocument["caller"][field][subfield]["extract"])
+                        if subfield in fdocument["caller"][field]:
 
-                        fdocument["caller"][field][subfield]["extract"] = transformer.transform(ast)
+                            if fdocument["caller"][field][subfield]["extract"]:
 
-                        formatter.to_template(visitor.visit_EXPRESSION(fdocument["caller"][field][subfield]["extract"]))
+                                ast = self.DSL_PARSER.parse(fdocument["caller"][field][subfield]["extract"])
+
+                                fdocument["caller"][field][subfield]["extract"] = transformer.transform(ast)
+
+                                formatter.to_template(visitor.visit_EXPRESSION(fdocument["caller"][field][subfield]["extract"]))
+
+                        else:
+
+                            fdocument["caller"][field][subfield] = {"extract": None}
+
+                else:
+
+                    fdocument["caller"][field] = {"forward": {"extract": None}, "reverse": {"extract": None}, "total": {"extract": None}}
 
         return fdocument
     
