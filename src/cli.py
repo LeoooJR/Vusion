@@ -5,7 +5,7 @@ from supervisor import supervisor
 from sys import argv
 import validation
 
-class Program:
+class EntryPoint:
 
     FUNC = {"call": supervisor}
 

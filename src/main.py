@@ -1,13 +1,13 @@
 #!/usr/bin/python3
 
-from cli import Program
+from cli import EntryPoint
 from sys import exit, stderr
 
 def main():
 
     try:
 
-        Program().launch()
+        EntryPoint().launch()
 
     except SystemExit as e:
 
