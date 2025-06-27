@@ -1,4 +1,6 @@
 from callers import VariantCallerRepository
+from console import stdout_console
+from rich.panel import Panel
 import exceptions as exceptions
 import files as io
 from loguru import logger
@@ -189,3 +191,5 @@ def supervisor(params: object):
                   thresholds=params.thresholds)
 
     logger.success(f"VCF file successfully written to {params.output}")
+
+    stdout_console.print(Panel.fit(f"VCF successfully generated at '{params.output}'.", title="Success", highlight=True), style="result")

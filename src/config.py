@@ -1,17 +1,15 @@
 import re
 import cerberus
+from console import stderr_console
 from copy import copy
 from exceptions import ConfigError
 from lark import Lark, Transformer, UnexpectedInput
 from loguru import logger
 import yaml
 from dataclasses import dataclass
+from rich.text import Text
+from rich.panel import Panel
 from typing import List, Union, Optional
-
-try:
-    from icecream import ic
-except ImportError:  # Graceful fallback if IceCream isn't installed.
-    ic = lambda *a: None if not a else (a[0] if len(a) == 1 else a)  # noqa
 
 @dataclass
 class Metadatas:
@@ -553,24 +551,40 @@ class ConfigParser:
         Args:
             errors (dict): Dictionary of validation errors from Cerberus
         """
-        print("\nConfiguration Validation Errors:")
-        print("=" * 40)
         
-        def print_field_errors(field_path, field_errors):
+        error_messages = []
+        
+        def collect_field_errors(field_path, field_errors):
             if isinstance(field_errors, dict):
                 for key, value in field_errors.items():
                     new_path = f"{field_path}.{key}" if field_path else key
-                    print_field_errors(new_path, value)
+                    collect_field_errors(new_path, value)
             else:
-                print(f"\nField: {field_path}")
+                field_display = Text()
+                field_display.append("Field", style="bold red")
+                field_display.append(f" {field_path}", style="yellow")
                 if isinstance(field_errors, list):
                     for error in field_errors:
-                        print(f"  - {error}\n")
+                        field_display.append(f"\n • {error}", style="red")
+                    error_messages.append(field_display)
                 else:
-                    print(f"  - {field_errors}")
+                    error_messages.append(field_display.append(f"\n • {error}", style="red"))
         
-        print_field_errors("", errors)
-        print("\n" + "=" * 40)
+        collect_field_errors("", errors)
+        
+        if error_messages:
+            error_text = Text()
+            for message in error_messages:
+                error_text.append(message)
+            panel = Panel(
+                error_text,
+                title="Configuration Validation Errors",
+                border_style="red",
+                padding=(1, 2)
+            )
+            stderr_console.print(panel)
+        else:
+            stderr_console.print("No specific error details available")
 
     def load(self):
 
@@ -608,13 +622,13 @@ class ConfigParser:
                 
         except cerberus.DocumentError as e:
 
-            logger.error(f"Error with document when validating YAML config file schema {ic.format(e)}")
+            logger.error(f"Error with document when validating YAML config file schema {e}")
 
-            raise ConfigError(f"Error with document when validating YAML config file schema {ic.format(e)}")
+            raise ConfigError(f"Error with document when validating YAML config file schema {e}")
                 
         except UnexpectedInput as e:
 
-            raise ConfigError(f"Value is not consistent with config DSL. {ic.format(e)}")
+            raise ConfigError(f"Value is not consistent with config DSL. {e}")
 
         except Exception as e:
 
@@ -622,6 +636,6 @@ class ConfigParser:
 
                 raise
 
-            logger.error(f"An unexpected error has occurred with YAML config file: {ic.format(e)}")
+            logger.error(f"An unexpected error has occurred with YAML config file: {e}")
 
-            raise ConfigError(f"An unexpected error has occurred with YAML config file: {ic.format(e)}")
+            raise ConfigError(f"An unexpected error has occurred with YAML config file: {e}")

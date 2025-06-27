@@ -1,7 +1,10 @@
 #!/usr/bin/python3
 
 from cli import EntryPoint
-from sys import exit, stderr
+from console import stderr_console
+from rich.panel import Panel
+from rich import box
+from sys import exit
 
 def main():
 
@@ -11,7 +14,7 @@ def main():
 
     except SystemExit as e:
 
-        print(f"Error: {e}", file=stderr)
+        stderr_console.print(Panel.fit(str(e), box=box.ROUNDED, title="Execution error", subtitle="System exit as 1", highlight=True), style="error")
         exit(1)
 
 

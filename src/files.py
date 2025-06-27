@@ -18,11 +18,6 @@ import re
 from repository import Repository
 import utils
 
-try:
-    from icecream import ic
-except ImportError:  # Graceful fallback if IceCream isn't installed.
-    ic = lambda *a: None if not a else (a[0] if len(a) == 1 else a)  # noqa
-
 class GenomicFile:
 
     """Base class for genomic files"""
@@ -208,7 +203,7 @@ class VCF(GenomicFile):
 
             else:
 
-                raise exceptions.VCFError(f"An unexpected error has occurred when validating VCF file: {ic.format(e)}")
+                raise exceptions.VCFError(f"An unexpected error has occurred when validating VCF file: {e}")
 
     @staticmethod
     def convert(a: object) -> object:
@@ -274,7 +269,7 @@ class VCF(GenomicFile):
 
             else:
 
-                raise exceptions.VCFError(f"An unexpected error has occurred when extracting genotype value: {ic.format(e)}")
+                raise exceptions.VCFError(f"An unexpected error has occurred when extracting genotype value: {e}")
 
     def VAF(self, variant: list[str]) -> float:
         """Extract the variant allele frequency from the variant record"""
@@ -301,7 +296,7 @@ class VCF(GenomicFile):
                 raise
 
             else:
-                raise exceptions.VCFError(f"An unexpected error has occurred when extracting VAF: {ic.format(e)}")
+                raise exceptions.VCFError(f"An unexpected error has occurred when extracting VAF: {e}")
 
     def depth(self, variant: list[str]) -> int:
         """Extract the depth from the variant record"""
@@ -331,7 +326,7 @@ class VCF(GenomicFile):
 
             else:
 
-                raise exceptions.VCFError(f"An unexpected error has occurred when extracting depth: {ic.format(e)}")
+                raise exceptions.VCFError(f"An unexpected error has occurred when extracting depth: {e}")
 
     def arc(self, variant: list[str]) -> tuple[float]:
         """Extract the alternate read count from the variant record"""
@@ -360,7 +355,7 @@ class VCF(GenomicFile):
 
             else:
 
-                raise exceptions.VCFError(f"An unexpected error has occurred when extracting ARC: {ic.format(e)}")
+                raise exceptions.VCFError(f"An unexpected error has occurred when extracting ARC: {e}")
         
     def rrc(self, variant: list[str]) -> tuple[float]:
         """Extract the reference read count from the variant record"""
@@ -390,7 +385,7 @@ class VCF(GenomicFile):
 
             else:
 
-                raise exceptions.VCFError(f"An unexpected error has occurred when extracting RRC: {ic.format(e)}")
+                raise exceptions.VCFError(f"An unexpected error has occurred when extracting RRC: {e}")
 
 class VCFRepository(Repository):
 
@@ -714,7 +709,7 @@ class Pileup(GenomicFile):
 
             else:
 
-                raise exceptions.PileupError(f"An unexpected error has occurred when validating Pileup file: {ic.format(e)}")
+                raise exceptions.PileupError(f"An unexpected error has occurred when validating Pileup file: {e}")
 
 class VCFIndex(GenomicFile):
     """Class for VCF index files"""
@@ -875,7 +870,7 @@ class FastaIndex(GenomicFile):
 
             else:
 
-                raise exceptions.FastaIndexError(f"An unexpected error has occurred when validating FASTA index file: {ic.format(e)}")
+                raise exceptions.FastaIndexError(f"An unexpected error has occurred when validating FASTA index file: {e}")
 
 class Config(GenomicFile):
 
