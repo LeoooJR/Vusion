@@ -1,41 +1,47 @@
-class VCFError(ValueError):
+class FileError(Exception):
+    """
+    Exception raised for errors in the file.
+    """
+    pass
+
+class VCFError(FileError):
     """
     Exception raised for errors in the VCF file.
     """
     pass
 
-class FastaIndexError(ValueError):
+class FastaIndexError(FileError):
     """
     Exception raised for errors in the FASTA index file.
     """
     pass
 
-class PileupError(ValueError):
+class PileupError(FileError):
     """
-    Exception raised for errors in the pileup file.
+    Exception raised for errors in the Pileup file.
     """
     pass
 
-class ConfigError(ValueError):
+class ConfigError(FileError):
     """
     Exception raised for errors in the config file.
     """
     pass
    
 
-class VariantCallerError(ValueError):
+class VariantCallerError(Exception):
     """
     Exception raised for errors related to the variant caller.
     """
     pass
 
-class CheckSumFileError(ValueError):
+class CheckSumFileError(FileError):
     """
     Exception raised for errors related to the checksum file.
     """
     pass
 
-class VariantCallerPluginError(ValueError):
+class VariantCallerPluginError(FileError):
     """
     Exception raised for errors related to the variant caller plugin file.
     """

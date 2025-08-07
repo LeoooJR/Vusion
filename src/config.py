@@ -13,21 +13,37 @@ from typing import List, Union, Optional
 
 @dataclass
 class Metadatas:
+    """
+    A class to store metadata.
+    """
+
     header: Optional[str] = None
     index: Optional[int] = None
     unit: Optional[str] = None
 
 @dataclass
 class Term:
+    """
+    A class to store a term.
+    """
+
     field: str
     metadata: Optional[Metadatas] = None
 
 @dataclass
 class Expression:
+    """
+    A class to store an expression.
+    """
+
     terms: List[Union[Term, 'Expression']]
     operator: Optional[str] = None
 
 class TreeToExpression(Transformer):
+    """
+    A class to transform a tree to an expression.
+    """
+
     def STRING(self, token):
         return str(token.value)
     
@@ -267,6 +283,9 @@ class ExpressionTemplate:
         return f"({terms[0]} {expression['operator']} {terms[1]})"
 
 class ConfigParser:
+    """
+    A config file parser.
+    """
 
     SCHEMA = {
                 "caller": {

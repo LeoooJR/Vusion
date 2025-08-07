@@ -28,17 +28,28 @@ class GenomicFile:
         self.path = path
 
     def is_empty(self) -> bool:
-        """Check if file is empty"""
+        """
+        Check if file is empty.
+
+        Returns:
+            bool: True if file is empty, False otherwise.
+        """
 
         return os.path.getsize(self.path) == 0
 
     def is_file(self) -> bool:
-        """Check if path is a file"""
+        """
+        Check if path is a file.
+
+        Returns:
+            bool: True if path is a file, False otherwise.
+        """
 
         return os.path.isfile(self.path)
 
     def get_path(self) -> str:
-        """Get the path of the file.
+        """
+        Get the path of the file.
         
         Returns:
             str: The path of the file.
@@ -47,7 +58,8 @@ class GenomicFile:
         return self.path
     
     def basename(self) -> str:
-        """Get the basename of the file.
+        """
+        Get the basename of the file.
         
         Returns:
             str: The basename of the file.
@@ -56,16 +68,18 @@ class GenomicFile:
         return os.path.basename(self.path)
     
     def informations(self) -> dict:
-        """Get information about the file.
+        """
+        Get information about the file.
         
         Returns:
-            dict: Dictionary containing file information.
+            dict: Dictionary containing file informations.
         """
 
         return utils.file_infos(self.path)
     
     def __str__(self):
-        """String representation of the file.
+        """
+        String representation of the file.
         
         Returns:
             str: The path of the file.
@@ -74,7 +88,8 @@ class GenomicFile:
         return f"{self.path}"
     
     def __repr__(self):
-        """String representation of the file for debugging.
+        """
+        String representation of the file for debugging.
         
         Returns:
             str: The path of the file.
@@ -83,7 +98,8 @@ class GenomicFile:
         return f"{self.path}"
     
     def __hash__(self):
-        """Hash of the file.
+        """
+        Hash of the file.
         
         Returns:
             int: Hash value of the file path.
@@ -93,7 +109,7 @@ class GenomicFile:
 
 class VCF(GenomicFile):
 
-    """Class for VCF files"""
+    """Class representing a VCF file"""
 
     # VCF header
     # 0-based indexed
@@ -132,16 +148,35 @@ class VCF(GenomicFile):
 
     @property
     def header(self):
-        """Get the header of the VCF file"""
+        """
+        Get the header of the VCF file.
+
+        Returns:
+            dict: The header of the VCF file.
+        """
 
         return getattr(self, "HEADER", None)
     
     def is_compliant(self, record: list[str]):
-        """Check if the record is compliant with the VCF format of the caller"""
+        """
+        Check if the record is compliant with the VCF format of the caller.
+
+        Args:
+            record (list[str]): The record to check.
+
+        Returns:
+            bool: True if the record is compliant, False otherwise.
+        """
 
         return (len(record) >= 10 and self.caller.is_compliant(record, self.HEADER))
 
     def parse(self):
+        """
+        Parse the VCF file.
+
+        Yields:
+            str: A record of the VCF file.
+        """
 
         with open(self.path, "r") as vcf:
 
@@ -150,7 +185,12 @@ class VCF(GenomicFile):
                 yield record
 
     def verify(self):
-        """Check if the VCF file is valid"""
+        """
+        Check if the VCF file is valid.
+
+        Raises:
+            exceptions.VCFError: If the VCF file is not valid.
+        """
 
         # Check if the file exists
         if not self.is_file():
@@ -207,7 +247,16 @@ class VCF(GenomicFile):
 
     @staticmethod
     def convert(a: object) -> object:
-        """Convert variable to appropriate type"""
+        """
+        Convert variable to appropriate type.
+
+        Args:
+            a (object): The variable to convert.
+
+        Returns:
+            object: The converted variable.
+        """
+
         try:
             # If the variable contains a '/' or '|' character, it is a genotype information, return the variable as is
             # Else return the variable as an evaluated expression
@@ -219,7 +268,15 @@ class VCF(GenomicFile):
             return a
 
     def format_to_values(self, values: list[str]) -> dict:
-        """map FORMAT string to respective SAMPLE values"""
+        """
+        Map FORMAT string to respective SAMPLE values.
+
+        Args:
+            values (list[str]): The values to map.
+
+        Returns:
+            dict: The mapped values.
+        """
 
         # Split the values string into a list of fields
         values: list[str] = values.split(":")
@@ -227,7 +284,8 @@ class VCF(GenomicFile):
         return {f: VCF.convert(v) for f, v in zip(self.caller.FORMAT, values)}
 
     def info_to_values(self, values: str) -> dict:
-        """Convert INFO field string to dictionary of key-value pairs.
+        """
+        Convert INFO field string to dictionary of key-value pairs.
         
         Args:
             values (str): INFO field string from VCF record.
@@ -241,7 +299,15 @@ class VCF(GenomicFile):
         return {k: v for k, v in infos}
     
     def genotype(self, variant: list[str]) -> str:
-        """Extract the genotype from the variant record"""
+        """
+        Extract the genotype from the variant record.
+
+        Args:
+            variant (list[str]): The variant record.
+
+        Returns:
+            str: The genotype of the variant.
+        """
 
         try:
             # Call the genotype method from the caller
@@ -272,7 +338,15 @@ class VCF(GenomicFile):
                 raise exceptions.VCFError(f"An unexpected error has occurred when extracting genotype value: {e}")
 
     def VAF(self, variant: list[str]) -> float:
-        """Extract the variant allele frequency from the variant record"""
+        """
+        Extract the variant allele frequency from the variant record.
+
+        Args:
+            variant (list[str]): The variant record.
+
+        Returns:
+            float: The variant allele frequency.
+        """
 
         try: 
             # Call the VAF method from the caller
@@ -299,7 +373,15 @@ class VCF(GenomicFile):
                 raise exceptions.VCFError(f"An unexpected error has occurred when extracting VAF: {e}")
 
     def depth(self, variant: list[str]) -> int:
-        """Extract the depth from the variant record"""
+        """
+        Extract the depth from the variant record.
+
+        Args:
+            variant (list[str]): The variant record.
+
+        Returns:
+            int: The depth of the variant.
+        """
 
         try:
 
@@ -329,7 +411,15 @@ class VCF(GenomicFile):
                 raise exceptions.VCFError(f"An unexpected error has occurred when extracting depth: {e}")
 
     def arc(self, variant: list[str]) -> tuple[float]:
-        """Extract the alternate read count from the variant record"""
+        """
+        Extract the alternate read count from the variant record.
+
+        Args:
+            variant (list[str]): The variant record.
+
+        Returns:
+            tuple[float]: The alternate read count of the variant.
+        """
 
         try:
             # Call the arc method from the caller
@@ -358,7 +448,15 @@ class VCF(GenomicFile):
                 raise exceptions.VCFError(f"An unexpected error has occurred when extracting ARC: {e}")
         
     def rrc(self, variant: list[str]) -> tuple[float]:
-        """Extract the reference read count from the variant record"""
+        """
+        Extract the reference read count from the variant record.
+
+        Args:
+            variant (list[str]): The variant record.
+
+        Returns:
+            tuple[float]: The reference read count of the variant.
+        """
 
         try:
 
@@ -389,6 +487,8 @@ class VCF(GenomicFile):
 
 class VCFRepository(Repository):
 
+    """A repository of VCF files"""
+
     def __init__(self):
         
         self.repository: dict = {}
@@ -413,7 +513,7 @@ class VCFRepository(Repository):
 
 class Pileup(GenomicFile):
 
-    """Class for pileup files"""
+    """Class representing a pileup file"""
 
     # Header of the formated pileup
     # 0-based indexed
@@ -712,7 +812,8 @@ class Pileup(GenomicFile):
                 raise exceptions.PileupError(f"An unexpected error has occurred when validating Pileup file: {e}")
 
 class VCFIndex(GenomicFile):
-    """Class for VCF index files"""
+
+    """Class representing a VCF index file"""
 
     def __init__(self, path: str, lazy: bool = True):
         
@@ -726,6 +827,8 @@ class VCFIndex(GenomicFile):
 
 
 class FastaIndex(GenomicFile):
+
+    """Class representing a Fasta index file"""
 
     def __init__(self, path: str, lazy: bool = True):
 
@@ -927,7 +1030,7 @@ class Config(GenomicFile):
             raise SystemExit(e)
 
 class VariantCallerPlugin(GenomicFile):
-    """Class for variant caller plugins"""
+    """A variant caller plugin"""
 
     # Maximum size of plugin in MB
     MAX_SIZE = 0.01
@@ -1221,7 +1324,7 @@ class VariantCallerPlugin(GenomicFile):
             sumfile.write(f"{self.config.params["caller"]["name"]}.yaml\t{self.config_hash}\n")
 
 class CheckSumFile:
-    """Class for checksum files"""
+    """A checksum file"""
 
     def verify(self):
         """Verify the checksum file."""
@@ -1246,6 +1349,9 @@ class CheckSumFile:
         pass
 
 class GenomicReader:
+    """
+    A class to read genomic files.
+    """
 
     def __init__(self, process: int = 0):
         """Initialize a GenomicReader object.
@@ -1294,6 +1400,8 @@ class GenomicReader:
 
 
 class GenomicWritter:
+
+    """A class to write genomic files."""
 
     def __init__(self, process: int = 0):
         """Initialize a GenomicWritter object.

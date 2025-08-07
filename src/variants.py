@@ -15,7 +15,7 @@ import utils as functions
 
 class VariantsRepository():
 
-    """A class to store variants and their information."""
+    """A class to store variants and their informations."""
 
     def __init__(self, sample: str, pileup: Pileup = None, fai: FastaIndex = None, rescue: bool = False, intermediate_results: str = ''):
 

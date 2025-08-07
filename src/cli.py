@@ -6,19 +6,29 @@ from sys import argv
 import validation
 
 class EntryPoint:
+    """
+    Entry point for the program.
+    
+    This class is responsible for parsing the command line arguments and launching the program.
+    """
 
     FUNC = {"call": supervisor}
 
     def __init__(self):
 
+        # Create the parser for the command line arguments
         self.parser = ArgumentParser(prog="Vusion", 
                                      description="Combine multiple VCF files.")
+        
+        # Add the version argument
         self.parser.add_argument(
             "-v",
             "--version",
             action="version",
             version=f"Vusion v{__version__}",
         )
+
+        # Add the reference argument
         self.parser.add_argument(
             "-r",
             "--reference",
@@ -28,6 +38,8 @@ class EntryPoint:
             required=True,
             help="Path to reference genome fasta index file (.fai)"
         )
+
+        # Add the output argument
         self.parser.add_argument(
             "-o",
             "--output",
@@ -37,6 +49,8 @@ class EntryPoint:
             required=True,
             help="Path to the output directory",
         )
+
+        # Add the VCF argument
         self.parser.add_argument(
             "-V",
             "--vcf",
@@ -51,6 +65,8 @@ class EntryPoint:
                   control & hotspot (CS & HS). \
                   Provide a YAML file path for non-integrated variant callers.",
         )
+
+        # Add the pileup argument
         self.parser.add_argument(
             "-p",
             "--pileup",
@@ -60,6 +76,8 @@ class EntryPoint:
             metavar="PILEUP",
             help="Path to pileup processed mpileup data file",
         )
+
+        # Add the sample argument
         self.parser.add_argument(
             "-s",
             "--sample",
@@ -69,6 +87,8 @@ class EntryPoint:
             required=True,
             help="The sample identifier as specified in both bam and vcf files",
         )
+
+        # Add the thresholds argument
         self.parser.add_argument(
             "-t",
             "--thresholds",
@@ -80,6 +100,8 @@ class EntryPoint:
             action=validation.ValidateThresholdsAction,
             help="Threshold used for variant categorization in VCF callsets",
         )
+
+        # Add the disable strand bias argument
         self.parser.add_argument(
             "--disable-strand-bias",
             action="store_true",
@@ -88,6 +110,8 @@ class EntryPoint:
             required=False,
             help="Disable strand bias based filtering of variants",
         )
+
+        # Add the rescue argument
         self.parser.add_argument(
             "-R",
             "--rescue",
@@ -96,6 +120,8 @@ class EntryPoint:
             required=False,
             help="Rescue rejected calls",
         )
+
+        # Add the hotspot argument
         self.parser.add_argument(
             "-H",
             "--hotspot",
@@ -104,6 +130,8 @@ class EntryPoint:
             required=False,
             help="Combine two combined callsets; One originated from a hotspot feature list",
         )
+
+        # Add the length indels argument
         self.parser.add_argument(
             "-l",
             "--length-indels",
@@ -116,6 +144,8 @@ class EntryPoint:
                   Variants below this value are considered false positives. \
                   By default, minimum length is set to 1",
         )
+
+        # Add the sbm homozygous argument
         self.parser.add_argument(
             "--sbm-homozygous",
             dest="sbm_homozygous",
@@ -127,6 +157,8 @@ class EntryPoint:
                 By default, a strand bias is considered present if there is a 2/3 imbalance \
                 of reads on one strand and 1/3 on the other.",
         )
+
+        # Add the intermediate results argument
         self.parser.add_argument(
             "--intermediate-results",
             action="store_true",
@@ -135,6 +167,8 @@ class EntryPoint:
             required=False,
             help="Should intermediate results be saved."
         )
+
+        # Add the debug argument
         self.parser.add_argument(
             "-d",
             "--debug",
@@ -144,17 +178,21 @@ class EntryPoint:
             default=False,
         )
 
+        # Set the default function to call
         self.parser.set_defaults(func=self.FUNC["call"])
 
     def launch(self) -> int:
-        """Launch the program with command line arguments.
+        """
+        Launch the program with command line arguments.
         
         Returns:
             int: Exit code of the program.
         """
 
+        # Parse the command line arguments
         cmd = self.parser.parse_args(argv[1:])
-
+        
+        # Remove the default handler
         logger.remove(0)
 
         # Should the log be saved in a file ?
@@ -165,7 +203,8 @@ class EntryPoint:
         return cmd.func(params=cmd)
     
     def __str__(self):
-        """String representation of the program.
+        """
+        String representation of the program.
         
         Returns:
             str: The name of the program.
@@ -174,7 +213,8 @@ class EntryPoint:
         return "Vusion"
 
     def __repr__(self):
-        """String representation of the program for debugging.
+        """
+        String representation of the program for debugging.
         
         Returns:
             str: The name of the program.
