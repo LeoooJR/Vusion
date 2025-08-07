@@ -9,3 +9,4 @@ sortedcontainers==2.4.0
 lark==1.2.2
 pytest==8.4.0
 autopep8==2.3.2
+rich==14.1.0
