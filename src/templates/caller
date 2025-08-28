@@ -1,0 +1,178 @@
+{%- macro render_term(term) -%}
+    {%- if term is pourcentage -%}
+        {%- if term is in_format(format) -%}
+            float((variant[header["SAMPLE"]].split(":")[{{ name }}.FORMAT.{{ term.field }}.value]){%- if term is indexed -%}.split(',')[{{ term.metadata.index }}]{%- endif -%}.rstrip('%')) / 100
+        {%- else -%}
+            float((variant[header["INFO"]].split(';')[{{ name }}.INFOS.{{ term.field }}.value].split('=')[-1]){%- if term is indexed -%}.split(',')[{{ term.metadata.index }}]{%- endif -%}.rstrip('%')) / 100
+        {%- endif -%}
+    {%- else -%}
+        {%- if term is in_format(format) -%}
+            float((variant[header["SAMPLE"]].split(':')[{{ name }}.FORMAT.{{ term.field }}.value]){%- if term is indexed -%}.split(',')[{{ term.metadata.index }}]{%- endif -%})
+        {%- else -%}
+            float((variant[header["INFO"]].split(';')[{{ name }}.INFOS.{{ term.field }}.value].split('=')[-1]){%- if term is indexed -%}.split(',')[{{ term.metadata.index }}]{%- endif -%})
+        {%- endif -%}
+    {%- endif -%}
+{%- endmacro -%}
+{%- macro render_expression(object) -%}
+    {%- if object is term -%}
+        {%- if object.field is expression -%}
+            {{ render_expression(object.field) }}
+        {%- else -%}
+            {{ render_term(term=object) }}
+        {%- endif -%}
+    {%- else -%}
+        ( {{ render_expression(object.terms[0]) }} {{ object.operator }} {{ render_expression(object.terms[1]) }} )
+    {%- endif -%}
+{%- endmacro -%}
+{%- macro to_python(metric, object) -%}
+    {%- if metric == "genotype" -%}
+        gt: str = variant[header["SAMPLE"]].split(':')[{{ name }}.FORMAT.{{ object["extract"].field }}.value]
+        return gt
+    {%- elif metric == "vaf" or metric == "depth" -%}
+        {% if object["extract"] is expression %}
+        try:
+            {{ metric }}: {%- if metric == "vaf" -%}float{%- else -%}int{%- endif -%} = {{ render_expression(object["extract"]) }}
+        except ZeroDivisionError:
+            {{ metric }}: {%- if metric == "vaf" -%}float{%- else -%}int{%- endif -%} = 0
+        {% elif object["extract"] is term %}
+        {{ metric }}: {%- if metric == "vaf" -%}float{%- else -%}int{%- endif -%} = {{ render_term(object["extract"]) }}
+        {%- else -%}
+        {{ metric }}: {%- if metric == "vaf" -%}float{%- else -%}int{%- endif -%} = object["extract"]
+        {% endif %}
+        return {{ metric }}
+    {%- else -%}
+        {% if object["forward"]["extract"] is expression %}
+        try:
+            forward: int = {{ render_expression(object["forward"]["extract"]) }}
+        except ZeroDivisionError:
+            forward: int = 0
+        {% elif object["forward"]["extract"] is term %}
+        forward: int = {{ render_term(object["forward"]["extract"]) }}
+        {%- else -%}
+        forward: int = {{ object["forward"]["extract"] }}
+        {% endif %}
+        {% if object["reverse"]["extract"] is expression %}
+        try:
+            reverse: int = {{ render_expression(object["reverse"]["extract"]) }}
+        except ZeroDivisionError:
+            reverse: int = 0
+        {% elif object["reverse"]["extract"] is term %}
+        reverse: int = {{ render_term(object["reverse"]["extract"]) }}
+        {% else %}
+        reverse: int = {{ object["reverse"]["extract"] }}
+        {% endif %}    
+        {% if object["total"]["extract"] is expression %}
+        try:
+            total: int = {{ render_expression(object["total"]["extract"]) }}
+        except ZeroDivisionError:
+            total: int = 0
+        {% elif object["total"]["extract"] is term %}
+        total: int = {{ render_term(object["total"]["extract"]) }}
+        {% else %}
+        total: int = {{ object["total"]["extract"] }}
+        {% endif %}   
+        return (forward, reverse, total)
+    {%- endif -%}
+{%- endmacro -%}
+from abc import ABC, abstractmethod
+import enum
+from typing import final
+
+class VariantGenericCaller(ABC):
+
+    """ Abstract class for variant callers """
+    
+    @staticmethod
+    @abstractmethod
+    def genotype(variant: list[str], header: dict[str:int]) -> str:
+        """Extract the genotype from the variant."""
+        pass
+
+    @staticmethod
+    @abstractmethod
+    def VAF(variant: list[str], header: dict[str:int]) -> float:
+        """Calculate the variant allele frequency (VAF)."""
+        pass
+
+    @staticmethod
+    @abstractmethod
+    def depth(variant: list[str], header: dict[int]) -> int:
+        """Extract the depth of the variant."""
+        pass
+
+    @staticmethod
+    @abstractmethod
+    def rrc(variant: list[str], header: dict[str:int]) -> tuple[int]:
+        """Extract the reference allele counts."""
+        pass
+
+    @staticmethod
+    @abstractmethod
+    def arc(variant: list[str], header: dict[str:int]) -> tuple[int]:
+        """Extract the alternate allele counts."""
+        pass
+
+@final
+class {{ name }}(VariantGenericCaller):
+
+    # {{ name }} FORMAT
+    FORMAT = enum.IntEnum(value="FORMAT",
+                          names="{{ format }}",
+                          start=0)
+    
+    # {{ name }} INFOS
+    INFOS = enum.IntEnum(value="INFOS",
+                         names="{{ info }}",
+                         start=0)
+
+    def __init__(self):
+
+        super().__init__()
+
+    # Check if the variant is compliant with the {{ name }} format.
+    # Ensure the metrics can be later extracted.
+    def is_compliant(self, variant: list[str], header: dict[str:int]):
+
+        return len(variant[header["SAMPLE"]]) and (
+            variant[header["FORMAT"]].split(':') == [key.name for key in self.FORMAT]) and (
+            len(variant[header["SAMPLE"]].split(':')) == len(self.FORMAT)
+        )
+
+    # Extract the genotype from the variant
+    @staticmethod
+    def genotype(variant: list[str], header: dict[str:int]) -> str:
+
+        {{ to_python(metric="genotype", object=genotype) }}
+
+    # Calculate the variant allele frequency (VAF)
+    # The VAF is the depth of the variant allele divided by the total depth
+    @staticmethod
+    def VAF(variant: list[str], header: dict[str:int]) -> float:
+
+        {{ to_python(metric="vaf", object=vaf) }}
+
+    # Extract the depth of the variant
+    @staticmethod
+    def depth(variant: list[str], header: dict[str:int]) -> int:
+
+        {{ to_python(metric="depth", object=depth) }}
+        
+    # Extract the reference allele counts        
+    @staticmethod
+    def rrc(variant: list[str], header: dict[str:int]) -> tuple[int]:
+
+        {{ to_python(metric="rrc", object=rrc) }}
+
+    # Extract the alternate allele counts        
+    @staticmethod
+    def arc(variant: list[str], header: dict[str:int]) -> tuple[int]:
+
+        {{ to_python(metric="arc", object=arc) }}
+        
+    def __str__(self):
+        
+        return "{{ name }}"
+    
+    def __repr__(self):
+        
+        return "{{ name }}"
