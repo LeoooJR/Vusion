@@ -1,14 +1,17 @@
-from __init__ import __version__
 from argparse import ArgumentParser
-from loguru import logger
-from supervisor import supervisor
 from sys import argv
+
+from loguru import logger
+
 import validation
+from __init__ import __version__
+from supervisor import supervisor
+
 
 class EntryPoint:
     """
     Entry point for the program.
-    
+
     This class is responsible for parsing the command line arguments and launching the program.
     """
 
@@ -17,9 +20,10 @@ class EntryPoint:
     def __init__(self):
 
         # Create the parser for the command line arguments
-        self.parser = ArgumentParser(prog="Vusion", 
-                                     description="Combine multiple VCF files.")
-        
+        self.parser = ArgumentParser(
+            prog="Vusion", description="Combine multiple VCF files."
+        )
+
         # Add the version argument
         self.parser.add_argument(
             "-v",
@@ -36,7 +40,7 @@ class EntryPoint:
             dest="reference",
             metavar="FAI",
             required=True,
-            help="Path to reference genome fasta index file (.fai)"
+            help="Path to reference genome fasta index file (.fai)",
         )
 
         # Add the output argument
@@ -165,7 +169,7 @@ class EntryPoint:
             dest="intermediate_results",
             default=False,
             required=False,
-            help="Should intermediate results be saved."
+            help="Should intermediate results be saved.",
         )
 
         # Add the debug argument
@@ -184,14 +188,14 @@ class EntryPoint:
     def launch(self) -> int:
         """
         Launch the program with command line arguments.
-        
+
         Returns:
             int: Exit code of the program.
         """
 
         # Parse the command line arguments
         cmd = self.parser.parse_args(argv[1:])
-        
+
         # Remove the default handler
         logger.remove(0)
 
@@ -201,11 +205,11 @@ class EntryPoint:
             logger.add("vusion.log")
 
         return cmd.func(params=cmd)
-    
+
     def __str__(self):
         """
         String representation of the program.
-        
+
         Returns:
             str: The name of the program.
         """
@@ -215,9 +219,9 @@ class EntryPoint:
     def __repr__(self):
         """
         String representation of the program for debugging.
-        
+
         Returns:
             str: The name of the program.
         """
-        
+
         return "Vusion"

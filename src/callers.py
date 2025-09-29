@@ -1,16 +1,18 @@
-from abc import ABC, abstractmethod
 import enum
-import exceptions as exceptions
 import importlib
-from loguru import logger
-from repository import Repository
 import sys
+from abc import ABC, abstractmethod
 from typing import final
 
-class VariantCaller(ABC):
+from loguru import logger
 
-    """ Abstract class for variant callers """
-    
+import exceptions as exceptions
+from repository import Repository
+
+
+class VariantCaller(ABC):
+    """Abstract class for variant callers"""
+
     @staticmethod
     @abstractmethod
     def genotype(variant: list[str], header: dict[str:int]) -> str:
@@ -41,9 +43,9 @@ class VariantCaller(ABC):
         """Extract the alternate allele counts."""
         pass
 
-class VariantCallerRepository(Repository):
 
-    """ A class to manage the variant callers """
+class VariantCallerRepository(Repository):
+    """A class to manage the variant callers"""
 
     __slots__ = ["callers", "plugins"]
 
@@ -58,7 +60,7 @@ class VariantCallerRepository(Repository):
     def __init__(self):
 
         # Initialize the built-in supported variant callers
-        self.callers: dict[str: VariantCaller] = {
+        self.callers: dict[str:VariantCaller] = {
             "BT": BCFTools(),
             "VS": Varscan(),
             "VD": Vardict(),
@@ -68,20 +70,20 @@ class VariantCallerRepository(Repository):
             "DV": DeepVariant(),
         }
         # Save the plugins in a dictionary
-        self.plugins: dict[str: VariantCaller] = {}
-    
+        self.plugins: dict[str:VariantCaller] = {}
+
     # Get the variant caller by its name
     # If the caller is not supported, raise a VariantCallerError exception
     def get_VC(self, caller: str) -> VariantCaller:
         """
         Get a variant caller by its name.
-        
+
         Args:
             caller (str): The name of the variant caller.
-            
+
         Returns:
             VariantCaller: The variant caller instance.
-            
+
         Raises:
             VariantCallerError: If the caller is not supported.
         """
@@ -96,12 +98,14 @@ class VariantCallerRepository(Repository):
         except KeyError:
 
             # Raise a VariantCallerError exception if the caller is not supported
-            raise exceptions.VariantCallerError(f"Variant Caller not supported: {caller}")
+            raise exceptions.VariantCallerError(
+                f"Variant Caller not supported: {caller}"
+            )
 
     def get_BT(self) -> VariantCaller:
         """
         Get the BCFTools variant caller.
-        
+
         Returns:
             VariantCaller: The BCFTools variant caller instance.
         """
@@ -111,7 +115,7 @@ class VariantCallerRepository(Repository):
     def get_VS(self) -> VariantCaller:
         """
         Get the Varscan variant caller.
-        
+
         Returns:
             VariantCaller: The Varscan variant caller instance.
         """
@@ -121,7 +125,7 @@ class VariantCallerRepository(Repository):
     def get_VD(self) -> VariantCaller:
         """
         Get the Vardict variant caller.
-        
+
         Returns:
             VariantCaller: The Vardict variant caller instance.
         """
@@ -131,7 +135,7 @@ class VariantCallerRepository(Repository):
     def get_PL(self) -> VariantCaller:
         """
         Get the Pindel variant caller.
-        
+
         Returns:
             VariantCaller: The Pindel variant caller instance.
         """
@@ -141,7 +145,7 @@ class VariantCallerRepository(Repository):
     def get_HS(self) -> VariantCaller:
         """
         Get the Haplotypecaller variant caller.
-        
+
         Returns:
             VariantCaller: The Haplotypecaller variant caller instance.
         """
@@ -151,7 +155,7 @@ class VariantCallerRepository(Repository):
     def get_FL(self) -> VariantCaller:
         """
         Get the Filt3r variant caller.
-        
+
         Returns:
             VariantCaller: The Filt3r variant caller instance.
         """
@@ -161,7 +165,7 @@ class VariantCallerRepository(Repository):
     def get_DV(self) -> VariantCaller:
         """
         Get the DeepVariant caller.
-        
+
         Returns:
             VariantCaller: The DeepVariant caller instance.
         """
@@ -171,29 +175,29 @@ class VariantCallerRepository(Repository):
     def is_supported(self, caller: str) -> bool:
         """
         Check if a variant caller is supported.
-        
+
         Args:
             caller (str): The name of the variant caller to check.
-            
+
         Returns:
             bool: True if the caller is supported, False otherwise.
         """
 
         return caller.upper() in self.callers
-    
+
     def is_plugin(self, caller: str) -> bool:
         """
         Check if a variant caller is a plugin.
-        
+
         Args:
             caller (str): The name of the variant caller to check.
-            
+
         Returns:
             bool: True if the caller is a plugin, False otherwise.
-        """        
+        """
 
         return caller.upper() in self.plugins
-    
+
     def load(self, plugin: object):
         """
         Load a variant caller plugin.
@@ -211,7 +215,9 @@ class VariantCallerRepository(Repository):
                 sys.path.append(str(plugin.package))
 
             # Import the module
-            module = importlib.import_module(plugin.config.params["caller"]["name"], package=str(plugin.package))
+            module = importlib.import_module(
+                plugin.config.params["caller"]["name"], package=str(plugin.package)
+            )
 
             # Get the variant caller class
             caller = getattr(module, plugin.config.params["caller"]["name"])()
@@ -237,7 +243,7 @@ class VariantCallerRepository(Repository):
             logger.error(e)
 
             raise exceptions.VariantCallerPluginError(e)
-        
+
         # Catch other exceptions
         except Exception as e:
 
@@ -251,12 +257,14 @@ class VariantCallerRepository(Repository):
             else:
 
                 # Raise a VariantCallerPluginError exception
-                raise exceptions.VariantCallerPluginError(f"An unexpected error has occurred when loading variant caller plugin: {e}")
-            
+                raise exceptions.VariantCallerPluginError(
+                    f"An unexpected error has occurred when loading variant caller plugin: {e}"
+                )
+
     def populate(self, callers: list):
         """
         Populate the repository with variant callers.
-        
+
         Args:
             callers (list): The list of variant callers to add.
         """
@@ -266,7 +274,7 @@ class VariantCallerRepository(Repository):
 
             # Add the variant caller to the repository
             self.add(caller)
-            
+
     def add(self, caller: object):
         """
         Add a variant caller to the repository.
@@ -274,13 +282,13 @@ class VariantCallerRepository(Repository):
         Args:
             caller (object): The variant caller to add.
         """
-        
+
         try:
-                            
+
             self.load(caller)
 
         except Exception:
-            
+
             caller.remove()
 
             raise
@@ -298,14 +306,14 @@ class VariantCallerRepository(Repository):
 
         # Remove the variant caller from the callers
         self.callers.pop(caller.id)
-    
+
     def __len__(self):
         """
         Return the number of variant callers in the repository.
         """
 
         return len(self.callers)
-    
+
     def __iter__(self):
         """
         Iterate over the variant callers in the repository.
@@ -313,42 +321,41 @@ class VariantCallerRepository(Repository):
 
         yield from self.callers.items()
 
+
 @final
 class BCFTools(VariantCaller):
-
-    """ A class to manage the BCFtools variant caller """
+    """A class to manage the BCFtools variant caller"""
 
     # Set the FORMAT field keys as an enum
-    FORMAT = enum.IntEnum(value="FORMAT",
-                          names=','.join(["GT", "PL"]),
-                          start=0)
+    FORMAT = enum.IntEnum(value="FORMAT", names=",".join(["GT", "PL"]), start=0)
 
     # Ensure the metrics can be later extracted.
     def is_compliant(self, variant: list[str], header: dict[str:int]):
         """
         Check if the variant is compliant with the BCFtools format.
-        
+
         Args:
             variant (list[str]): The variant to check.
             header (dict[str:int]): The header of the variant.
-            
+
         Returns:
             bool: True if the variant is compliant, False otherwise.
         """
-        
+
         return (
-            len(variant[header["SAMPLE"]]) and (
-            variant[header["FORMAT"]].split(':') == [key.name for key in self.FORMAT]            
-            ) and (len(variant[header["SAMPLE"]].split(':')) == len(self.FORMAT))
-        ) and (
-            len(variant[header["INFO"]]) and any(
-            list(
-                map(
-                    lambda x: f"{x}=" in variant[header["INFO"]], ["DP", "DP4"]
-                )
+            len(variant[header["SAMPLE"]])
+            and (
+                variant[header["FORMAT"]].split(":")
+                == [key.name for key in self.FORMAT]
             )
-        ))
-    
+            and (len(variant[header["SAMPLE"]].split(":")) == len(self.FORMAT))
+        ) and (
+            len(variant[header["INFO"]])
+            and any(
+                list(map(lambda x: f"{x}=" in variant[header["INFO"]], ["DP", "DP4"]))
+            )
+        )
+
     @staticmethod
     def genotype(variant: list[str], header: dict[str:int]) -> str:
         """
@@ -359,7 +366,7 @@ class BCFTools(VariantCaller):
             header (dict[str:int]): The header of the VCF file.
         """
 
-        return variant[header["SAMPLE"]].split(':')[BCFTools.FORMAT.GT.value]
+        return variant[header["SAMPLE"]].split(":")[BCFTools.FORMAT.GT.value]
 
     @staticmethod
     def VAF(variant: list[str], header: dict[str:int]) -> float:
@@ -371,13 +378,9 @@ class BCFTools(VariantCaller):
             header (dict[str:int]): The header of the VCF file.
         """
 
-        total_depth: int = int(
-            variant[header["INFO"]].split("DP=")[1].split(";")[0]
-        )
+        total_depth: int = int(variant[header["INFO"]].split("DP=")[1].split(";")[0])
 
-        alleles_depth: int = (
-            variant[header["INFO"]].split("DP4=")[1].split(";")[0]
-        )
+        alleles_depth: int = variant[header["INFO"]].split("DP4=")[1].split(";")[0]
 
         variant_depth: int = int(alleles_depth.split(",")[2]) + int(
             alleles_depth.split(",")[3]
@@ -446,7 +449,7 @@ class BCFTools(VariantCaller):
         """
 
         return "BCFTools"
-    
+
     def __repr__(self):
         """
         Return the string representation of the variant caller.
@@ -454,54 +457,64 @@ class BCFTools(VariantCaller):
 
         return "BCFTools"
 
+
 @final
 class Varscan(VariantCaller):
-
-    """ A class to manage the Varscan variant caller """
+    """A class to manage the Varscan variant caller"""
 
     # Set the FORMAT field keys as an enum
-    FORMAT = enum.IntEnum(value="FORMAT",
-                          names=','.join(["GT",
-                          "GQ",
-                          "SDP",
-                          "DP",
-                          "RD",
-                          "AD",
-                          "FREQ",
-                          "PVAL",
-                          "RBQ",
-                          "ABQ",
-                          "RDF",
-                          "RDR",
-                          "ADF",
-                          "ADR",
-                          ]),
-                          start=0)
+    FORMAT = enum.IntEnum(
+        value="FORMAT",
+        names=",".join(
+            [
+                "GT",
+                "GQ",
+                "SDP",
+                "DP",
+                "RD",
+                "AD",
+                "FREQ",
+                "PVAL",
+                "RBQ",
+                "ABQ",
+                "RDF",
+                "RDR",
+                "ADF",
+                "ADR",
+            ]
+        ),
+        start=0,
+    )
 
     # Ensure the metrics can be later extracted.
     def is_compliant(self, variant: list[str], header: dict[str:int]):
         """
         Check if the variant is compliant with the Varscan format.
-        
+
         Args:
             variant (list[str]): The variant to check.
             header (dict[str:int]): The header of the VCF file.
-            
+
         Returns:
             bool: True if the variant is compliant, False otherwise.
         """
 
-        return len(variant[header["SAMPLE"]]) and (
-            variant[header["FORMAT"]].split(':') == [key.name for key in self.FORMAT]            
-        ) and (len(variant[header["SAMPLE"]].split(':')) == len(self.FORMAT))
-    
+        return (
+            len(variant[header["SAMPLE"]])
+            and (
+                variant[header["FORMAT"]].split(":")
+                == [key.name for key in self.FORMAT]
+            )
+            and (len(variant[header["SAMPLE"]].split(":")) == len(self.FORMAT))
+        )
+
     @staticmethod
     def genotype(variant: list[str], header: dict[str:int]) -> str:
         """
         Get the genotype of the variant.
         """
 
-        return variant[header["SAMPLE"]].split(':')[Varscan.FORMAT.GT.value]
+        return variant[header["SAMPLE"]].split(":")[Varscan.FORMAT.GT.value]
 
     @staticmethod
     def VAF(variant: list[str], header: dict[str:int]) -> float:
@@ -510,7 +523,12 @@ class Varscan(VariantCaller):
         """
 
         vaf = (
-            float((variant[header["SAMPLE"]].split(":")[Varscan.FORMAT.FREQ.value]).rstrip('%')) / 100
+            float(
+                (
+                    variant[header["SAMPLE"]].split(":")[Varscan.FORMAT.FREQ.value]
+                ).rstrip("%")
+            )
+            / 100
         )
 
         return vaf
@@ -557,7 +575,7 @@ class Varscan(VariantCaller):
         """
 
         return "Varscan"
-    
+
     def __repr__(self):
         """
         Return the string representation of the variant caller.
@@ -565,45 +583,47 @@ class Varscan(VariantCaller):
 
         return "Varscan"
 
+
 @final
 class Vardict(VariantCaller):
-
-    """ A class to manage the Vardict variant caller """
+    """A class to manage the Vardict variant caller"""
 
     # Set the FORMAT field keys as an enum
-    FORMAT = enum.IntEnum(value="FORMAT",
-                          names=','.join(["GT", "DP", "VD", "AD", "AF", "RD", "ALD"]),
-                          start=0)
+    FORMAT = enum.IntEnum(
+        value="FORMAT",
+        names=",".join(["GT", "DP", "VD", "AD", "AF", "RD", "ALD"]),
+        start=0,
+    )
 
     # Ensure the metrics can be later extracted.
     def is_compliant(self, variant: list[str], header: dict[str:int]):
         """
         Check if the variant is compliant with the Vardict format.
-        
+
         Args:
             variant (list[str]): The variant to check.
             header (dict[str:int]): The header of the VCF file.
-            
+
         Returns:
             bool: True if the variant is compliant, False otherwise.
         """
-        
+
         return (
-            len(variant[header["SAMPLE"]]) and (
-            variant[header["FORMAT"]].split(':') == [key.name for key in self.FORMAT]           
-            ) and (len(variant[header["SAMPLE"]].split(':')) == len(self.FORMAT))
-        ) and (
-            (len(variant[header["INFO"]]))
-            and ("AF=" in variant[header["INFO"]])
-        )
-    
+            len(variant[header["SAMPLE"]])
+            and (
+                variant[header["FORMAT"]].split(":")
+                == [key.name for key in self.FORMAT]
+            )
+            and (len(variant[header["SAMPLE"]].split(":")) == len(self.FORMAT))
+        ) and ((len(variant[header["INFO"]])) and ("AF=" in variant[header["INFO"]]))
+
     @staticmethod
     def genotype(variant: list[str], header: dict[str:int]) -> str:
         """
         Get the genotype of the variant.
         """
 
-        gt: str = variant[header["SAMPLE"]].split(':')[Vardict.FORMAT.GT.value]
+        gt: str = variant[header["SAMPLE"]].split(":")[Vardict.FORMAT.GT.value]
         # Manage case when Vardict return 1/0 instead of 0/1
         return "0/1" if gt == "1/0" else gt
 
@@ -663,7 +683,7 @@ class Vardict(VariantCaller):
         """
 
         return "Vardict"
-    
+
     def __repr__(self):
         """
         Return the string representation of the variant caller.
@@ -671,40 +691,43 @@ class Vardict(VariantCaller):
 
         return "Vardict"
 
+
 @final
 class Pindel(VariantCaller):
-    
-    """ A class to manage the Pindel variant caller """
+    """A class to manage the Pindel variant caller"""
 
     # Set the FORMAT field keys as an enum
-    FORMAT = enum.IntEnum(value="FORMAT",
-                          names=','.join(["GT", "AD"]),
-                          start=0)
+    FORMAT = enum.IntEnum(value="FORMAT", names=",".join(["GT", "AD"]), start=0)
 
     # Ensure the metrics can be later extracted.
     def is_compliant(self, variant: list[str], header: dict[str:int]):
         """
         Check if the variant is compliant with the Pindel format.
-        
+
         Args:
             variant (list[str]): The variant to check.
             header (dict[str:int]): The header of the VCF file.
-            
+
         Returns:
             bool: True if the variant is compliant, False otherwise.
         """
-        
-        return len(variant[header["SAMPLE"]]) and (
-            variant[header["FORMAT"]].split(':') == [key.name for key in self.FORMAT]    
-        ) and (len(variant[header["SAMPLE"]].split(':')) == len(self.FORMAT))
-    
+
+        return (
+            len(variant[header["SAMPLE"]])
+            and (
+                variant[header["FORMAT"]].split(":")
+                == [key.name for key in self.FORMAT]
+            )
+            and (len(variant[header["SAMPLE"]].split(":")) == len(self.FORMAT))
+        )
+
     @staticmethod
     def genotype(variant: list[str], header: dict[str:int]) -> str:
         """
         Get the genotype of the variant.
         """
 
-        return variant[header["SAMPLE"]].split(':')[Pindel.FORMAT.GT.value]
+        return variant[header["SAMPLE"]].split(":")[Pindel.FORMAT.GT.value]
 
     @staticmethod
     def VAF(variant: list[str], header: dict[str:int]) -> float:
@@ -717,7 +740,7 @@ class Pindel(VariantCaller):
             vaf: float = float(depths[1]) / (float(depths[0]) + float(depths[1]))
         except ZeroDivisionError:
             vaf: float = 0.0
-            
+
         return vaf
 
     @staticmethod
@@ -738,7 +761,7 @@ class Pindel(VariantCaller):
         Get the reference allele counts.
         """
 
-        return (None, None, None) # Pindel does not provide the reference allele counts
+        return (None, None, None)  # Pindel does not provide the reference allele counts
 
     @staticmethod
     def arc(variant: list[str], header: dict[str:int]) -> tuple[int]:
@@ -746,9 +769,15 @@ class Pindel(VariantCaller):
         Get the alternate allele counts.
         """
 
-        arc = int(variant[header["SAMPLE"]].split(":")[Pindel.FORMAT.AD.value].split(",")[1])
+        arc = int(
+            variant[header["SAMPLE"]].split(":")[Pindel.FORMAT.AD.value].split(",")[1]
+        )
 
-        return (arc, None, None) # Pindel does not provide the alternate allele counts for forward and reverse strands
+        return (
+            arc,
+            None,
+            None,
+        )  # Pindel does not provide the alternate allele counts for forward and reverse strands
 
     def __str__(self):
         """
@@ -756,7 +785,7 @@ class Pindel(VariantCaller):
         """
 
         return "Pindel"
-    
+
     def __repr__(self):
         """
         Return the string representation of the variant caller.
@@ -764,40 +793,45 @@ class Pindel(VariantCaller):
 
         return "Pindel"
 
+
 @final
 class Haplotypecaller(VariantCaller):
-    
-    """ A class to manage the Haplotypecaller variant caller """
+    """A class to manage the Haplotypecaller variant caller"""
 
     # Set the FORMAT field keys as an enum
-    FORMAT = enum.IntEnum(value="FORMAT",
-                          names=','.join(["GT", "AD", "DP", "GQ", "PL"]),
-                          start=0)
+    FORMAT = enum.IntEnum(
+        value="FORMAT", names=",".join(["GT", "AD", "DP", "GQ", "PL"]), start=0
+    )
 
     # Ensure the metrics can be later extracted.
     def is_compliant(self, variant: list[str], header: dict[str:int]):
         """
         Check if the variant is compliant with the Haplotypecaller format.
-        
+
         Args:
             variant (list[str]): The variant to check.
             header (dict[str:int]): The header of the VCF file.
-            
+
         Returns:
             bool: True if the variant is compliant, False otherwise.
         """
-        
-        return len(variant[header["SAMPLE"]]) and (
-            variant[header["FORMAT"]].split(':') == [key.name for key in self.FORMAT]            
-        ) and (len(variant[header["SAMPLE"]].split(':')) == len(self.FORMAT))
-    
+
+        return (
+            len(variant[header["SAMPLE"]])
+            and (
+                variant[header["FORMAT"]].split(":")
+                == [key.name for key in self.FORMAT]
+            )
+            and (len(variant[header["SAMPLE"]].split(":")) == len(self.FORMAT))
+        )
+
     @staticmethod
     def genotype(variant: list[str], header: dict[str:int]) -> str:
         """
         Get the genotype of the variant.
         """
 
-        return variant[header["SAMPLE"]].split(':')[Haplotypecaller.FORMAT.GT.value]
+        return variant[header["SAMPLE"]].split(":")[Haplotypecaller.FORMAT.GT.value]
 
     @staticmethod
     def VAF(variant: list[str], header: dict[str:int]) -> float:
@@ -823,7 +857,9 @@ class Haplotypecaller(VariantCaller):
         Get the depth of the variant.
         """
 
-        return int(variant[header["SAMPLE"]].split(":")[Haplotypecaller.FORMAT.DP.value])
+        return int(
+            variant[header["SAMPLE"]].split(":")[Haplotypecaller.FORMAT.DP.value]
+        )
 
     @staticmethod
     def rrc(variant: list[str], header: dict[str:int]) -> tuple[int]:
@@ -831,7 +867,11 @@ class Haplotypecaller(VariantCaller):
         Get the reference allele counts.
         """
 
-        return (None, None, None) # Haplotypecaller does not provide the reference allele counts for each strand
+        return (
+            None,
+            None,
+            None,
+        )  # Haplotypecaller does not provide the reference allele counts for each strand
 
     @staticmethod
     def arc(variant: list[str], header: dict[str:int]) -> tuple[int]:
@@ -839,9 +879,17 @@ class Haplotypecaller(VariantCaller):
         Get the alternate allele counts.
         """
 
-        arc = int(variant[header["SAMPLE"]].split(":")[Haplotypecaller.FORMAT.AD.value].split(",")[1])
+        arc = int(
+            variant[header["SAMPLE"]]
+            .split(":")[Haplotypecaller.FORMAT.AD.value]
+            .split(",")[1]
+        )
 
-        return (arc, None, None) # Haplotypecaller does not provide the alternate allele counts for forward and reverse strands
+        return (
+            arc,
+            None,
+            None,
+        )  # Haplotypecaller does not provide the alternate allele counts for forward and reverse strands
 
     def __str__(self):
         """
@@ -849,7 +897,7 @@ class Haplotypecaller(VariantCaller):
         """
 
         return "Haplotypecaller"
-    
+
     def __repr__(self):
         """
         Return the string representation of the variant caller.
@@ -857,10 +905,10 @@ class Haplotypecaller(VariantCaller):
 
         return "Haplotypecaller"
 
+
 @final
 class Filt3r(VariantCaller):
-    
-    """ A class to manage the Filt3r variant caller """
+    """A class to manage the Filt3r variant caller"""
 
     # Filt3r FORMAT
     FORMAT = []
@@ -901,7 +949,11 @@ class Filt3r(VariantCaller):
         Get the reference allele counts.
         """
 
-        return (None, None, None) # Filt3r does not provide the reference allele counts for each strand
+        return (
+            None,
+            None,
+            None,
+        )  # Filt3r does not provide the reference allele counts for each strand
 
     @staticmethod
     def arc(variant: list[str], header: dict[str:int]) -> tuple[int]:
@@ -911,7 +963,11 @@ class Filt3r(VariantCaller):
 
         arc = int(variant[6].split(";")[1].split("=")[1])
 
-        return (arc, None, None) # Filt3r does not provide the alternate allele counts for forward and reverse strands
+        return (
+            arc,
+            None,
+            None,
+        )  # Filt3r does not provide the alternate allele counts for forward and reverse strands
 
     def __str__(self):
         """
@@ -919,7 +975,7 @@ class Filt3r(VariantCaller):
         """
 
         return "Flit3r"
-    
+
     def __repr__(self):
         """
         Return the string representation of the variant caller.
@@ -927,40 +983,45 @@ class Filt3r(VariantCaller):
 
         return "Flit3r"
 
+
 @final
 class DeepVariant(VariantCaller):
-    
-    """ A class to manage the DeepVariant variant caller """
+    """A class to manage the DeepVariant variant caller"""
 
     # Set the FORMAT field keys as an enum
-    FORMAT = enum.IntEnum(value="FORMAT",
-                          names=','.join(["GT", "GQ", "DP", "AD", "VAF", "PL"]),
-                          start=0)
+    FORMAT = enum.IntEnum(
+        value="FORMAT", names=",".join(["GT", "GQ", "DP", "AD", "VAF", "PL"]), start=0
+    )
 
     # Ensure the metrics can be later extracted.
     def is_compliant(self, variant: list[str], header: dict[str:int]):
         """
         Check if the variant is compliant with the DeepVariant format.
-        
+
         Args:
             variant (list[str]): The variant to check.
             header (dict[str:int]): The header of the VCF file.
-            
+
         Returns:
             bool: True if the variant is compliant, False otherwise.
         """
-        
-        return len(variant[header["SAMPLE"]]) and (
-            variant[header["FORMAT"]].split(':') == [key.name for key in self.FORMAT]            
-        ) and (len(variant[header["SAMPLE"]].split(':')) == len(self.FORMAT))
-    
+
+        return (
+            len(variant[header["SAMPLE"]])
+            and (
+                variant[header["FORMAT"]].split(":")
+                == [key.name for key in self.FORMAT]
+            )
+            and (len(variant[header["SAMPLE"]].split(":")) == len(self.FORMAT))
+        )
+
     @staticmethod
     def genotype(variant: list[str], header: dict[str:int]) -> str:
         """
         Get the genotype of the variant.
         """
 
-        return variant[header["SAMPLE"]].split(':')[DeepVariant.FORMAT.GT.value]
+        return variant[header["SAMPLE"]].split(":")[DeepVariant.FORMAT.GT.value]
 
     @staticmethod
     def VAF(variant: list[str], header: dict[str:int]) -> float:
@@ -985,10 +1046,14 @@ class DeepVariant(VariantCaller):
         """
 
         return (
-            int(variant[header["SAMPLE"]].split(":")[DeepVariant.FORMAT.AD.value].split(",")[0]),
+            int(
+                variant[header["SAMPLE"]]
+                .split(":")[DeepVariant.FORMAT.AD.value]
+                .split(",")[0]
+            ),
             None,
             None,
-        ) # DeepVariant does not provide the reference allele counts for each strand
+        )  # DeepVariant does not provide the reference allele counts for each strand
 
     @staticmethod
     def arc(variant: list[str], header: dict[str:int]) -> tuple[int]:
@@ -996,9 +1061,17 @@ class DeepVariant(VariantCaller):
         Get the alternate allele counts.
         """
 
-        arc = int(variant[header["SAMPLE"]].split(":")[DeepVariant.FORMAT.AD.value].split(",")[1])
+        arc = int(
+            variant[header["SAMPLE"]]
+            .split(":")[DeepVariant.FORMAT.AD.value]
+            .split(",")[1]
+        )
 
-        return (arc, None, None) # DeepVariant does not provide the alternate allele counts for forward and reverse strands
+        return (
+            arc,
+            None,
+            None,
+        )  # DeepVariant does not provide the alternate allele counts for forward and reverse strands
 
     def __str__(self):
         """

@@ -1,14 +1,15 @@
 import ast
+import os
+import re
 from datetime import datetime, timezone
 from hashlib import sha256
-import re
 from pathlib import Path
-import os
 
-class Cache():
+
+class Cache:
 
     def __init__(self, func, max_size: int = 1):
-        
+
         # Maximum size of the cache
         self.max_size = max_size
 
@@ -51,22 +52,23 @@ class Cache():
             if not key in self.cache:
 
                 self.add(args, key)
-            
+
             # O(1) access to the cache
             # Return the result of the function
             # from the cache
             return self.cache[key]
-        
+
         else:
 
             raise TypeError("Key is not hashable.")
-        
+
+
 class PluginPythonChecker(ast.NodeVisitor):
 
-    DANGEROUS_CALL = ['exec', 'eval', 'compile']
+    DANGEROUS_CALL = ["exec", "eval", "compile"]
 
     def __init__(self):
-        
+
         self.imports = []
 
         self.calls = []
@@ -74,7 +76,7 @@ class PluginPythonChecker(ast.NodeVisitor):
         self.not_safe_calls = []
 
     def visit_Import(self, node):
-        
+
         for alias in node.names:
 
             self.imports.append(alias.name)
@@ -82,7 +84,7 @@ class PluginPythonChecker(ast.NodeVisitor):
         self.generic_visit(node)
 
     def visit_ImportFrom(self, node):
-        
+
         if node.module:
 
             self.imports.append(node.module)
@@ -90,7 +92,7 @@ class PluginPythonChecker(ast.NodeVisitor):
         self.generic_visit(node)
 
     def visit_Call(self, node):
-        
+
         if isinstance(node.func, ast.Name):
 
             if node.func.id in self.DANGEROUS_CALL:
@@ -99,16 +101,18 @@ class PluginPythonChecker(ast.NodeVisitor):
 
         self.generic_visit(node)
 
+
 # ===========================================================================================
 # Basics functions on dictionary
 # ===========================================================================================
+
 
 def merge_collections(collections: list[object]) -> object:
     """Merge collections.
 
     Args:
         collections: A list of collections to merge.
-        
+
     Returns:
         A merged collection of the same type as inputed collections.
     """
@@ -119,12 +123,14 @@ def merge_collections(collections: list[object]) -> object:
             output: dict = {}
 
             for collection in collections:
-                
+
                 output.update(collection)
-        
+
         else:
 
-            raise ValueError(f"Not all of the collections being merged are of the same data type.")
+            raise ValueError(
+                f"Not all of the collections being merged are of the same data type."
+            )
 
     else:
 
@@ -132,21 +138,24 @@ def merge_collections(collections: list[object]) -> object:
 
     return output
 
+
 # ===========================================================================================
 # Filsystem
 # ===========================================================================================
+
 
 def get_project_dir() -> str:
 
     return os.path.dirname(os.path.abspath(__file__))
 
+
 def get_or_create_config_dir() -> Path:
     """Get user configuration directory following XDG spec"""
-    if os.name == 'nt':  # Windows
-        base = os.environ.get('APPDATA', Path.home() / 'AppData' / 'Roaming')
+    if os.name == "nt":  # Windows
+        base = os.environ.get("APPDATA", Path.home() / "AppData" / "Roaming")
     else:  # Unix-like
-        base = os.environ.get('XDG_CONFIG_HOME', Path.home() / '.config')
-    
+        base = os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")
+
     config = Path(base) / "vusion" / "callers"
 
     if not config.exists():
@@ -154,6 +163,7 @@ def get_or_create_config_dir() -> Path:
         create_config_dir(config)
 
     return config
+
 
 def create_config_dir(path: Path) -> Path:
     """Create filesystem .config directory"""
@@ -174,21 +184,25 @@ def hash_file(path: Path) -> str:
             for record in plugin:
 
                 hash.update(record.encode())
-        
+
         return hash.hexdigest()
-    
+
     else:
 
         return None
 
+
 def file_infos(path: str) -> dict:
-    """ Get file stats """
+    """Get file stats"""
     statinfo = os.stat(path)
 
-    return {"basename": os.path.basename(path),
-            "path": os.path.dirname(path),
-            "size": round(statinfo.st_size / pow(1024,2),2),
-            "mtime": datetime.fromtimestamp(statinfo.st_mtime, tz=timezone.utc)}
+    return {
+        "basename": os.path.basename(path),
+        "path": os.path.dirname(path),
+        "size": round(statinfo.st_size / pow(1024, 2), 2),
+        "mtime": datetime.fromtimestamp(statinfo.st_mtime, tz=timezone.utc),
+    }
+
 
 def clean(files: list[Path]):
 
@@ -196,12 +210,13 @@ def clean(files: list[Path]):
 
         file.unlink(missing_ok=True)
 
+
 # ===========================================================================================
 # Functions on variants
 # ===========================================================================================
 
 
-def estimate_brc_r_e(variant,pileup_line_info):
+def estimate_brc_r_e(variant, pileup_line_info):
     """
     estimate <BRC/R/E> (background read counts/ratio/enrichment)
     BRC : background read counts
@@ -216,112 +231,95 @@ def estimate_brc_r_e(variant,pileup_line_info):
 
     Returns : a tuple containing the estimated BRC, BRR, and BRE.
     """
-    ref_and_alt_read_count = variant['sample']['ARC-'] + \
-                             variant['sample']['ARC+'] + \
-                             variant['sample']['RRC-'] + \
-                             variant['sample']['RRC+']
+    ref_and_alt_read_count = (
+        variant["sample"]["ARC-"]
+        + variant["sample"]["ARC+"]
+        + variant["sample"]["RRC-"]
+        + variant["sample"]["RRC+"]
+    )
     ins_read_counts = 0
 
-    total_read_count = variant['sample']['TRC']
+    total_read_count = variant["sample"]["TRC"]
 
-    if pileup_line_info[14] != 'None':
+    if pileup_line_info[14] != "None":
         # Get number of read with ins format is A:1,0
-        tmp_table_count = re.findall(r'\d+', pileup_line_info[14])
+        tmp_table_count = re.findall(r"\d+", pileup_line_info[14])
         for tmp_count in tmp_table_count:
             ins_read_counts += int(tmp_count)
 
-    if variant['type'] == 'INS':
-        ins_read_counts -= (
-            variant['sample']['ARC+'] +
-            variant['sample']['ARC-']
-        )
+    if variant["type"] == "INS":
+        ins_read_counts -= variant["sample"]["ARC+"] + variant["sample"]["ARC-"]
 
     # Removing DEL counts if variant is at some position of a DEL.
     # Because we miss valid variants in specific case like that
     # Clintool bug where non-existing deletion is reported and start with A, C, T or G
-    if (variant['type'] != 'DEL') and (pileup_line_info[15] != 'None'):
+    if (variant["type"] != "DEL") and (pileup_line_info[15] != "None"):
 
         # Escaping clintool bug where non-existing deletion is reported and start with A, C, T or G
-        if pileup_line_info[15][0] == '*':
+        if pileup_line_info[15][0] == "*":
 
-            del_read_count = int(pileup_line_info[15].strip().split(';')[0].split(':')[1])
+            del_read_count = int(
+                pileup_line_info[15].strip().split(";")[0].split(":")[1]
+            )
             tmp_total_read_count = total_read_count - int(del_read_count)
 
-
-            variant['sample']['BRC'] = (
-                tmp_total_read_count +
-                ins_read_counts -
-                min([
-                    tmp_total_read_count,
-                    ref_and_alt_read_count
-                    ])
-                )
+            variant["sample"]["BRC"] = (
+                tmp_total_read_count
+                + ins_read_counts
+                - min([tmp_total_read_count, ref_and_alt_read_count])
+            )
 
         else:
 
-            variant['sample']['BRC'] = (
-                total_read_count +
-                ins_read_counts -
-                min([
-                    total_read_count,
-                    ref_and_alt_read_count
-                ])
+            variant["sample"]["BRC"] = (
+                total_read_count
+                + ins_read_counts
+                - min([total_read_count, ref_and_alt_read_count])
             )
 
-    elif variant['type'] != 'DEL':
+    elif variant["type"] != "DEL":
 
-        variant['sample']['BRC'] = (
-            total_read_count +
-            ins_read_counts -
-            min([
-                total_read_count,
-                ref_and_alt_read_count
-            ])
+        variant["sample"]["BRC"] = (
+            total_read_count
+            + ins_read_counts
+            - min([total_read_count, ref_and_alt_read_count])
         )
     else:
         # 230413 Not counting snp background for Deletion
-        del_read_count = pileup_line_info[15].strip().split(';')
+        del_read_count = pileup_line_info[15].strip().split(";")
         del_alt_count = 0
         for del_info in del_read_count:
-            tmp_del_info = del_info.split(':')
-            if (tmp_del_info[0] != '*') and (tmp_del_info[0] != (variant["collection"]["REF"])[1:]):
-                del_alt_count += (
-                    int(tmp_del_info[1].split(',')[0]) +
-                    int(tmp_del_info[1].split(',')[1])
+            tmp_del_info = del_info.split(":")
+            if (tmp_del_info[0] != "*") and (
+                tmp_del_info[0] != (variant["collection"]["REF"])[1:]
+            ):
+                del_alt_count += int(tmp_del_info[1].split(",")[0]) + int(
+                    tmp_del_info[1].split(",")[1]
                 )
-        variant['sample']['BRC'] = del_alt_count
+        variant["sample"]["BRC"] = del_alt_count
 
+    background_read_counts = variant["sample"]["BRC"]
 
-    background_read_counts = variant['sample']['BRC']
-    
-    variant['sample']['BRR'] = round(
-        background_read_counts / total_read_count,
-        5
+    variant["sample"]["BRR"] = round(background_read_counts / total_read_count, 5)
+    background_read_ratio = variant["sample"]["BRR"]
+
+    alt_read_count_ratio = variant["sample"]["ARR"] / 100
+    variant["sample"]["BRE"] = background_read_ratio / (
+        alt_read_count_ratio + background_read_ratio
     )
-    background_read_ratio = variant['sample']['BRR']
-
-    alt_read_count_ratio = variant['sample']['ARR'] / 100
-    variant['sample']['BRE'] = background_read_ratio / \
-                                                 (alt_read_count_ratio + background_read_ratio)
     # scale ratio from [0-1] to [0-100]
-    variant['sample']['BRE'] = round(
-        float(variant['sample']['BRE']) * 100,
-        5
-    )
-    
-    variant['sample']['BRR'] = round(
-        float(variant['sample']['BRR']) * 100,
-        5
-    )
+    variant["sample"]["BRE"] = round(float(variant["sample"]["BRE"]) * 100, 5)
 
-    return(
-        variant['sample']['BRC'],
-        variant['sample']['BRR'],
-        variant['sample']['BRE']
+    variant["sample"]["BRR"] = round(float(variant["sample"]["BRR"]) * 100, 5)
+
+    return (
+        variant["sample"]["BRC"],
+        variant["sample"]["BRR"],
+        variant["sample"]["BRE"],
     )
 
 
-def categorize_background_signal(variant,thresholds):
+def categorize_background_signal(variant, thresholds):
     """
     categorize background based on background read enrichment (BRE) thresholds :
 
@@ -345,19 +343,19 @@ def categorize_background_signal(variant,thresholds):
     |     |     |     |                       |
     0    [6]   [7]   [8]                    100 (BRE)
     """
-    alt_read_count_ratio = float(variant['sample']['ARR'])
+    alt_read_count_ratio = float(variant["sample"]["ARR"])
     if alt_read_count_ratio >= 30:
-        variant['sample']['BKG'] = 'PCL'
+        variant["sample"]["BKG"] = "PCL"
     else:
-        background_read_enrichment = float(variant['sample']['BRE'])
+        background_read_enrichment = float(variant["sample"]["BRE"])
 
         if background_read_enrichment >= thresholds[8]:
-            variant['sample']['BKG'] = 'LNO'
+            variant["sample"]["BKG"] = "LNO"
         elif background_read_enrichment >= thresholds[7]:
-            variant['sample']['BKG'] = 'PNO'
+            variant["sample"]["BKG"] = "PNO"
         elif background_read_enrichment >= thresholds[6]:
-            variant['sample']['BKG'] = 'PCL'
+            variant["sample"]["BKG"] = "PCL"
         else:
-            variant['sample']['BKG'] = 'LCL'
+            variant["sample"]["BKG"] = "LCL"
 
-    return variant['sample']['BKG']
+    return variant["sample"]["BKG"]

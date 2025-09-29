@@ -1,19 +1,22 @@
-from callers import VariantCallerRepository
-from console import stdout_console
+import os
+
+from loguru import logger
 from rich.panel import Panel
+
 import exceptions as exceptions
 import files as io
-from loguru import logger
-import os
+from callers import VariantCallerRepository
+from console import stdout_console
 from variants import VariantsRepository
+
 
 def supervisor(params: object) -> None:
     """
     Combine variant calls from multiple callers.
-    
+
     Args:
         params: Command line parameters.
-        
+
     Raises:
         SystemExit: If errors occur during the execution.
     """
@@ -38,7 +41,11 @@ def supervisor(params: object) -> None:
 
     # Create a variants repository
     # This repository will be used to store the variants and their informations
-    variants = VariantsRepository(sample=params.sample, rescue=params.rescue, intermediate_results=(params.output if params.intermediate_results else ''))
+    variants = VariantsRepository(
+        sample=params.sample,
+        rescue=params.rescue,
+        intermediate_results=(params.output if params.intermediate_results else ""),
+    )
 
     # ===========================================================================================
     # Check mandatory options and arguments
@@ -51,8 +58,12 @@ def supervisor(params: object) -> None:
     # Check if the output directory is writable
     else:
         if not os.access(params.output, os.W_OK):
-            logger.error(f"Write permissions are not granted for the directory: {params.output}")
-            raise SystemExit(f"Write permissions are not granted for the directory: {params.output}")
+            logger.error(
+                f"Write permissions are not granted for the directory: {params.output}"
+            )
+            raise SystemExit(
+                f"Write permissions are not granted for the directory: {params.output}"
+            )
 
     # Check if the reference genome index is valid
     try:
@@ -63,7 +74,7 @@ def supervisor(params: object) -> None:
     except exceptions.FastaIndexError as e:
         logger.error(f"{params.reference} is not a valid FASTA index: {e}")
         raise SystemExit(f"{params.reference} is not a valid FASTA index: {e}")
-    
+
     # Check if the pileup is valid
     try:
         # Create a pileup object
@@ -76,7 +87,7 @@ def supervisor(params: object) -> None:
     except exceptions.PileupError as e:
         logger.error(f"{params.pileup} is not a valid PILEUP: {e}")
         raise SystemExit(f"{params.pileup} is not a valid PILEUP: {e}")
-    
+
     # Check if the VCFs are valid
     for vcf in params.vcfs:
         # Check if a YAML config file is provided
@@ -110,7 +121,7 @@ def supervisor(params: object) -> None:
             logger.debug(f"Variant Callers inputed: {id}")
         except (exceptions.VCFError, exceptions.VariantCallerError) as e:
             # If the error is a VCFError, means that the VCF is not valid
-            if isinstance(e,exceptions.VCFError):
+            if isinstance(e, exceptions.VCFError):
                 # Trace the error
                 logger.error(f"{vcf} is not a valid VCF: {e}")
                 raise SystemExit(f"{vcf} is not a valid VCF: {e}")
@@ -164,7 +175,12 @@ def supervisor(params: object) -> None:
     # Trace
     logger.debug("Calculation of final metrics.")
     # Normalize the variants
-    variants.normalize(thresholds=params.thresholds, length_indels=params.length_indels, sbm=SBM, sbm_homozygous=params.sbm_homozygous)
+    variants.normalize(
+        thresholds=params.thresholds,
+        length_indels=params.length_indels,
+        sbm=SBM,
+        sbm_homozygous=params.sbm_homozygous,
+    )
 
     # ===========================================================================================
     # Write VCF(s)
@@ -180,32 +196,45 @@ def supervisor(params: object) -> None:
         logger.debug((f"Writting VCF file of rejected variants in {params.output}."))
 
         # Write the VCF file of rejected variants
-        writter.write(output=params.output, 
-                    template="vcf", 
-                    collection=variants.repository, 
-                    lookups=variants.rejected_variants, 
-                    sample=variants.sample, 
-                    contigs=fai.contigs, 
-                    thresholds=params.thresholds,
-                    suffix="rejected")
-        
+        writter.write(
+            output=params.output,
+            template="vcf",
+            collection=variants.repository,
+            lookups=variants.rejected_variants,
+            sample=variants.sample,
+            contigs=fai.contigs,
+            thresholds=params.thresholds,
+            suffix="rejected",
+        )
+
         # Trace the success
-        logger.success(f"VCF file of rejected variants successfully written to {params.output}")
+        logger.success(
+            f"VCF file of rejected variants successfully written to {params.output}"
+        )
 
     # Trace
     logger.debug(f"Writting VCF file in {params.output}.")
 
     # Write the VCF file of common and complex variants
-    writter.write(output=params.output, 
-                  template="vcf", 
-                  collection=variants.repository, 
-                  lookups=variants.common_variants | variants.complex_variants, 
-                  sample=variants.sample, 
-                  contigs=fai.contigs, 
-                  thresholds=params.thresholds)
+    writter.write(
+        output=params.output,
+        template="vcf",
+        collection=variants.repository,
+        lookups=variants.common_variants | variants.complex_variants,
+        sample=variants.sample,
+        contigs=fai.contigs,
+        thresholds=params.thresholds,
+    )
 
     # Trace the success
     logger.success(f"VCF file successfully written to {params.output}")
 
     # Print the success message to standard output stream
-    stdout_console.print(Panel.fit(f"VCF successfully generated at '{params.output}'.", title="Success", highlight=True), style="result")
+    stdout_console.print(
+        Panel.fit(
+            f"VCF successfully generated at '{params.output}'.",
+            title="Success",
+            highlight=True,
+        ),
+        style="result",
+    )

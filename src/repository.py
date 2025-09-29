@@ -1,7 +1,8 @@
 from abc import ABC, abstractmethod
 from typing import Generic, Iterator, TypeVar
 
-T = TypeVar('T')
+T = TypeVar("T")
+
 
 class Repository(ABC, Generic[T]):
     """
