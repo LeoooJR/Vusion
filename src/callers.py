@@ -6,7 +6,7 @@ from typing import final
 
 from loguru import logger
 
-import exceptions as exceptions
+import exceptions
 from repository import Repository
 
 
@@ -17,31 +17,26 @@ class VariantCaller(ABC):
     @abstractmethod
     def genotype(variant: list[str], header: dict[str:int]) -> str:
         """Extract the genotype from the variant."""
-        pass
 
     @staticmethod
     @abstractmethod
     def VAF(variant: list[str], header: dict[str:int]) -> float:
         """Calculate the variant allele frequency (VAF)."""
-        pass
 
     @staticmethod
     @abstractmethod
     def depth(variant: list[str], header: dict[int]) -> int:
         """Extract the depth of the variant."""
-        pass
 
     @staticmethod
     @abstractmethod
     def rrc(variant: list[str], header: dict[str:int]) -> tuple[int]:
         """Extract the reference allele counts."""
-        pass
 
     @staticmethod
     @abstractmethod
     def arc(variant: list[str], header: dict[str:int]) -> tuple[int]:
         """Extract the alternate allele counts."""
-        pass
 
 
 class VariantCallerRepository(Repository):
@@ -95,12 +90,12 @@ class VariantCallerRepository(Repository):
             return self.callers[caller.upper()]
 
         # Catch a KeyError exception if the caller is not supported
-        except KeyError:
+        except KeyError as e:
 
             # Raise a VariantCallerError exception if the caller is not supported
             raise exceptions.VariantCallerError(
                 f"Variant Caller not supported: {caller}"
-            )
+            ) from e
 
     def get_BT(self) -> VariantCaller:
         """
@@ -248,7 +243,7 @@ class VariantCallerRepository(Repository):
         except Exception as e:
 
             # If the exception is an ImportError or an AttributeError
-            if isinstance(e, ImportError) or isinstance(e, AttributeError):
+            if isinstance(e, (ImportError, AttributeError)):
 
                 # Raise the exception
                 raise
@@ -258,8 +253,8 @@ class VariantCallerRepository(Repository):
 
                 # Raise a VariantCallerPluginError exception
                 raise exceptions.VariantCallerPluginError(
-                    f"An unexpected error has occurred when loading variant caller plugin: {e}"
-                )
+                    f"An unexpected error has occurred when loading variant caller plugin"
+                ) from e
 
     def populate(self, callers: list):
         """

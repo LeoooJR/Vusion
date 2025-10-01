@@ -970,8 +970,8 @@ class VariantsRepository:
                                         )
                                         logger.error(f"Reason: {e}")
                                         raise exceptions.VariantCallerPluginError(
-                                            f"Not able to retrieve variant data from provided config parameters. Reason: {e}"
-                                        )
+                                            f"Not able to retrieve variant data from provided config parameters."
+                                        ) from e
 
                                 if not warning:
 

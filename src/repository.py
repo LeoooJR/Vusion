@@ -15,15 +15,11 @@ class Repository(ABC, Generic[T]):
         Populate the repository with a list of objects.
         """
 
-        pass
-
     @abstractmethod
     def add(self, item: T):
         """
         Add an object to the repository.
         """
-
-        pass
 
     @abstractmethod
     def remove(self, item: T):
@@ -31,12 +27,8 @@ class Repository(ABC, Generic[T]):
         Remove an object from the repository.
         """
 
-        pass
-
     @abstractmethod
     def __iter__(self) -> Iterator[T]:
         """
         Iterate over the repository.
         """
-
-        pass

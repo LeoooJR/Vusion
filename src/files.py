@@ -229,13 +229,15 @@ class VCF(GenomicFile):
                             f"First line inconsistent with VCF header format. Expected '#', got {line[0]}."
                         )
 
-        except FileNotFoundError:
+        except FileNotFoundError as e:
 
-            raise exceptions.VCFError(f"{self.path} is not a valid path")
+            raise exceptions.VCFError(f"{self.path} is not a valid path") from e
 
-        except IOError:
+        except IOError as e:
 
-            raise exceptions.VCFError(f"An error occurred while reading {self.path}")
+            raise exceptions.VCFError(
+                f"An error occurred while reading {self.path}"
+            ) from e
 
         except Exception as e:
 
@@ -246,8 +248,8 @@ class VCF(GenomicFile):
             else:
 
                 raise exceptions.VCFError(
-                    f"An unexpected error has occurred when validating VCF file: {e}"
-                )
+                    f"An unexpected error has occurred when validating VCF file"
+                ) from e
 
     @staticmethod
     def convert(a: object) -> object:
@@ -340,8 +342,8 @@ class VCF(GenomicFile):
             else:
 
                 raise exceptions.VCFError(
-                    f"An unexpected error has occurred when extracting genotype value: {e}"
-                )
+                    f"An unexpected error has occurred when extracting genotype value"
+                ) from e
 
     def VAF(self, variant: list[str]) -> float:
         """
@@ -381,8 +383,8 @@ class VCF(GenomicFile):
 
             else:
                 raise exceptions.VCFError(
-                    f"An unexpected error has occurred when extracting VAF: {e}"
-                )
+                    f"An unexpected error has occurred when extracting VAF"
+                ) from e
 
     def depth(self, variant: list[str]) -> int:
         """
@@ -421,8 +423,8 @@ class VCF(GenomicFile):
             else:
 
                 raise exceptions.VCFError(
-                    f"An unexpected error has occurred when extracting depth: {e}"
-                )
+                    f"An unexpected error has occurred when extracting depth"
+                ) from e
 
     def arc(self, variant: list[str]) -> tuple[float]:
         """
@@ -462,8 +464,8 @@ class VCF(GenomicFile):
             else:
 
                 raise exceptions.VCFError(
-                    f"An unexpected error has occurred when extracting ARC: {e}"
-                )
+                    f"An unexpected error has occurred when extracting ARC"
+                ) from e
 
     def rrc(self, variant: list[str]) -> tuple[float]:
         """
@@ -504,8 +506,8 @@ class VCF(GenomicFile):
             else:
 
                 raise exceptions.VCFError(
-                    f"An unexpected error has occurred when extracting RRC: {e}"
-                )
+                    f"An unexpected error has occurred when extracting RRC"
+                ) from e
 
 
 class VCFRepository(Repository):
@@ -602,10 +604,10 @@ class Pileup(GenomicFile):
 
                 try:
                     position: int = int(position)
-                except ValueError:
+                except ValueError as e:
                     raise exceptions.PileupError(
                         f"Incorrect position value {position} in pileup file."
-                    )
+                    ) from e
 
                 if position < 0:
 
@@ -635,10 +637,10 @@ class Pileup(GenomicFile):
 
                 try:
                     depth: int = int(depth)
-                except ValueError:
+                except ValueError as e:
                     raise exceptions.PileupError(
                         f"Incorrect depth value {depth} in pileup file."
-                    )
+                    ) from e
 
                 if depth < 0:
 
@@ -819,11 +821,11 @@ class Pileup(GenomicFile):
                             int(columns[1])
                             int(columns[3])
 
-                        except ValueError:
+                        except ValueError as e:
 
                             raise exceptions.PileupError(
                                 f"First line inconsistent with Pileup format. Position and depth values must be integers."
-                            )
+                            ) from e
 
                         # Check if reference is a single character and in the list of bases
                         if len(columns[2]) != 1 or (
@@ -844,13 +846,15 @@ class Pileup(GenomicFile):
                                     f"First line inconsistent with Pileup format. Quality value must be a string of ASCII characters."
                                 )
 
-        except FileNotFoundError:
+        except FileNotFoundError as e:
 
-            raise exceptions.PileupError(f"{self.path} is not a valid path")
+            raise exceptions.PileupError(f"{self.path} is not a valid path") from e
 
-        except IOError:
+        except IOError as e:
 
-            raise exceptions.PileupError(f"An error occurred while reading {self.path}")
+            raise exceptions.PileupError(
+                f"An error occurred while reading {self.path}"
+            ) from e
 
         except Exception as e:
 
@@ -861,8 +865,8 @@ class Pileup(GenomicFile):
             else:
 
                 raise exceptions.PileupError(
-                    f"An unexpected error has occurred when validating Pileup file: {e}"
-                )
+                    f"An unexpected error has occurred when validating Pileup file"
+                ) from e
 
 
 class VCFIndex(GenomicFile):
@@ -1013,15 +1017,15 @@ class FastaIndex(GenomicFile):
                             f"First line inconsistent with Fasta index format. Expected 5 columns, got {len(columns)}."
                         )
 
-        except FileNotFoundError:
+        except FileNotFoundError as e:
 
-            raise exceptions.FastaIndexError(f"{self.path} is not a valid path")
+            raise exceptions.FastaIndexError(f"{self.path} is not a valid path") from e
 
-        except IOError:
+        except IOError as e:
 
             raise exceptions.FastaIndexError(
                 f"An error occurred while reading {self.path}"
-            )
+            ) from e
 
         except Exception as e:
 
@@ -1032,8 +1036,8 @@ class FastaIndex(GenomicFile):
             else:
 
                 raise exceptions.FastaIndexError(
-                    f"An unexpected error has occurred when validating FASTA index file: {e}"
-                )
+                    f"An unexpected error has occurred when validating FASTA index file"
+                ) from e
 
 
 class Config(GenomicFile):
@@ -1120,11 +1124,11 @@ class VariantCallerPlugin(GenomicFile):
             self.package: Path = utils.get_or_create_config_dir()
 
             self.source: Path = self.package.joinpath(
-                f"{config.params["caller"]["name"]}.py"
+                f"{config.params['caller']['name']}.py"
             )
 
             self.sum: Path = self.package.joinpath(
-                f"{config.params["caller"]["name"]}.sum"
+                f"{config.params['caller']['name']}.sum"
             )
 
             if self.sum.exists():
@@ -1208,8 +1212,8 @@ class VariantCallerPlugin(GenomicFile):
                     else:
 
                         raise exceptions.VariantCallerPluginError(
-                            f"An unexpected error has occurred when loading variant caller plugin: {e}"
-                        )
+                            f"An unexpected error has occurred when loading variant caller plugin"
+                        ) from e
 
             else:
 
@@ -1296,19 +1300,19 @@ class VariantCallerPlugin(GenomicFile):
 
             raise exceptions.VariantCallerPluginError(
                 f"Cannot found plugin {self.path} on filesystem."
-            )
+            ) from e
 
         except SyntaxError as e:
 
             raise exceptions.VariantCallerPluginError(
                 f"Syntax error in plugin {self.path}."
-            )
+            ) from e
 
         except UnicodeDecodeError:
 
             raise exceptions.VariantCallerPluginError(
                 f"Invalid UTF-8 encoding for plugin {self.path}."
-            )
+            ) from e
 
         except Exception as e:
 
@@ -1317,8 +1321,9 @@ class VariantCallerPlugin(GenomicFile):
                 raise
 
             raise exceptions.VariantCallerPluginError(
-                f"An unexpected error has occurred when reading plugin {self}: {e}"
-            )
+                f"An unexpected error has occurred when reading plugin {self}"
+            ) from e
+
         # If it come to this instruction, the plugin is safe
         self.state = VariantCallerPlugin.STATES.safe
 

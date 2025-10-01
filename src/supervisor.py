@@ -3,7 +3,7 @@ import os
 from loguru import logger
 from rich.panel import Panel
 
-import exceptions as exceptions
+import exceptions
 import files as io
 from callers import VariantCallerRepository
 from console import stdout_console
@@ -73,7 +73,7 @@ def supervisor(params: object) -> None:
         logger.success(f"Fasta index {params.reference} has been successfully checked.")
     except exceptions.FastaIndexError as e:
         logger.error(f"{params.reference} is not a valid FASTA index: {e}")
-        raise SystemExit(f"{params.reference} is not a valid FASTA index: {e}")
+        raise SystemExit(f"{params.reference} is not a valid FASTA index") from e
 
     # Check if the pileup is valid
     try:
@@ -86,7 +86,7 @@ def supervisor(params: object) -> None:
     # Catch an error if the pileup is not valid
     except exceptions.PileupError as e:
         logger.error(f"{params.pileup} is not a valid PILEUP: {e}")
-        raise SystemExit(f"{params.pileup} is not a valid PILEUP: {e}")
+        raise SystemExit(f"{params.pileup} is not a valid PILEUP") from e
 
     # Check if the VCFs are valid
     for vcf in params.vcfs:
@@ -124,12 +124,12 @@ def supervisor(params: object) -> None:
             if isinstance(e, exceptions.VCFError):
                 # Trace the error
                 logger.error(f"{vcf} is not a valid VCF: {e}")
-                raise SystemExit(f"{vcf} is not a valid VCF: {e}")
+                raise SystemExit(f"{vcf} is not a valid VCF") from e
             # If the error is a VariantCallerError, means that the variant caller is not supported
             else:
                 # Trace the error
                 logger.error(f"{id} is not a supported variant caller: {e}")
-                raise SystemExit(f"{id} is not a supported variant caller: {e}")
+                raise SystemExit(f"{id} is not a supported variant caller") from e
 
     # ============================================================================================
     # Parse VCFs

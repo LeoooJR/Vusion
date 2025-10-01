@@ -269,7 +269,7 @@ class ExpressionTemplate:
                     field=term["field"], header=term["metadata"]["header"]
                 ):
                     raise UnexpectedInput(
-                        f"{term["field"]} is not in {term["metadata"]["header"].upper()}."
+                        f"{term['field']} is not in {term['metadata']['header'].upper()}."
                     )
                 metadata.append(term["metadata"]["header"])
             if term["metadata"]["unit"]:

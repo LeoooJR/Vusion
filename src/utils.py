@@ -129,7 +129,7 @@ def merge_collections(collections: list[object]) -> object:
         else:
 
             raise ValueError(
-                f"Not all of the collections being merged are of the same data type."
+                "Not all of the collections being merged are of the same data type."
             )
 
     else:
