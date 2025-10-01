@@ -68,4 +68,3 @@ dependencies:
       - tomlkit==0.13.3
       - tzdata==2025.2
       - virtualenv==20.34.0
-prefix: /home/jourdain/miniconda3/envs/Vusion
