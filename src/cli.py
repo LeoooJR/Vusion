@@ -1,5 +1,10 @@
+"""
+A module to parse the command line arguments.
+"""
+
 from argparse import ArgumentParser
 from sys import argv
+from typing import Callable, Final
 
 from loguru import logger
 
@@ -12,16 +17,20 @@ class EntryPoint:
     """
     Entry point for the program.
 
-    This class is responsible for parsing the command line arguments and launching the program.
+    This class is responsible for parsing the command line arguments.
     """
 
-    FUNC = {"call": supervisor}
+    FUNC: Final[dict[str, Callable]] = {"call": supervisor}
 
-    def __init__(self):
+    def __init__(self) -> None:
+        """
+        Initialize the command line parser.
+        """
 
         # Create the parser for the command line arguments
-        self.parser = ArgumentParser(
-            prog="Vusion", description="Combine multiple VCF files."
+        self.parser: Final[ArgumentParser] = ArgumentParser(
+            prog="Vusion",
+            description="Merge and reconcile variant calls from multiple callers.",
         )
 
         # Add the version argument
@@ -65,8 +74,7 @@ class EntryPoint:
             required=True,
             metavar="VCF",
             help="<ID,vcf,[yaml]> path to \
-                  VCF file associated with identifier : bcftools (BT), varscan (VS), vardict (VD), pindel (PL), haplotypecaller (HC), FILT3R (FL), deepvariant (DV) \
-                  control & hotspot (CS & HS). \
+                  VCF file associated with identifier : bcftools (BT), varscan (VS), vardict (VD), pindel (PL), haplotypecaller (HC), FILT3R (FL), deepvariant (DV). \
                   Provide a YAML file path for non-integrated variant callers.",
         )
 
@@ -78,7 +86,7 @@ class EntryPoint:
             type=str,
             required=True,
             metavar="PILEUP",
-            help="Path to pileup processed mpileup data file",
+            help="Path to pileup formatted file",
         )
 
         # Add the sample argument
@@ -169,7 +177,7 @@ class EntryPoint:
             dest="intermediate_results",
             default=False,
             required=False,
-            help="Should intermediate results be saved.",
+            help="Should intermediate results be saved?",
         )
 
         # Add the debug argument
@@ -190,13 +198,13 @@ class EntryPoint:
         Launch the program with command line arguments.
 
         Returns:
-            int: Exit code of the program.
+            int: Exit code of the program as Unix convention.
         """
 
         # Parse the command line arguments
         cmd = self.parser.parse_args(argv[1:])
 
-        # Remove the default handler
+        # Remove the default handler for logs output
         logger.remove(0)
 
         # Should the log be saved in a file ?
@@ -204,7 +212,8 @@ class EntryPoint:
 
             logger.add("vusion.log")
 
-        return cmd.func(params=cmd)
+        # Return the exit code of the function as Unix convention
+        return cmd.func(context=cmd)
 
     def __str__(self):
         """

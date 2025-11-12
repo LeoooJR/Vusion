@@ -1,28 +1,44 @@
+"""
+Utility functions for the program.
+"""
+
 import ast
 import os
 import re
 from datetime import datetime, timezone
 from hashlib import sha256
 from pathlib import Path
+from typing import Callable, Final, final
 
 
 class Cache:
+    """
+    Least Recently Used (LRU) cache implementation.
+    """
 
-    def __init__(self, func, max_size: int = 1):
+    def __init__(self, func: Callable, max_size: Final[int | None] = None) -> None:
+        """
+        Initialize the cache.
+
+        Args:
+            func: The function to cache output from.
+            max_size: The maximum size of the cache.
+        """
 
         # Maximum size of the cache
-        self.max_size = max_size
+        self.max_size: Final[int] = max_size
 
         # Dictionnary to implement the cache
         # The key is the hash of the arguments
         # The value is the result of the function
-        self.cache: dict = {}
+        self.cache: Final[dict] = {}
 
-        # Result of the function to be cached
-        self.func: function = func
+        # The function to cache output from.
+        self.func: Final[Callable] = func
 
     def add(self, args: list[str], key: object):
-        """Add the result of the function to the cache
+        """
+        Add the result of the function to the cache
 
         Args:
             args: The arguments of the function
@@ -38,13 +54,14 @@ class Cache:
         self.cache[key] = self.func(*args)
 
     def call(self, args: list[str], key: object):
-        """Call the function and add the result to the cache
+        """
+        Call the function and add the result to the cache
 
         Args:
             args: The arguments of the function
             key: The key of the cache
         """
-        # If the key is hashable,
+        # Check if the key is hashable
         if key.__hash__:
 
             # If the key is not in the cache,
@@ -58,24 +75,33 @@ class Cache:
             # from the cache
             return self.cache[key]
 
-        else:
-
-            raise TypeError("Key is not hashable.")
+        raise TypeError(f"Key is not hashable: {key}")
 
 
 class PluginPythonChecker(ast.NodeVisitor):
+    """
+    Check if a Python file is safe.
+    """
 
-    DANGEROUS_CALL = ["exec", "eval", "compile"]
+    # List of dangerous calls.
+    DANGEROUS_CALL: list[str] = ["exec", "eval", "compile"]
 
     def __init__(self):
 
-        self.imports = []
+        # List of imports in the Python file.
+        self.imports: list[str] = []
 
-        self.calls = []
+        # List of calls in the Python file.
+        self.calls: list[str] = []
 
-        self.not_safe_calls = []
+        # List of dangerous calls in the Python file.
+        self.not_safe_calls: list[str] = []
 
-    def visit_Import(self, node):
+    @final
+    def visit_Import(self, node: ast.Import) -> None:
+        """
+        Visit an Import node.
+        """
 
         for alias in node.names:
 
@@ -83,7 +109,11 @@ class PluginPythonChecker(ast.NodeVisitor):
 
         self.generic_visit(node)
 
-    def visit_ImportFrom(self, node):
+    @final
+    def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
+        """
+        Visit an ImportFrom node.
+        """
 
         if node.module:
 
@@ -91,7 +121,11 @@ class PluginPythonChecker(ast.NodeVisitor):
 
         self.generic_visit(node)
 
-    def visit_Call(self, node):
+    @final
+    def visit_Call(self, node: ast.Call) -> None:
+        """
+        Visit a Call node.
+        """
 
         if isinstance(node.func, ast.Name):
 
@@ -108,7 +142,8 @@ class PluginPythonChecker(ast.NodeVisitor):
 
 
 def merge_collections(collections: list[object]) -> object:
-    """Merge collections.
+    """
+    Merge a list of collections.
 
     Args:
         collections: A list of collections to merge.
@@ -116,9 +151,16 @@ def merge_collections(collections: list[object]) -> object:
     Returns:
         A merged collection of the same type as inputed collections.
     """
-    if isinstance(collections[0], dict):
+    if isinstance(
+        collections[0], dict
+    ):  # Check if the first collection is a dictionary
 
-        if all(list(map(lambda collection: isinstance(collection, dict), collections))):
+        # Check if all the collections are dictionaries
+        is_dict: list[bool] = list(
+            map(lambda collection: isinstance(collection, dict), collections)
+        )
+
+        if all(is_dict):
 
             output: dict = {}
 
@@ -129,7 +171,7 @@ def merge_collections(collections: list[object]) -> object:
         else:
 
             raise ValueError(
-                "Not all of the collections being merged are of the same data type."
+                f"Not all of the collections being merged are of the same data type: {is_dict}"
             )
 
     else:
@@ -145,7 +187,9 @@ def merge_collections(collections: list[object]) -> object:
 
 
 def get_project_dir() -> str:
-
+    """
+    Get the project directory.
+    """
     return os.path.dirname(os.path.abspath(__file__))
 
 
@@ -156,44 +200,79 @@ def get_or_create_config_dir() -> Path:
     else:  # Unix-like
         base = os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")
 
-    config = Path(base) / "vusion" / "callers"
+    # The path tho the callers configuration directory
+    config: Path = Path(base) / "vusion" / "callers"
 
+    # If the directory does not exist, create it
     if not config.exists():
-
         create_config_dir(config)
 
+    # Return the path to the callers configuration directory
     return config
 
 
 def create_config_dir(path: Path) -> Path:
-    """Create filesystem .config directory"""
+    """
+    Create a filesystem .config directory.
+
+    Args:
+        path (Path): The path to the directory to create.
+
+    Returns:
+        Path: The path to the created directory.
+    """
 
     path.mkdir(parents=True, exist_ok=True)
 
+    # Create an empty __init__.py file
     path.joinpath("__init__.py").touch()
+
+    # Return the path to the callers configuration directory
+    return path
 
 
 def hash_file(path: Path) -> str:
+    """
+    Hash a file.
 
+    Args:
+        path (Path): The path to the file to hash.
+
+    Returns:
+        str: The hash of the file.
+    """
+    # Check if the file exists
     if path.exists():
 
-        hash = sha256()
+        # Create a SHA-256 hash object
+        hash_object_file: sha256 = sha256()
 
-        with open(path, mode="r") as plugin:
+        # Open the file and read its content
+        with open(path, mode="r", encoding="utf-8") as plugin:
 
-            for record in plugin:
+            # Read the content of the file
+            for line in plugin:
 
-                hash.update(record.encode())
+                # Update the hash with the content of the file
+                hash_object_file.update(line.encode())
 
-        return hash.hexdigest()
+        # Return the hash of the file
+        return hash_object_file.hexdigest()
 
-    else:
-
-        return None
+    # Raise an error if the file does not exist
+    raise FileNotFoundError(f"File {path} not found.")
 
 
 def file_infos(path: str) -> dict:
-    """Get file stats"""
+    """
+    Get file stats.
+
+    Args:
+        path (str): The path to the file to get stats from.
+
+    Returns:
+        A dictionary containing the file stats.
+    """
     statinfo = os.stat(path)
 
     return {
@@ -205,7 +284,14 @@ def file_infos(path: str) -> dict:
 
 
 def clean(files: list[Path]):
+    """
+    Remove a list of files from filesystem.
 
+    Args:
+        files: A list of files to remove.
+    """
+
+    # Remove each file from the filesystem
     for file in files:
 
         file.unlink(missing_ok=True)

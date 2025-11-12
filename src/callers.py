@@ -1,8 +1,12 @@
+"""
+A module to manage the variant callers.
+"""
+
 import enum
 import importlib
 import sys
 from abc import ABC, abstractmethod
-from typing import final
+from typing import Iterator, final
 
 from loguru import logger
 
@@ -12,6 +16,8 @@ from repository import Repository
 
 class VariantCaller(ABC):
     """Abstract class for variant callers"""
+
+    # Following methods allow to extract the metrics from the variant
 
     @staticmethod
     @abstractmethod
@@ -39,12 +45,13 @@ class VariantCaller(ABC):
         """Extract the alternate allele counts."""
 
 
+@final
 class VariantCallerRepository(Repository):
     """A class to manage the variant callers"""
 
     __slots__ = ["callers", "plugins"]
 
-    # known variant callers are:
+    # Known variant callers are:
     # deepvariant       (DV)
     # bcftools			(ST)
     # varscan			(VS)
@@ -52,7 +59,7 @@ class VariantCallerRepository(Repository):
     # pindel			(PL)
     # haplotypecaller	(HC)
 
-    def __init__(self):
+    def __init__(self) -> None:
 
         # Initialize the built-in supported variant callers
         self.callers: dict[str:VariantCaller] = {
@@ -103,6 +110,9 @@ class VariantCallerRepository(Repository):
 
         Returns:
             VariantCaller: The BCFTools variant caller instance.
+
+        Raises:
+            VariantCallerError: If the caller is not supported.
         """
 
         return self.get_VC("BT")
@@ -113,6 +123,9 @@ class VariantCallerRepository(Repository):
 
         Returns:
             VariantCaller: The Varscan variant caller instance.
+
+        Raises:
+            VariantCallerError: If the caller is not supported.
         """
 
         return self.get_VC("VS")
@@ -123,6 +136,9 @@ class VariantCallerRepository(Repository):
 
         Returns:
             VariantCaller: The Vardict variant caller instance.
+
+        Raises:
+            VariantCallerError: If the caller is not supported.
         """
 
         return self.get_VC("VD")
@@ -133,6 +149,9 @@ class VariantCallerRepository(Repository):
 
         Returns:
             VariantCaller: The Pindel variant caller instance.
+
+        Raises:
+            VariantCallerError: If the caller is not supported.
         """
 
         return self.get_VC("PL")
@@ -143,6 +162,9 @@ class VariantCallerRepository(Repository):
 
         Returns:
             VariantCaller: The Haplotypecaller variant caller instance.
+
+        Raises:
+            VariantCallerError: If the caller is not supported.
         """
 
         return self.get_VC("HS")
@@ -153,6 +175,9 @@ class VariantCallerRepository(Repository):
 
         Returns:
             VariantCaller: The Filt3r variant caller instance.
+
+        Raises:
+            VariantCallerError: If the caller is not supported.
         """
 
         return self.get_VC("FL")
@@ -163,6 +188,9 @@ class VariantCallerRepository(Repository):
 
         Returns:
             VariantCaller: The DeepVariant caller instance.
+
+        Raises:
+            VariantCallerError: If the caller is not supported.
         """
 
         return self.get_VC("DV")
@@ -199,6 +227,9 @@ class VariantCallerRepository(Repository):
 
         Args:
             plugin (VariantCallerPlugin): The variant caller plugin to load.
+
+        Raises:
+            VariantCallerPluginError: If the variant caller plugin is not valid.
         """
 
         try:
@@ -227,17 +258,25 @@ class VariantCallerRepository(Repository):
         except ImportError as e:
 
             # Trace the error
-            logger.error(e)
+            logger.error(
+                f"Error importing module {plugin.config.params['caller']['name']}: {e}"
+            )
 
             # Raise a VariantCallerPluginError exception
-            raise exceptions.VariantCallerPluginError(e)
+            raise exceptions.VariantCallerPluginError(
+                f"Error importing module {plugin.config.params['caller']['name']}"
+            ) from e
 
         # Catch an AttributeError exception if the class is not found
         except AttributeError as e:
 
-            logger.error(e)
+            logger.error(
+                f"Error instantiating class {plugin.config.params['caller']['name']}: {e}"
+            )
 
-            raise exceptions.VariantCallerPluginError(e)
+            raise exceptions.VariantCallerPluginError(
+                f"Error instantiating class {plugin.config.params['caller']['name']}"
+            ) from e
 
         # Catch other exceptions
         except Exception as e:
@@ -248,13 +287,10 @@ class VariantCallerRepository(Repository):
                 # Raise the exception
                 raise
 
-            # If the exception is not an ImportError or an AttributeError
-            else:
-
-                # Raise a VariantCallerPluginError exception
-                raise exceptions.VariantCallerPluginError(
-                    f"An unexpected error has occurred when loading variant caller plugin"
-                ) from e
+            # Raise a VariantCallerPluginError exception
+            raise exceptions.VariantCallerPluginError(
+                "An unexpected error has occurred when loading variant caller plugin"
+            ) from e
 
     def populate(self, callers: list):
         """
@@ -276,19 +312,22 @@ class VariantCallerRepository(Repository):
 
         Args:
             caller (object): The variant caller to add.
+
+        Raises:
+            VariantCallerError: If the caller is not supported.
         """
 
         try:
 
             self.load(caller)
 
-        except Exception:
+        except exceptions.VariantCallerPluginError:
 
             caller.remove()
 
             raise
 
-    def remove(self, caller: object):
+    def remove(self, caller: object) -> None:
         """
         Remove a variant caller from the repository.
 
@@ -297,19 +336,19 @@ class VariantCallerRepository(Repository):
         """
 
         # Remove the variant caller from the plugins
-        self.plugins.pop(caller.id)
+        self.plugins.pop(caller.id, None)
 
         # Remove the variant caller from the callers
-        self.callers.pop(caller.id)
+        self.callers.pop(caller.id, None)
 
-    def __len__(self):
+    def __len__(self) -> int:
         """
         Return the number of variant callers in the repository.
         """
 
         return len(self.callers)
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[tuple[str, VariantCaller]]:
         """
         Iterate over the variant callers in the repository.
         """
@@ -373,18 +412,22 @@ class BCFTools(VariantCaller):
             header (dict[str:int]): The header of the VCF file.
         """
 
-        total_depth: int = int(variant[header["INFO"]].split("DP=")[1].split(";")[0])
+        total_depth: int = int(
+            variant[header["INFO"]].split("DP=")[1].split(";")[0]
+        )  # Total depth
 
-        alleles_depth: int = variant[header["INFO"]].split("DP4=")[1].split(";")[0]
+        alleles_depth: int = (
+            variant[header["INFO"]].split("DP4=")[1].split(";")[0]
+        )  # Alleles depth
 
         variant_depth: int = int(alleles_depth.split(",")[2]) + int(
             alleles_depth.split(",")[3]
         )
 
         try:
-            vaf: float = variant_depth / total_depth
+            vaf: float = variant_depth / total_depth  # Variant allele frequency
         except ZeroDivisionError:
-            vaf: float = 0.0
+            vaf: float = 0.0  # Variant allele frequency
 
         return vaf
 
@@ -414,9 +457,9 @@ class BCFTools(VariantCaller):
             variant[header["INFO"]].split("DP4=")[1].split(";")[0]
         )
         depths: list[str] = alleles_depth.split(",")
-        rrc_plus: int = int(depths[0])
-        rrc_minus: int = int(depths[1])
-        rrc: int = rrc_plus + rrc_minus
+        rrc_plus: int = int(depths[0])  # Reference read count for the forward strand
+        rrc_minus: int = int(depths[1])  # Reference read count for the reverse strand
+        rrc: int = rrc_plus + rrc_minus  # Total reference read count
         return (rrc, rrc_plus, rrc_minus)
 
     @staticmethod
@@ -433,19 +476,23 @@ class BCFTools(VariantCaller):
             variant[header["INFO"]].split("DP4=")[1].split(";")[0]
         )
         depths: list[str] = alleles_depth.split(",")
-        arc_plus: int = int(depths[2])
-        arc_minus: int = int(depths[3])
-        arc: int = arc_plus + arc_minus
-        return (arc, arc_plus, arc_minus)
+        arc_forward_strand: int = int(
+            depths[2]
+        )  # Alternate read count for the forward strand
+        arc_reverse_strand: int = int(
+            depths[3]
+        )  # Alternate read count for the reverse strand
+        arc: int = arc_forward_strand + arc_reverse_strand  # Total alternate read count
+        return (arc, arc_forward_strand, arc_reverse_strand)
 
-    def __str__(self):
+    def __str__(self) -> str:
         """
         Return the string representation of the variant caller.
         """
 
         return "BCFTools"
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         """
         Return the string representation of the variant caller.
         """
@@ -524,7 +571,7 @@ class Varscan(VariantCaller):
                 ).rstrip("%")
             )
             / 100
-        )
+        )  # Variant allele frequency
 
         return vaf
 
@@ -534,7 +581,9 @@ class Varscan(VariantCaller):
         Get the depth of the variant.
         """
 
-        return int(variant[header["SAMPLE"]].split(":")[Varscan.FORMAT.SDP.value])
+        return int(
+            variant[header["SAMPLE"]].split(":")[Varscan.FORMAT.SDP.value]
+        )  # Depth of the variant
 
     @staticmethod
     def rrc(variant: list[str], header: dict[str:int]) -> tuple[int]:
@@ -544,11 +593,15 @@ class Varscan(VariantCaller):
 
         values = variant[header["SAMPLE"]].split(":")
 
-        rrc = int(values[Varscan.FORMAT.RD.value])
-        rrc_plus = int(values[Varscan.FORMAT.RDF.value])
-        rrc_minus = int(values[Varscan.FORMAT.RDR.value])
+        rrc = int(values[Varscan.FORMAT.RD.value])  # Total reference read count
+        rrc_forward_strand = int(
+            values[Varscan.FORMAT.RDF.value]
+        )  # Reference read count for the forward strand
+        rrc_reverse_strand = int(
+            values[Varscan.FORMAT.RDR.value]
+        )  # Reference read count for the reverse strand
 
-        return (rrc, rrc_plus, rrc_minus)
+        return (rrc, rrc_forward_strand, rrc_reverse_strand)
 
     @staticmethod
     def arc(variant: list[str], header: dict[str:int]) -> tuple[int]:
@@ -558,20 +611,24 @@ class Varscan(VariantCaller):
 
         values = variant[header["SAMPLE"]].split(":")
 
-        arc = int(values[Varscan.FORMAT.AD.value])
-        arc_plus = int(values[Varscan.FORMAT.ADF.value])
-        arc_minus = int(values[Varscan.FORMAT.ADR.value])
+        arc = int(values[Varscan.FORMAT.AD.value])  # Total alternate read count
+        arc_forward_strand = int(
+            values[Varscan.FORMAT.ADF.value]
+        )  # Alternate read count for the forward strand
+        arc_reverse_strand = int(
+            values[Varscan.FORMAT.ADR.value]
+        )  # Alternate read count for the reverse strand
 
-        return (arc, arc_plus, arc_minus)
+        return (arc, arc_forward_strand, arc_reverse_strand)
 
-    def __str__(self):
+    def __str__(self) -> str:
         """
         Return the string representation of the variant caller.
         """
 
         return "Varscan"
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         """
         Return the string representation of the variant caller.
         """
@@ -648,13 +705,17 @@ class Vardict(VariantCaller):
 
         values: list[str] = variant[header["SAMPLE"]].split(":")
 
-        rrc = int(values[3].split(",")[0])
+        rrc = int(values[3].split(",")[0])  # Total reference read count
 
         rd: list[str] = values[Vardict.FORMAT.RD.value].split(",")
-        rrc_plus: int = int(rd[0])
-        rrc_minus: int = int(rd[1])
+        rrc_forward_strand: int = int(
+            rd[0]
+        )  # Reference read count for the forward strand
+        rrc_reverse_strand: int = int(
+            rd[1]
+        )  # Reference read count for the reverse strand
 
-        return (rrc, rrc_plus, rrc_minus)
+        return (rrc, rrc_forward_strand, rrc_reverse_strand)
 
     @staticmethod
     def arc(variant: list[str], header: dict[str:int]) -> tuple[int]:
@@ -662,24 +723,30 @@ class Vardict(VariantCaller):
         Get the alternate allele counts.
         """
 
-        values: list[str] = variant[header["SAMPLE"]].split(":")
+        values: list[str] = variant[header["SAMPLE"]].split(":")  # Sample values
 
-        arc = int(values[Vardict.FORMAT.AD.value].split(",")[1])
+        arc = int(
+            values[Vardict.FORMAT.AD.value].split(",")[1]
+        )  # Total alternate read count
 
         ald: list[int] = values[Vardict.FORMAT.ALD.value].split(",")
-        arc_plus: int = int(ald[0])
-        arc_minus: int = int(ald[1])
+        arc_forward_strand: int = int(
+            ald[0]
+        )  # Alternate read count for the forward strand
+        arc_reverse_strand: int = int(
+            ald[1]
+        )  # Alternate read count for the reverse strand
 
-        return (arc, arc_plus, arc_minus)
+        return (arc, arc_forward_strand, arc_reverse_strand)
 
-    def __str__(self):
+    def __str__(self) -> str:
         """
         Return the string representation of the variant caller.
         """
 
         return "Vardict"
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         """
         Return the string representation of the variant caller.
         """
@@ -764,9 +831,9 @@ class Pindel(VariantCaller):
         Get the alternate allele counts.
         """
 
-        arc = int(
+        arc: int = int(
             variant[header["SAMPLE"]].split(":")[Pindel.FORMAT.AD.value].split(",")[1]
-        )
+        )  # Total alternate read count
 
         return (
             arc,
@@ -774,14 +841,14 @@ class Pindel(VariantCaller):
             None,
         )  # Pindel does not provide the alternate allele counts for forward and reverse strands
 
-    def __str__(self):
+    def __str__(self) -> str:
         """
         Return the string representation of the variant caller.
         """
 
         return "Pindel"
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         """
         Return the string representation of the variant caller.
         """
@@ -836,13 +903,15 @@ class Haplotypecaller(VariantCaller):
 
         metrics: list[str] = variant[header["SAMPLE"]].split(":")
 
-        total_depth = float(metrics[Haplotypecaller.FORMAT.DP.value])
-        alleles_depth = float(metrics[1].split(",")[Haplotypecaller.FORMAT.AD.value])
+        total_depth: float = float(metrics[Haplotypecaller.FORMAT.DP.value])
+        alleles_depth: float = float(
+            metrics[1].split(",")[Haplotypecaller.FORMAT.AD.value]
+        )
 
         try:
-            vaf: float = alleles_depth / total_depth
+            vaf: float = alleles_depth / total_depth  # Variant allele frequency
         except ZeroDivisionError:
-            vaf: float = 0.0
+            vaf: float = 0.0  # Variant allele frequency
 
         return vaf
 
@@ -854,7 +923,7 @@ class Haplotypecaller(VariantCaller):
 
         return int(
             variant[header["SAMPLE"]].split(":")[Haplotypecaller.FORMAT.DP.value]
-        )
+        )  # Depth of the variant
 
     @staticmethod
     def rrc(variant: list[str], header: dict[str:int]) -> tuple[int]:
@@ -874,11 +943,11 @@ class Haplotypecaller(VariantCaller):
         Get the alternate allele counts.
         """
 
-        arc = int(
+        arc: int = int(
             variant[header["SAMPLE"]]
             .split(":")[Haplotypecaller.FORMAT.AD.value]
             .split(",")[1]
-        )
+        )  # Total alternate read count
 
         return (
             arc,
@@ -886,14 +955,14 @@ class Haplotypecaller(VariantCaller):
             None,
         )  # Haplotypecaller does not provide the alternate allele counts for forward and reverse strands
 
-    def __str__(self):
+    def __str__(self) -> str:
         """
         Return the string representation of the variant caller.
         """
 
         return "Haplotypecaller"
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         """
         Return the string representation of the variant caller.
         """
@@ -956,7 +1025,9 @@ class Filt3r(VariantCaller):
         Get the alternate allele counts.
         """
 
-        arc = int(variant[6].split(";")[1].split("=")[1])
+        arc: int = int(
+            variant[6].split(";")[1].split("=")[1]
+        )  # Total alternate read count
 
         return (
             arc,
@@ -964,14 +1035,14 @@ class Filt3r(VariantCaller):
             None,
         )  # Filt3r does not provide the alternate allele counts for forward and reverse strands
 
-    def __str__(self):
+    def __str__(self) -> str:
         """
         Return the string representation of the variant caller.
         """
 
         return "Flit3r"
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         """
         Return the string representation of the variant caller.
         """
@@ -1045,7 +1116,7 @@ class DeepVariant(VariantCaller):
                 variant[header["SAMPLE"]]
                 .split(":")[DeepVariant.FORMAT.AD.value]
                 .split(",")[0]
-            ),
+            ),  # Total reference read count
             None,
             None,
         )  # DeepVariant does not provide the reference allele counts for each strand
@@ -1056,11 +1127,11 @@ class DeepVariant(VariantCaller):
         Get the alternate allele counts.
         """
 
-        arc = int(
+        arc: int = int(
             variant[header["SAMPLE"]]
             .split(":")[DeepVariant.FORMAT.AD.value]
             .split(",")[1]
-        )
+        )  # Total alternate read count
 
         return (
             arc,
@@ -1068,14 +1139,14 @@ class DeepVariant(VariantCaller):
             None,
         )  # DeepVariant does not provide the alternate allele counts for forward and reverse strands
 
-    def __str__(self):
+    def __str__(self) -> str:
         """
         Return the string representation of the variant caller.
         """
 
         return "Deepvariant"
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         """
         Return the string representation of the variant caller.
         """

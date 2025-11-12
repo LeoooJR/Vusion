@@ -1,3 +1,8 @@
+"""
+A module to define the exceptions.
+"""
+
+
 class FileError(Exception):
     """
     Exception raised for errors in the file.

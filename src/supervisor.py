@@ -1,4 +1,11 @@
+"""
+A module to supervise each step of the program.
+"""
+
 import os
+from argparse import Namespace as Arguments
+from pathlib import Path
+from typing import Final
 
 from loguru import logger
 from rich.panel import Panel
@@ -6,16 +13,16 @@ from rich.panel import Panel
 import exceptions
 import files as io
 from callers import VariantCallerRepository
-from console import stdout_console
+from console import print_stdout
 from variants import VariantsRepository
 
 
-def supervisor(params: object) -> None:
+def supervisor(context: Arguments) -> int:
     """
-    Combine variant calls from multiple callers.
+    Merge and reconcile variant calls from multiple callers.
 
     Args:
-        params: Command line parameters.
+        context: Command line parameters.
 
     Raises:
         SystemExit: If errors occur during the execution.
@@ -25,26 +32,26 @@ def supervisor(params: object) -> None:
     # Initiate constant variables
     # ===========================================================================================
     # Set the strand bias metric
-    SBM: float = 2.0 if params.disable_strand_bias else 0.95
+    SBM: Final[float] = 2.0 if context.disable_strand_bias else 0.95
 
     # Trace the thresholds
-    logger.debug(f"Thresholds: {params.thresholds}")
+    logger.debug(f"Thresholds: {context.thresholds}")
 
     # Create a variant caller repository
     # This repository will be used to check if the variant callers are supported
     # and to get the variant caller object for each variant caller
-    callers = VariantCallerRepository()
+    callers: Final[VariantCallerRepository] = VariantCallerRepository()
 
     # Create a VCF repository
     # This repository will be used to store the VCF files
-    vcfs = io.VCFRepository()
+    vcfs: Final[io.VCFRepository] = io.VCFRepository()
 
     # Create a variants repository
     # This repository will be used to store the variants and their informations
-    variants = VariantsRepository(
-        sample=params.sample,
-        rescue=params.rescue,
-        intermediate_results=(params.output if params.intermediate_results else ""),
+    variants: Final[VariantsRepository] = VariantsRepository(
+        sample=context.sample,
+        rescue=context.rescue,
+        intermediate_results=(context.output if context.intermediate_results else ""),
     )
 
     # ===========================================================================================
@@ -52,65 +59,82 @@ def supervisor(params: object) -> None:
     # ===========================================================================================
 
     # Check if the output directory exists
-    if not os.path.isdir(params.output):
-        logger.error(f"No such directory: '{params.output}'")
-        raise SystemExit(f"No such directory: '{params.output}'")
+    if not Path(context.output).is_dir():
+        logger.error(f"No such output directory: '{context.output}'")
+        raise SystemExit(f"No such output directory: '{context.output}'")
     # Check if the output directory is writable
     else:
-        if not os.access(params.output, os.W_OK):
+        if not os.access(context.output, os.W_OK):
             logger.error(
-                f"Write permissions are not granted for the directory: {params.output}"
+                f"Write permissions are not granted for the output directory: {context.output}"
             )
             raise SystemExit(
-                f"Write permissions are not granted for the directory: {params.output}"
+                f"Write permissions are not granted for the output directory: {context.output}"
             )
 
     # Check if the reference genome index is valid
     try:
         # Create a fasta index object
-        fai = io.FastaIndex(path=params.reference, lazy=False)
+        fai: io.FastaIndex = io.FastaIndex(path=context.reference, lazy=False)
         # Trace the success
-        logger.success(f"Fasta index {params.reference} has been successfully checked.")
+        logger.success(
+            f"Fasta index {context.reference} has been successfully checked."
+        )
     except exceptions.FastaIndexError as e:
-        logger.error(f"{params.reference} is not a valid FASTA index: {e}")
-        raise SystemExit(f"{params.reference} is not a valid FASTA index") from e
+        logger.error(f"{context.reference} is not a valid FASTA index: {e}")
+        raise SystemExit(f"{context.reference} is not a valid FASTA index") from e
 
     # Check if the pileup is valid
     try:
         # Create a pileup object
-        pileup = io.Pileup(path=params.pileup, sample=params.sample, lazy=True)
+        pileup: io.Pileup = io.Pileup(
+            path=context.pileup, sample=context.sample, lazy=True
+        )
         # Trace the success
-        logger.success(f"Pileup {params.pileup} has been successfully checked.")
+        logger.success(f"Pileup {context.pileup} has been successfully checked.")
         # Store the pileup object in the variants repository
         variants.pileup = pileup
     # Catch an error if the pileup is not valid
     except exceptions.PileupError as e:
-        logger.error(f"{params.pileup} is not a valid PILEUP: {e}")
-        raise SystemExit(f"{params.pileup} is not a valid PILEUP") from e
+        logger.error(f"{context.pileup} is not a valid PILEUP file: {e}")
+        raise SystemExit(f"{context.pileup} is not a valid PILEUP file") from e
 
     # Check if the VCFs are valid
-    for vcf in params.vcfs:
-        # Check if a YAML config file is provided
+    # Iterator is a list of lists with metadatas about the VCFs: [id, path, [yaml]]
+    for vcf in context.vcfs:
+        # Check if a YAML config file is provided (non-builtin variant callers)
         if len(vcf) == 3:
             # Store the id, path and yaml config file
+            id: str  # Variant caller identifier
+            path: str  # Path to the VCF file
+            yaml: str  # Path to the YAML config file
             id, path, yaml = vcf
             # Trace
             logger.debug(f"YAML config file {yaml} provided for the VCF {path}")
-            # Create a config file object
-            config_file = io.Config(path=yaml, lazy=False)
+            try:
+                # Create a config file object
+                config_file: io.Config = io.Config(path=yaml, lazy=False)
+            except exceptions.ConfigError as e:
+                raise SystemExit(f"{yaml} is not a valid YAML config file: {e}") from e
             try:
                 # Create a variant caller plugin object
-                plugin = io.VariantCallerPlugin(id=id, config=config_file)
+                plugin: io.VariantCallerPlugin = io.VariantCallerPlugin(
+                    id=id, config=config_file
+                )
                 # Add the plugin to the caller repository
                 callers.add(plugin)
             # Raise an error if the variant caller plugin is not valid
             except exceptions.VariantCallerPluginError as e:
-                raise SystemExit(e)
-        # If no YAML config file is provided
+                raise SystemExit(
+                    f"{id} is not a valid variant caller plugin: {e}"
+                ) from e
+        # If no YAML config file is provided (builtin variant callers)
         else:
             # Store the id and path of the VCF
+            id: str  # Variant caller identifier
+            path: str  # Path to the VCF file
             id, path = vcf
-        # Check if the variant caller is supported
+        # Check with identifier if the variant caller is supported
         if not callers.is_supported(id):
             logger.error(f"{id} variant caller is not supported in --vcf option.")
             raise SystemExit(f"{id} variant caller not supported in --vcf options.")
@@ -147,12 +171,12 @@ def supervisor(params: object) -> None:
     #     }
     # }
     # Trace
-    logger.debug("Collecting all variants.")
+    logger.debug("Collecting all variants...")
     # Try to populate the variants repository
     try:
         variants.populate(vcfs=vcfs)
     except exceptions.VariantCallerPluginError as e:
-        raise SystemExit(e)
+        raise SystemExit("Error while collecting all variants") from e
 
     # ===========================================================================================
     # Process variants with Pileup
@@ -173,13 +197,13 @@ def supervisor(params: object) -> None:
     #     }
     # }
     # Trace
-    logger.debug("Calculation of final metrics.")
+    logger.debug("Calculation of final metrics...")
     # Normalize the variants
     variants.normalize(
-        thresholds=params.thresholds,
-        length_indels=params.length_indels,
+        thresholds=context.thresholds,
+        length_indels=context.length_indels,
         sbm=SBM,
-        sbm_homozygous=params.sbm_homozygous,
+        sbm_homozygous=context.sbm_homozygous,
     )
 
     # ===========================================================================================
@@ -190,51 +214,53 @@ def supervisor(params: object) -> None:
     writter: io.GenomicWritter = io.GenomicWritter(process=0)
 
     # If the intermediate results and the rescue option are enabled
-    if params.intermediate_results and params.rescue:
+    if context.intermediate_results and context.rescue:
 
         # Trace
-        logger.debug((f"Writting VCF file of rejected variants in {params.output}."))
+        logger.debug((f"Writting VCF file of rejected variants in {context.output}."))
 
         # Write the VCF file of rejected variants
         writter.write(
-            output=params.output,
+            output=context.output,
             template="vcf",
             collection=variants.repository,
             lookups=variants.rejected_variants,
             sample=variants.sample,
             contigs=fai.contigs,
-            thresholds=params.thresholds,
+            thresholds=context.thresholds,
             suffix="rejected",
         )
 
         # Trace the success
         logger.success(
-            f"VCF file of rejected variants successfully written to {params.output}"
+            f"VCF file of rejected variants successfully written to {context.output}"
         )
 
     # Trace
-    logger.debug(f"Writting VCF file in {params.output}.")
+    logger.debug(f"Writting VCF file in {context.output}.")
 
     # Write the VCF file of common and complex variants
     writter.write(
-        output=params.output,
+        output=context.output,
         template="vcf",
         collection=variants.repository,
         lookups=variants.common_variants | variants.complex_variants,
         sample=variants.sample,
         contigs=fai.contigs,
-        thresholds=params.thresholds,
+        thresholds=context.thresholds,
     )
 
     # Trace the success
-    logger.success(f"VCF file successfully written to {params.output}")
+    logger.success(f"VCF file successfully written to {context.output}")
 
     # Print the success message to standard output stream
-    stdout_console.print(
+    print_stdout(
         Panel.fit(
-            f"VCF successfully generated at '{params.output}'.",
+            f"VCF successfully generated at '{context.output}'.",
             title="Success",
             highlight=True,
-        ),
-        style="result",
+        )
     )
+
+    # Return 0 (success) as Unix convention
+    return 0

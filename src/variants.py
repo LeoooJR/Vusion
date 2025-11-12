@@ -1,16 +1,21 @@
+"""
+A module to manage the variants.
+"""
+
 import math
 import os
 import re
 from collections import Counter, deque, namedtuple
 from functools import lru_cache
 from operator import itemgetter
+from typing import Final
 
 import numpy as np
 from loguru import logger
 from scipy.stats import fisher_exact
 from sortedcontainers import SortedSet
 
-import exceptions as exceptions
+import exceptions
 import utils as functions
 from callers import VariantCaller
 from files import FastaIndex, Pileup, VCFRepository
@@ -26,7 +31,7 @@ class VariantsRepository:
         fai: FastaIndex = None,
         rescue: bool = False,
         intermediate_results: str = "",
-    ):
+    ) -> None:
 
         # Dictionary to store variants
         self.repository: dict = {}
@@ -57,25 +62,27 @@ class VariantsRepository:
         self.sample: str = sample
 
         # Link the repository to the pileup object
-        self._pileup = pileup
+        self._pileup: Pileup | None = pileup
 
         # Link the repository to the fasta index object
-        self._fai = fai
+        self._fai: FastaIndex | None = fai
 
         # Should the rejected variants be rescued ?
         self.rescue: bool = rescue
 
         # Should intermediate results be saved ?
-        self.intermediate_results = intermediate_results
+        self.intermediate_results: str = (
+            intermediate_results  # Path to the intermediate results
+        )
 
     @property
-    def pileup(self):
+    def pileup(self) -> Pileup | None:
         """Get the pileup object."""
 
         return getattr(self, "_pileup", None)
 
     @pileup.setter
-    def pileup(self, value: Pileup | None):
+    def pileup(self, value: Pileup | None) -> None:
         """Set the pileup object.
 
         Args:
@@ -94,13 +101,13 @@ class VariantsRepository:
         self._pileup: Pileup = value
 
     @property
-    def fai(self):
+    def fai(self) -> FastaIndex | None:
         """Get the fasta index object."""
 
         return getattr(self, "_fai", None)
 
     @fai.setter
-    def fai(self, value: FastaIndex | None):
+    def fai(self, value: FastaIndex | None) -> None:
         """Set the fasta index object.
 
         Args:
@@ -137,20 +144,22 @@ class VariantsRepository:
         return self.cache["rejected"]
 
     @staticmethod
-    def chromosome_sort_key(item: str):
-        """Key to be used for sorting chromosomes."""
+    def chromosome_sort_key(item: str) -> tuple[int, [int | str]]:
+        """Key to be used for sorting chromosomes.
+
+        Args:
+            item (str): The chromosome to sort.
+
+        Returns:
+            tuple[int, [int|str]]: A tuple containing the sort key.
+        """
 
         # If the item is a digit, return a tuple with 0 and the integer value
         # If the item is not a digit, return a tuple with 1 and the item itself
         # This will ensure that digits are sorted before non-digits
+        # Key used to sort integers indexed chromosomes (1, 2, 3, ...) before non-integers indexed chromosomes (X, Y, M, ...)
 
-        if item.isdigit():
-
-            return (0, int(item))
-
-        else:
-
-            return (1, item)
+        return (0, int(item)) if item.isdigit() else (1, item)
 
     @staticmethod
     def is_composed_variant(allele: str) -> bool:
@@ -234,8 +243,8 @@ class VariantsRepository:
                 INV if found, empty string otherwise.
             """
 
-            OLD_CHARS: str = "ACGTacgt"
-            REPLACE_CHARS: str = "TGCAtgca"
+            OLD_CHARS: Final[str] = "ACGTacgt"
+            REPLACE_CHARS: Final[str] = "TGCAtgca"
 
             rev: str = alt.translate(str.maketrans(OLD_CHARS, REPLACE_CHARS))[::-1]
 
@@ -252,8 +261,8 @@ class VariantsRepository:
                 MNV if found, empty string otherwise.
             """
 
-            OLD_CHARS: str = "ACGTacgt"
-            REPLACE_CHARS: str = "TGCAtgca"
+            OLD_CHARS: Final[str] = "ACGTacgt"
+            REPLACE_CHARS: Final[str] = "TGCAtgca"
 
             rev: str = alt.translate(str.maketrans(OLD_CHARS, REPLACE_CHARS))[::-1]
 
@@ -297,10 +306,19 @@ class VariantsRepository:
         0    [0]   [1]   [2]   [3]   [4]   [5]  100 (ARR)
         """
 
-        MAX_THRESHOLD = 100.0
-        MIN_THRESHOLD = 0.0
+        MAX_THRESHOLD: Final[float] = 100.0
+        MIN_THRESHOLD: Final[float] = 0.0
 
-        classes: list[str] = ["LSC", "PSC", "PHE", "LHE", "PHE", "PHO", "LHO", "HO"]
+        classes: Final[list[str]] = [
+            "LSC",
+            "PSC",
+            "PHE",
+            "LHE",
+            "PHE",
+            "PHO",
+            "LHO",
+            "HO",
+        ]
 
         if arr == MIN_THRESHOLD:
 
@@ -388,7 +406,7 @@ class VariantsRepository:
 
     @staticmethod
     def compute_background_metrics(
-        pileup: Pileup, record: list[str], variant: dict, thresholds: list[float]
+        record: list[str], variant: dict, thresholds: list[float]
     ) -> dict[str:float]:
         """
         estimate <BRC/R/E> (background read counts/ratio/enrichment)
@@ -400,10 +418,10 @@ class VariantsRepository:
 
         def classification(bre: float, arr: float, thresholds: tuple[float]) -> str:
 
-            MAX_THRESHOLD = 100.0
-            MIN_THRESHOLD = 0.0
+            MAX_THRESHOLD: Final[float] = 100.0
+            MIN_THRESHOLD: Final[float] = 0.0
 
-            classes: list[str] = ["LCL", "PCL", "PNO", "LNO"]
+            classes: Final[list[str]] = ["LCL", "PCL", "PNO", "LNO"]
 
             if arr >= 30.0:
 
@@ -492,6 +510,7 @@ class VariantsRepository:
             classification(bre, variant["sample"]["ARR"], thresholds),
         )
 
+    @staticmethod
     def compute_strand_bias_metrics(
         trc: tuple[int],
         arc: tuple[int],
@@ -585,7 +604,10 @@ class VariantsRepository:
         sbm: float,
         sbm_homozygous: float,
         pileup_record: str = "",
-    ):
+    ) -> None:
+        """
+        Compute the sample metrics.
+        """
 
         # --------------------------------------------------------------
         # Compute metrics
@@ -632,14 +654,14 @@ class VariantsRepository:
                                     f"ARC{strand}" in variant["collection"]
                                     and (
                                         len(variant["collection"][f"ARC{strand}"])
-                                        == len(variant["collection"][f"ARC"])
+                                        == len(variant["collection"]["ARC"])
                                     )
                                 )
                                 and (
                                     f"RCC{strand}" in variant["collection"]
                                     and (
                                         len(variant["collection"][f"RCC{strand}"])
-                                        == len(variant["collection"][f"RCC"])
+                                        == len(variant["collection"]["RCC"])
                                     )
                                 )
                             )
@@ -660,7 +682,7 @@ class VariantsRepository:
                                 f"{metric}{strand}" in variant["collection"]
                                 and (
                                     len(variant["collection"][f"{metric}{strand}"])
-                                    == len(variant["collection"][f"{metric}"])
+                                    == len(variant["collection"][metric])
                                 )
                             )
                             else -1
@@ -726,39 +748,34 @@ class VariantsRepository:
 
         variant["sample"]["LOW"] = int(variant["sample"]["ARR"] < thresholds[-1])
 
+        variant_filter_value: str = VariantsRepository.get_filter(variant, sbm)
+
         if variant.get("filter", "") == "REJECTED":
 
             # rescue <PASS> calls only
             # do not rescue SNV (more likely to be VS artefacts)
             # pindel bug where ARC > TRC
-            filter: str = (
-                "PASS"
+            variant["sample"]["RES"] = (
+                "Y"
                 if (
-                    (VariantsRepository.get_filter(variant, sbm) == "PASS")
+                    (variant_filter_value == "PASS")
                     and (variant["type"] != "SNV")
                     and variant["sample"]["ARR"] <= 100.0
                 )
-                else "REJECTED"
+                else "N"
             )
-
-            if filter == "PASS":
-
-                variant["sample"]["RES"] = "Y"
-
-            else:
-
-                variant["sample"]["RES"] = "N"
 
         else:
 
-            filter: str = VariantsRepository.get_filter(variant, sbm)
-
             variant["sample"]["RES"] = "N"
 
-        variant["filter"] = filter
+        variant["filter"] = variant_filter_value
 
     @staticmethod
-    def get_filter(variant: dict, sbm: float):
+    def get_filter(variant: dict, sbm: float) -> str:
+        """
+        Get the filter for the variant.
+        """
 
         return (
             "FAIL"
@@ -774,6 +791,12 @@ class VariantsRepository:
         )
 
     def populate(self, vcfs: VCFRepository):
+        """
+        Populate the variants repository from the VCFs.
+
+        Args:
+            vcfs (VCFRepository): The VCF repository to populate from.
+        """
 
         # Loop through each VCF file
         for caller, vcf in vcfs:
@@ -785,7 +808,7 @@ class VariantsRepository:
 
             with open(vcf.get_path(), mode="r") as file:
 
-                logger.debug(f"Processing {vcf}")
+                logger.debug(f"Processing {vcf}...")
 
                 for n, line in enumerate(file, start=1):
 
@@ -793,30 +816,44 @@ class VariantsRepository:
                     if line[0] == "#":
                         continue
 
+                    # Initialize warning flag
+                    # It is used to track if any warning has been raised during the processing of the VCF file about a record
                     warning: bool = False
 
                     # VCF line structure is like [CHROM POS ID REF ALT QUAL FILTER INFO FORMAT SAMPLE]
-                    record = line.strip().split("\t")
+                    record: list[str] = line.strip().split("\t")
 
-                    position: int = int(record[1])
+                    # Remove 'chr' from chromosome name if present
+                    # This is to avoid issues with different chromosome naming conventions
+                    chromosome: str = record[header["CHROM"]].removeprefix("chr")
 
+                    position: int = int(record[header["POS"]])
+
+                    # Check if the record is compliant with the VCF format
                     if vcf.is_compliant(record):
 
                         # Variant identifier is a string that contains the reference and alternative alleles
                         # It is used to identify the variant in the dictionary
-                        ref: str = record[3]
-                        alt: str = record[4]
+                        ref: str = record[header["REF"]]
+                        alt: str = record[header["ALT"]]
 
+                        # Check if the alternative allele is compatible with the DNA alphabet
                         if re.match(r"^[ATCG]+$", alt):
 
+                            # Create a mutation identifier
+                            # It is used to identify the variant in the dictionary
                             mutation: str = f"{ref}:{alt}"
 
+                            # Get the variant type
                             category: str = VariantsRepository.get_variant_type(
                                 ref=ref, alt=alt
                             )
 
+                            # Check if the fasta index is provided
                             if self._fai:
 
+                                # Check if the chromosome is indexed in the fasta index
+                                # and if the position is correct
                                 if not (
                                     self._fai.is_indexed_chromosome(chromosome)
                                     and self._fai.is_correct_position(
@@ -824,22 +861,24 @@ class VariantsRepository:
                                     )
                                 ):
 
+                                    # Set warning flag to True about this record
                                     warning: bool = True
 
                             if not warning:
 
-                                # Remove 'chr' from chromosome name if present
-                                # This is to avoid issues with different chromosome naming conventions
-                                chromosome: str = record[0].removeprefix("chr")
-
+                                # Check if the chromosome is present in the repository
                                 if not chromosome in self.repository:
 
+                                    # Create a new entry in the dictionary for the chromosome
                                     self.repository[chromosome] = {}
 
                                 # Set positiion to integer
                                 # Integer reduces memory usage in dictionary as key
                                 Positions = namedtuple(
-                                    "Positions", ["vcf_position", "pileup_position"]
+                                    # Positions is a namedtuple that contains the VCF position and the pileup position
+                                    # It is used to identify the variant in the dictionary
+                                    "Positions",
+                                    ["vcf_position", "pileup_position"],
                                 )
 
                                 positions = Positions(
@@ -851,11 +890,13 @@ class VariantsRepository:
                                     ),
                                 )
 
+                                # Check if the positions are present in the repository for this chromosome
                                 if not positions in self.repository[chromosome]:
 
+                                    # Create a new entry in the dictionary for the positions
                                     self.repository[chromosome][positions] = {}
 
-                                # New variant
+                                # Check if the mutation is present in the repository for this chromosome and positions
                                 if (
                                     not mutation
                                     in self.repository[chromosome][positions]
@@ -893,8 +934,10 @@ class VariantsRepository:
                                     # Define variant type
                                     variant["type"] = category
 
+                                    # TODO: these variable is redondant with the mutation variable
                                     display: str = f"{ref}:{alt}"
 
+                                    # Check if the variant type is complex
                                     if variant.get("type", "") in ["INV", "MNV", "CSV"]:
 
                                         # Keep trace of the complex variant
@@ -905,6 +948,7 @@ class VariantsRepository:
                                             (chromosome, positions, mutation)
                                         )
 
+                                    # The variant type is common
                                     else:
 
                                         # Update data to be consistent with the pileup
@@ -966,11 +1010,11 @@ class VariantsRepository:
 
                                     else:
                                         logger.error(
-                                            f"Not able to retrieve variant data from provided config parameters."
+                                            "Not able to retrieve variant data from provided config parameters."
                                         )
                                         logger.error(f"Reason: {e}")
                                         raise exceptions.VariantCallerPluginError(
-                                            f"Not able to retrieve variant data from provided config parameters."
+                                            "Not able to retrieve variant data from provided config parameters."
                                         ) from e
 
                                 if not warning:
@@ -1043,7 +1087,7 @@ class VariantsRepository:
                                         caller in variant["collection"]["RRC+"]
                                     ):
 
-                                        variant["collection"][f"TRC+"][caller] = (
+                                        variant["collection"]["TRC+"][caller] = (
                                             variant["collection"]["ARC+"][caller]
                                             + variant["collection"]["RRC+"][caller]
                                         )
@@ -1052,7 +1096,7 @@ class VariantsRepository:
                                         caller in variant["collection"]["RRC-"]
                                     ):
 
-                                        variant["collection"][f"TRC-"][caller] = (
+                                        variant["collection"]["TRC-"][caller] = (
                                             variant["collection"]["ARC-"][caller]
                                             + variant["collection"]["RRC-"][caller]
                                         )
@@ -1120,12 +1164,18 @@ class VariantsRepository:
         sbm: float,
         sbm_homozygous: float,
     ) -> tuple[dict]:
+        """
+        Compute the final metrics for the variants.
+        """
 
-        def get_variants(variants, chromosome):
+        def get_variants(variants: dict, chromosome: str) -> set[int]:
+            """
+            Get the variants for the chromosome.
+            """
 
             return {positions.pileup_position for positions in variants[chromosome]}
 
-        cache = functions.Cache(func=get_variants, max_size=1)
+        cache: functions.Cache = functions.Cache(func=get_variants, max_size=1000)
 
         # ===========================================================================================
         # Process common variants with Pileup
@@ -1483,14 +1533,14 @@ class VariantsRepository:
                 sbm_homozygous=sbm_homozygous,
             )
 
-    def __len__(self):
+    def __len__(self) -> int:
 
-        return sum([len(self.cache[v]) for v in self.cache])
+        return sum([len(variants) for variants in self.cache.values()])
 
-    def __repr__(self):
+    def __repr__(self) -> str:
 
         return f"Repository of variants for {self.sample} sample."
 
-    def __str__(self):
+    def __str__(self) -> str:
 
         return f"Repository of variants for {self.sample} sample."

@@ -1,3 +1,7 @@
+"""
+A module to parse the config file.
+"""
+
 import re
 from copy import copy
 from dataclasses import dataclass
@@ -10,7 +14,7 @@ from loguru import logger
 from rich.panel import Panel
 from rich.text import Text
 
-from console import stderr_console
+from console import print_stderr
 from exceptions import ConfigError
 
 
@@ -51,27 +55,51 @@ class TreeToExpression(Transformer):
     """
 
     def STRING(self, token):
+        """
+        Convert a string token to a string.
+        """
         return str(token.value)
 
     def INDEX(self, token):
+        """
+        Convert an integer token to an integer.
+        """
         return int(token.value)
 
     def HEADER(self, token):
+        """
+        Convert a header token to a string.
+        """
         return str(token.value)
 
     def UNIT(self, token):
+        """
+        Convert a unit token to a string.
+        """
         return str(token.value)
 
     def OPERATOR(self, token):
+        """
+        Convert an operator token to a string.
+        """
         return str(token.value)
 
     def FIELD(self, token):
+        """
+        Convert a field token to a string.
+        """
         return str(token.value)
 
     def metadata(self, item):
+        """
+        Convert a metadata item to a metadata object.
+        """
         return item[0]
 
     def indexing(self, items: list):
+        """
+        Convert a list of items to a metadata object.
+        """
         header = None
         index = None
         unit = None
@@ -87,11 +115,17 @@ class TreeToExpression(Transformer):
         return Metadatas(header=header, index=index, unit=unit)
 
     def term(self, items):
+        """
+        Convert a list of items to a term object.
+        """
         if len(items) == 1:
             return Term(field=items[0])
         return Term(field=items[0], metadata=items[1])
 
     def expression(self, items):
+        """
+        Convert a list of items to an expression object.
+        """
         if len(items) == 1:
             return items[0]
 
@@ -117,6 +151,9 @@ class ExpressionVisitor:
     """Class to handle visiting of expression."""
 
     def visit_EXPRESSION(self, expression) -> dict:
+        """
+        Visit an expression object and return a dictionary.
+        """
         if isinstance(expression, Term):
             if isinstance(expression.field, Expression):
                 return {
@@ -175,26 +212,36 @@ class ExpressionTemplate:
 
     @property
     def format(self):
-
+        """
+        Get the format fields.
+        """
         return getattr(self, "_format_fields", None)
 
     @format.setter
     def format(self, value):
-
+        """
+        Set the format fields.
+        """
         self._format_fields = value
 
     @property
     def infos(self):
-
+        """
+        Get the infos fields.
+        """
         return getattr(self, "_infos_field", None)
 
     @infos.setter
     def infos(self, value):
-
+        """
+        Set the infos fields.
+        """
         self._infos_fields = value
 
     def _is_valid_field(self, field: list) -> bool:
-
+        """
+        Check if a field is valid.
+        """
         is_in_format: bool = False
         is_in_info: bool = False
 
@@ -209,7 +256,9 @@ class ExpressionTemplate:
     def _is_valid_metadata(
         self, field, index: int = None, header: str = None, unit: str = None
     ) -> bool:
-
+        """
+        Check if a metadata is valid.
+        """
         is_valid_index: bool = False if index else True
         is_valid_header: bool = False if header else True
         is_valid_unit: bool = False if unit else True
@@ -285,7 +334,8 @@ class ExpressionTemplate:
         return result
 
     def _format_expression(self, expr: dict) -> str:
-        """Format an expression into a template string.
+        """
+        Format an expression into a template string.
 
         Args:
             expr (dict): Expression dictionary from ExpressionVisitor
@@ -301,7 +351,8 @@ class ExpressionTemplate:
         return f"({terms[0]} {expr['operator']} {terms[1]})"
 
     def to_template(self, expression: dict) -> str:
-        """Convert an expression structure to a template string.
+        """
+        Convert an expression structure to a template string.
 
         Args:
             expression (dict): Expression dictionary from ExpressionVisitor
@@ -312,7 +363,8 @@ class ExpressionTemplate:
         return self._format_expression(expression)
 
     def to_python(self, expression: dict) -> str:
-        """Convert an expression structure to Python code.
+        """
+        Convert an expression structure to Python code.
 
         Args:
             expression (dict): Expression dictionary from ExpressionVisitor
@@ -331,18 +383,19 @@ class ExpressionTemplate:
 
 class ConfigParser:
     """
-    A config file parser.
+    A config file (YAML) parser.
     """
 
+    # Schema for the config file (YAML)
     SCHEMA = {
-        "caller": {
+        "caller": {  # Describe a caller
             "type": "dict",
             "schema": {
-                "name": {
+                "name": {  # Name of the caller
                     "type": "string",
                     "empty": False,
                     "required": True,
-                    "forbidden": [
+                    "forbidden": [  # Built-in variant callers
                         "BCFTools",
                         "Varscan",
                         "Vardict",
@@ -352,7 +405,7 @@ class ConfigParser:
                         "DeepVariant",
                     ],
                 },
-                "info": {
+                "info": {  # Info fields of the VCF file produced by the caller
                     "type": "string",
                     "empty": False,
                     "required": False,
@@ -360,48 +413,63 @@ class ConfigParser:
                     "default": None,
                     "coerce": lambda x: x.replace(";", ","),
                 },
-                "format": {
+                "format": {  # Format fields of the VCF file produced by the caller
                     "type": "string",
                     "empty": False,
                     "required": True,
                     # "regex": "^[A-Z]{1,}(:[A-Z]{1,})*$",
                     "coerce": lambda x: x.replace(":", ","),
                 },
-                "genotype": {
+                "genotype": {  # Genotype field
                     "type": "dict",
                     "schema": {
-                        "extract": {"type": "string", "empty": False, "nullable": False}
+                        "extract": {
+                            "type": "string",
+                            "empty": False,
+                            "nullable": False,
+                            "required": True,
+                        }  # How to extract the genotype from the VCF file
                     },
                     "required": True,
                     "nullable": False,
                     "empty": False,
                     "dependencies": "format",
                 },
-                "vaf": {
+                "vaf": {  # Variant allele frequency field
                     "type": "dict",
                     "schema": {
-                        "extract": {"type": "string", "empty": False, "nullable": False}
+                        "extract": {
+                            "type": "string",
+                            "empty": False,
+                            "nullable": False,
+                            "required": True,
+                        }  # How to extract the variant allele frequency from the VCF file
                     },
                     "required": True,
                     "empty": False,
                     "dependencies": "format",
                 },
-                "depth": {
+                "depth": {  # Depth field
                     "type": "dict",
                     "schema": {
-                        "extract": {"type": "string", "empty": False, "nullable": False}
+                        "extract": {
+                            "type": "string",
+                            "empty": False,
+                            "nullable": False,
+                            "required": True,
+                        }  # How to extract the depth from the VCF file
                     },
                     "required": True,
                     "empty": False,
                     "dependencies": "format",
                 },
-                "rrc": {
+                "rrc": {  # Reference read count field
                     "type": "dict",
                     "schema": {
                         "forward": {
                             "type": "dict",
                             "schema": {
-                                "extract": {
+                                "extract": {  # How to extract the forward allele counts from the VCF file
                                     "type": "string",
                                     "required": True,
                                     "empty": False,
@@ -416,7 +484,7 @@ class ConfigParser:
                         "reverse": {
                             "type": "dict",
                             "schema": {
-                                "extract": {
+                                "extract": {  # How to extract the reverse allele counts from the VCF file
                                     "type": "string",
                                     "required": True,
                                     "empty": False,
@@ -431,7 +499,7 @@ class ConfigParser:
                         "total": {
                             "type": "dict",
                             "schema": {
-                                "extract": {
+                                "extract": {  # How to extract the total allele counts from the VCF file
                                     "type": "string",
                                     "required": True,
                                     "empty": False,
@@ -449,13 +517,13 @@ class ConfigParser:
                     "nullable": True,
                     "dependencies": "format",
                 },
-                "arc": {
+                "arc": {  # Alternate read count field
                     "type": "dict",
                     "schema": {
                         "forward": {
                             "type": "dict",
                             "schema": {
-                                "extract": {
+                                "extract": {  # How to extract the forward allele counts from the VCF file
                                     "type": "string",
                                     "required": True,
                                     "empty": False,
@@ -470,7 +538,7 @@ class ConfigParser:
                         "reverse": {
                             "type": "dict",
                             "schema": {
-                                "extract": {
+                                "extract": {  # How to extract the reverse allele counts from the VCF file
                                     "type": "string",
                                     "required": True,
                                     "empty": False,
@@ -485,7 +553,7 @@ class ConfigParser:
                         "total": {
                             "type": "dict",
                             "schema": {
-                                "extract": {
+                                "extract": {  # How to extract the total allele counts from the VCF file
                                     "type": "string",
                                     "required": True,
                                     "empty": False,
@@ -507,6 +575,7 @@ class ConfigParser:
         }
     }
 
+    # Grammar for the config file (YAML)
     GRAMMAR = r"""
             expression: term (OPERATOR term)*
             term: FIELD indexing? | "(" expression ")"
@@ -528,111 +597,160 @@ class ConfigParser:
             %ignore WS_INLINE
             """
 
+    # Parser for the DSL (Domain Specific Language)
     DSL_PARSER = Lark(GRAMMAR, start="expression", parser="lalr")
 
     def __init__(self, path: str):
+        """
+        Initialize the ConfigParser.
+
+        Args:
+            path (str): Path to the config file (YAML).
+        """
 
         self.path: str = path
 
-        self.validator = cerberus.Validator(self.SCHEMA)
+        self.validator = cerberus.Validator(
+            self.SCHEMA
+        )  # Validator for the config file schema.
 
-    def valid_schema(self, document):
+    def valid_schema(self, document) -> bool:
+        """
+        Validate the config file schema.
 
+        Args:
+            document (dict): Config file document.
+
+        Returns:
+            bool: True if the config file schema is valid, False otherwise.
+        """
         return self.validator.validate(document)
 
-    def valid_dsl(self, document):
+    def parse(self, document) -> dict:
+        """
+        Parse the config file and return the parsed parameters.
+        This method is used to parse the config file after it has been validated.
 
-        fdocument = copy(document)
+        Args:
+            document (dict): Config file document.
 
-        transformer = TreeToExpression()
+        Returns:
+            dict: Parsed parameters.
+        """
 
-        visitor = ExpressionVisitor()
+        parameters = copy(
+            document
+        )  # Copy the document to avoid modifying the original.
 
-        formatter = ExpressionTemplate()
+        transformer = TreeToExpression()  # Transformer for the DSL.
 
-        for field in fdocument["caller"]:
+        visitor = ExpressionVisitor()  # Visitor for the DSL.
 
+        formatter = ExpressionTemplate()  # Formatter for the DSL.
+
+        # Iterate over the config file fields
+        for field in parameters["caller"]:
+            # Each following conditional statement is to validate the value of the current field.
             if field == "name":
 
-                if not fdocument["caller"][field].isidentifier():
+                # Check that the name only contains alphanumeric letters (a-z) and (0-9), or underscores (_). A valid identifier cannot start with a number, or contain any spaces.
+                if not parameters["caller"][field].isidentifier():
 
-                    raise UnexpectedInput("Name value is not a valid identifier.")
+                    raise UnexpectedInput(
+                        "Name value is not a valid identifier. It must only contain alphanumeric letters (a-z) and (0-9), or underscores (_). A valid identifier cannot start with a number, or contain any spaces."
+                    )
 
             elif field == "info":
 
+                # Check that the info value is a valid VCF info field.
+                # A valid VCF info field is a string that only contains uppercase letters (A-Z) separated by commas.
                 if not re.match(
-                    r"^[A-Z]{1,}(,[A-Z]{1,})*$", fdocument["caller"][field]
+                    r"^[A-Z]{1,}(,[A-Z]{1,})*$", parameters["caller"][field]
                 ):
 
                     raise UnexpectedInput(
-                        "Info value is not consistent with requested format."
+                        "Info value is not consistent with requested format. It must only contain uppercase letters (A-Z) separated by semicolons."
                     )
 
-                formatter.infos = fdocument["caller"][field].split(",")
+                formatter.infos = parameters["caller"][field].split(",")
 
             elif field == "format":
 
                 if not re.match(
-                    r"^[A-Z]{1,}(,[A-Z]{1,})*$", fdocument["caller"][field]
+                    r"^[A-Z]{1,}(,[A-Z]{1,})*$", parameters["caller"][field]
                 ):
 
                     raise UnexpectedInput(
-                        "Format value is not consistent with VCF format."
+                        "Format value is not consistent with VCF format. It must only contain uppercase letters (A-Z) separated by colons."
                     )
 
-                formatter.format = fdocument["caller"][field].split(",")
+                formatter.format = parameters["caller"][field].split(",")
 
+            # For the genotype, depth, and vaf fields, we need to generate the abstract syntax tree (AST) from the DSL.
+            # These fields are required, and must be present in the config file.
             elif field in ["genotype", "depth", "vaf"]:
 
-                ast = self.DSL_PARSER.parse(fdocument["caller"][field]["extract"])
+                # Generate the abstract syntax tree (AST) from the DSL.
+                ast = self.DSL_PARSER.parse(parameters["caller"][field]["extract"])
 
-                fdocument["caller"][field]["extract"] = transformer.transform(ast)
+                # Transform the AST to an linear expression.
+                parameters["caller"][field]["extract"] = transformer.transform(ast)
 
+                # Format the linear expression to a template string.
                 formatter.to_template(
-                    visitor.visit_EXPRESSION(fdocument["caller"][field]["extract"])
+                    visitor.visit_EXPRESSION(parameters["caller"][field]["extract"])
                 )
-
+            # The following conditional statement handle optional fields (RRC and ARC).
             else:
+                # Is the first key of the field present ?
+                if parameters["caller"][field]:
 
-                if fdocument["caller"][field]:
-
+                    # Iterate over the possible subfields of the field.
                     for subfield in ["forward", "reverse", "total"]:
 
-                        if subfield in fdocument["caller"][field]:
+                        # Is the subfield present ?
+                        if subfield in parameters["caller"][field]:
 
-                            if fdocument["caller"][field][subfield]["extract"]:
+                            # Is the extract key present ?
+                            if parameters["caller"][field][subfield]["extract"]:
 
+                                # Generate the abstract syntax tree (AST) from the DSL.
                                 ast = self.DSL_PARSER.parse(
-                                    fdocument["caller"][field][subfield]["extract"]
+                                    parameters["caller"][field][subfield]["extract"]
                                 )
 
-                                fdocument["caller"][field][subfield]["extract"] = (
+                                # Transform the AST to an linear expression.
+                                parameters["caller"][field][subfield]["extract"] = (
                                     transformer.transform(ast)
                                 )
 
+                                # Format the linear expression to a template string.
                                 formatter.to_template(
                                     visitor.visit_EXPRESSION(
-                                        fdocument["caller"][field][subfield]["extract"]
+                                        parameters["caller"][field][subfield]["extract"]
                                     )
                                 )
 
                         else:
 
-                            fdocument["caller"][field][subfield] = {"extract": None}
+                            # If the subfield is not present, set the extract key to None.
+                            parameters["caller"][field][subfield] = {"extract": None}
 
                 else:
 
-                    fdocument["caller"][field] = {
+                    # If the field is not present, set the forward, reverse, and total subfields to None.
+                    parameters["caller"][field] = {
                         "forward": {"extract": None},
                         "reverse": {"extract": None},
                         "total": {"extract": None},
                     }
 
-        return fdocument
+        return parameters
 
     @staticmethod
-    def pretty_print_errors(errors):
-        """Pretty print schema validation errors in a user-friendly format.
+    def pretty_print_errors(errors: dict) -> None:
+        """
+        Pretty print schema validation errors in a user-friendly format.
 
         Args:
             errors (dict): Dictionary of validation errors from Cerberus
@@ -670,23 +788,29 @@ class ConfigParser:
                 border_style="red",
                 padding=(1, 2),
             )
-            stderr_console.print(panel)
+            print_stderr(panel)
         else:
-            stderr_console.print("No specific error details available")
+            print_stderr("No specific error details available")
 
     def load(self):
+        """
+        Load the config file and return the parsed parameters.
+        """
 
         try:
 
             with open(self.path, mode="r") as f:
 
-                configs = yaml.safe_load_all(f)
+                configs = yaml.safe_load_all(
+                    f
+                )  # Using safe_load_all for untrusted input.
 
                 for config in configs:
 
+                    # Validate the config file schema.
                     if self.valid_schema(document=config):
 
-                        return self.valid_dsl(document=self.validator.document)
+                        return self.parse(document=self.validator.document)
 
                     else:
 
@@ -696,17 +820,19 @@ class ConfigParser:
 
                         raise ConfigError("Config file schema is not valid.")
 
-        except FileNotFoundError:
+        except FileNotFoundError as e:
 
             logger.error(f"YAML config file {self.path} not found on filesystem.")
 
-            raise ConfigError(f"YAML config file {self.path} not found on filesystem.")
+            raise ConfigError(
+                f"YAML config file {self.path} not found on filesystem."
+            ) from e
 
         except yaml.YAMLError as e:
 
             logger.error(f"Error when parsing YAML config file {self.path}")
 
-            raise ConfigError(f"Error when parsing YAML config file {self.path}")
+            raise ConfigError(f"Error when parsing YAML config file {self.path}") from e
 
         except cerberus.DocumentError as e:
 
@@ -715,12 +841,12 @@ class ConfigParser:
             )
 
             raise ConfigError(
-                f"Error with document when validating YAML config file schema {e}"
-            )
+                "Error with document when validating YAML config file schema"
+            ) from e
 
         except UnexpectedInput as e:
 
-            raise ConfigError(f"Value is not consistent with config DSL. {e}")
+            raise ConfigError("Value is not consistent with config DSL.") from e
 
         except Exception as e:
 
@@ -731,5 +857,5 @@ class ConfigParser:
             logger.error(f"An unexpected error has occurred with YAML config file: {e}")
 
             raise ConfigError(
-                f"An unexpected error has occurred with YAML config file: {e}"
-            )
+                "An unexpected error has occurred with YAML config file"
+            ) from e

@@ -1,3 +1,7 @@
+"""
+A module to manage the genomic files.
+"""
+
 import ast
 import enum
 import os
@@ -6,7 +10,7 @@ from collections import defaultdict
 from functools import lru_cache
 from hashlib import sha256
 from pathlib import Path
-from typing import Final
+from typing import Final, Iterator
 
 import autopep8
 import jinja2
@@ -15,7 +19,7 @@ import pandas as pd
 from loguru import logger
 
 import callers
-import exceptions as exceptions
+import exceptions
 import utils
 from config import ConfigParser, Expression, Term
 from repository import Repository
@@ -153,7 +157,7 @@ class VCF(GenomicFile):
             self.parse()
 
     @property
-    def header(self):
+    def header(self) -> dict[str:int]:
         """
         Get the header of the VCF file.
 
@@ -163,7 +167,7 @@ class VCF(GenomicFile):
 
         return getattr(self, "HEADER", None)
 
-    def is_compliant(self, record: list[str]):
+    def is_compliant(self, record: list[str]) -> bool:
         """
         Check if the record is compliant with the VCF format of the caller.
 
@@ -176,7 +180,7 @@ class VCF(GenomicFile):
 
         return len(record) >= 10 and self.caller.is_compliant(record, self.HEADER)
 
-    def parse(self):
+    def parse(self) -> Iterator[str]:
         """
         Parse the VCF file.
 
@@ -190,7 +194,7 @@ class VCF(GenomicFile):
 
                 yield record
 
-    def verify(self):
+    def verify(self) -> None:
         """
         Check if the VCF file is valid.
 
@@ -248,7 +252,7 @@ class VCF(GenomicFile):
             else:
 
                 raise exceptions.VCFError(
-                    f"An unexpected error has occurred when validating VCF file"
+                    "An unexpected error has occurred when validating VCF file"
                 ) from e
 
     @staticmethod
@@ -263,12 +267,52 @@ class VCF(GenomicFile):
             object: The converted variable.
         """
 
-        try:
-            # If the variable contains a '/' or '|' character, it is a genotype information, return the variable as is
-            # Else return the variable as an evaluated expression
-            return a if sum(list(map(lambda x: x in a, ("/", "|")))) else eval(a)
-        except Exception:
-            # If the variable cannot be evaluated, return the variable as is
+        def is_genotype(variable: str) -> bool:
+            """
+            Check if the variable is a genotype.
+            """
+            return sum([1 for x in variable if x in ("/", "|")]) > 0
+
+        def is_integer(variable: str) -> bool:
+            """
+            Check if the variable is an integer.
+            """
+            return variable.isdigit()
+
+        def is_float(variable: str) -> bool:
+            """
+            Check if the variable is a float.
+            """
+            return variable.replace(".", "", 1).isdigit()
+
+        def is_boolean(variable: str) -> bool:
+            """
+            Check if the variable is a boolean.
+            """
+            return variable.lower() in ("true", "false")
+
+        def is_string(variable: str) -> bool:
+            """
+            Check if the variable is a string.
+            """
+            return not any(
+                [
+                    is_genotype(variable),
+                    is_integer(variable),
+                    is_float(variable),
+                    is_boolean(variable),
+                ]
+            )
+
+        if is_genotype(a):
+            return a
+        elif is_integer(a):
+            return int(a)
+        elif is_float(a):
+            return float(a)
+        elif is_boolean(a):
+            return True if a.lower() == "true" else False
+        else:
             return a
 
     def format_to_values(self, values: list[str]) -> dict:
@@ -300,7 +344,7 @@ class VCF(GenomicFile):
 
         infos = list(map(lambda item: item.split("="), values.split(";")))
 
-        return {k: v for k, v in infos}
+        return dict(infos)
 
     def genotype(self, variant: list[str]) -> str:
         """
@@ -329,9 +373,9 @@ class VCF(GenomicFile):
                     "Genotype value does not match the genotype format."
                 )
 
-        except (IndexError, NotImplementedError):
+        except (IndexError, NotImplementedError) as e:
 
-            raise exceptions.VCFError("Genotype cannot be extracted.")
+            raise exceptions.VCFError("Genotype cannot be extracted.") from e
 
         except Exception as e:
 
@@ -339,11 +383,9 @@ class VCF(GenomicFile):
 
                 raise
 
-            else:
-
-                raise exceptions.VCFError(
-                    f"An unexpected error has occurred when extracting genotype value"
-                ) from e
+            raise exceptions.VCFError(
+                "An unexpected error has occurred when extracting genotype value"
+            ) from e
 
     def VAF(self, variant: list[str]) -> float:
         """
@@ -369,11 +411,11 @@ class VCF(GenomicFile):
 
             return vaf
 
-        except (IndexError, NotImplementedError):
+        except (IndexError, NotImplementedError) as e:
 
             raise exceptions.VCFError(
                 "Variant allele frequency cannot be extracted from the variant record."
-            )
+            ) from e
 
         except Exception as e:
 
@@ -381,10 +423,9 @@ class VCF(GenomicFile):
 
                 raise
 
-            else:
-                raise exceptions.VCFError(
-                    f"An unexpected error has occurred when extracting VAF"
-                ) from e
+            raise exceptions.VCFError(
+                "An unexpected error has occurred when extracting VAF"
+            ) from e
 
     def depth(self, variant: list[str]) -> int:
         """
@@ -410,9 +451,9 @@ class VCF(GenomicFile):
 
             return depth
 
-        except (IndexError, NotImplementedError):
+        except (IndexError, NotImplementedError) as e:
 
-            raise exceptions.VCFError("Coverage cannot be extracted.")
+            raise exceptions.VCFError("Coverage cannot be extracted.") from e
 
         except Exception as e:
 
@@ -420,11 +461,9 @@ class VCF(GenomicFile):
 
                 raise
 
-            else:
-
-                raise exceptions.VCFError(
-                    f"An unexpected error has occurred when extracting depth"
-                ) from e
+            raise exceptions.VCFError(
+                "An unexpected error has occurred when extracting depth"
+            ) from e
 
     def arc(self, variant: list[str]) -> tuple[float]:
         """
@@ -451,9 +490,11 @@ class VCF(GenomicFile):
 
             return arc
 
-        except (IndexError, NotImplementedError):
+        except (IndexError, NotImplementedError) as e:
 
-            raise exceptions.VCFError("Alternate read count cannot be extracted.")
+            raise exceptions.VCFError(
+                "Alternate read count cannot be extracted."
+            ) from e
 
         except Exception as e:
 
@@ -461,11 +502,9 @@ class VCF(GenomicFile):
 
                 raise
 
-            else:
-
-                raise exceptions.VCFError(
-                    f"An unexpected error has occurred when extracting ARC"
-                ) from e
+            raise exceptions.VCFError(
+                "An unexpected error has occurred when extracting ARC"
+            ) from e
 
     def rrc(self, variant: list[str]) -> tuple[float]:
         """
@@ -493,9 +532,11 @@ class VCF(GenomicFile):
 
             return rcc
 
-        except (IndexError, NotImplementedError):
+        except (IndexError, NotImplementedError) as e:
 
-            raise exceptions.VCFError("Reference read count cannot be extracted.")
+            raise exceptions.VCFError(
+                "Reference read count cannot be extracted."
+            ) from e
 
         except Exception as e:
 
@@ -503,36 +544,43 @@ class VCF(GenomicFile):
 
                 raise
 
-            else:
-
-                raise exceptions.VCFError(
-                    f"An unexpected error has occurred when extracting RRC"
-                ) from e
+            raise exceptions.VCFError(
+                "An unexpected error has occurred when extracting RRC"
+            ) from e
 
 
 class VCFRepository(Repository):
     """A repository of VCF files"""
 
-    def __init__(self):
+    def __init__(self) -> None:
+        """Initialize the VCF repository"""
 
-        self.repository: dict = {}
+        # Initialize the repository
+        super().__init__()
 
-    def populate(self, items: list[tuple[str, VCF]]):
+    def populate(self, items: list[tuple[str, VCF]]) -> None:
+        """Populate the VCF repository with a list of VCF files"""
 
         for item in items:
 
             self.add(item)
 
-    def add(self, item: tuple[str, VCF]):
+    def add(self, item: tuple[str, VCF]) -> None:
+        """Add a VCF file to the repository"""
 
+        # Add the VCF file to the repository
         self.repository[item[0]] = item[1]
 
-    def remove(self, item: tuple[str, VCF]):
+    def remove(self, item: tuple[str, VCF]) -> None:
+        """Remove a VCF file from the repository"""
 
-        self.repository.pop(item[0])
+        # Remove the VCF file from the repository
+        self.repository.pop(item[0], None)
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[tuple[str, VCF]]:
+        """Iterate over the VCF files in the repository"""
 
+        # Iterate over the VCF files in the repository
         yield from self.repository.items()
 
 
@@ -582,12 +630,12 @@ class Pileup(GenomicFile):
             self.parse()
 
     @property
-    def header(self):
+    def header(self) -> dict[str:int]:
         """Get the header of the Pileup file"""
 
         return getattr(self, "HEADER", None)
 
-    def parse(self):
+    def parse(self) -> Iterator[str]:
         """Parse the Pileup file"""
 
         with open(self.path, "r") as pileup:
@@ -740,7 +788,7 @@ class Pileup(GenomicFile):
                         coverage["G+"] += 1
                     elif base == "g":
                         coverage["G-"] += 1
-                    elif base == "N" or base == "n":
+                    elif base in {"N", "n"}:
                         coverage["N"] += 1
                     elif base == "*":
                         indels[position]["deletions"][base][0][0] += 1
@@ -777,8 +825,13 @@ class Pileup(GenomicFile):
                     f"{self.sample}\t{chromosome}\t{position}\t{reference}\t{depth}\t{coverage['A+']}\t{coverage['A-']}\t{coverage['T+']}\t{coverage['T-']}\t{coverage['C+']}\t{coverage['C-']}\t{coverage['G+']}\t{coverage['G-']}\t{coverage['N']}\t{inss}\t{delss}\n"
                 )
 
-    def verify(self):
-        """Check if the Pileup file is valid"""
+    def verify(self) -> None:
+        """
+        Check if the Pileup file is valid
+
+        Raises:
+            exceptions.PileupError: If the Pileup file is not valid.
+        """
 
         # Check if the file exists
         if not self.is_file():
@@ -824,7 +877,7 @@ class Pileup(GenomicFile):
                         except ValueError as e:
 
                             raise exceptions.PileupError(
-                                f"First line inconsistent with Pileup format. Position and depth values must be integers."
+                                "First line inconsistent with Pileup format. Position and depth values must be integers."
                             ) from e
 
                         # Check if reference is a single character and in the list of bases
@@ -833,7 +886,7 @@ class Pileup(GenomicFile):
                         ):
 
                             raise exceptions.PileupError(
-                                f"First line inconsistent with Pileup format. Reference value must be a single character in [A,T,C,G,N]."
+                                "First line inconsistent with Pileup format. Reference value must be a single character in [A,T,C,G,N]."
                             )
 
                         # If the quality column is present
@@ -843,7 +896,7 @@ class Pileup(GenomicFile):
                             if not (len(columns[5]) and columns[5].isascii()):
 
                                 raise exceptions.PileupError(
-                                    f"First line inconsistent with Pileup format. Quality value must be a string of ASCII characters."
+                                    "First line inconsistent with Pileup format. Quality value must be a string of ASCII characters."
                                 )
 
         except FileNotFoundError as e:
@@ -865,7 +918,7 @@ class Pileup(GenomicFile):
             else:
 
                 raise exceptions.PileupError(
-                    f"An unexpected error has occurred when validating Pileup file"
+                    "An unexpected error has occurred when validating Pileup file"
                 ) from e
 
 
@@ -878,7 +931,7 @@ class VCFIndex(GenomicFile):
 
         self.verify()
 
-    def verify(self):
+    def verify(self) -> None:
 
         pass
 
@@ -902,13 +955,13 @@ class FastaIndex(GenomicFile):
             self._contigs: pd.DataFrame = pd.DataFrame()
 
     @property
-    def contigs(self):
+    def contigs(self) -> pd.DataFrame:
         """Get the contigs of the Fasta index file"""
 
         return getattr(self, "_contigs", None)
 
     @contigs.setter
-    def contigs(self, value: pd.DataFrame):
+    def contigs(self, value: pd.DataFrame) -> None:
         """Set the contigs of the Fasta index file"""
 
         if not isinstance(value, pd.DataFrame):
@@ -943,7 +996,7 @@ class FastaIndex(GenomicFile):
 
         return res
 
-    def parse(self):
+    def parse(self) -> None:
         """Parse the Fasta index file"""
 
         # Each contig is a Series
@@ -979,8 +1032,12 @@ class FastaIndex(GenomicFile):
             }
         )
 
-    def verify(self):
-        """Check if the Fasta index file is valid"""
+    def verify(self) -> None:
+        """Check if the Fasta index file is valid
+
+        Raises:
+            exceptions.FastaIndexError: If the Fasta index file is not valid.
+        """
 
         # Check if the file exists
         if not self.is_file():
@@ -1041,12 +1098,14 @@ class FastaIndex(GenomicFile):
 
 
 class Config(GenomicFile):
+    """Class representing a config file (YAML)"""
 
     def __init__(self, path: str, lazy: bool = True):
-        """Initialize a Config object.
+        """
+        Initialize a Config object.
 
         Args:
-            path (str): Path to the config file.
+            path (str): Path to the config file (YAML).
             lazy (bool, optional): Whether to parse the file immediately. Defaults to True.
         """
 
@@ -1060,8 +1119,9 @@ class Config(GenomicFile):
 
             self.parse()
 
-    def verify(self):
-        """Verify that the config file exists and is not empty.
+    def verify(self) -> None:
+        """
+        Verify that the config file exists and is not empty.
 
         Raises:
             ConfigError: If the file does not exist or is empty.
@@ -1078,7 +1138,8 @@ class Config(GenomicFile):
             raise exceptions.ConfigError(f"The file {self.path} is empty.")
 
     def parse(self):
-        """Parse the config file and load its parameters.
+        """
+        Parse the config file and load its parameters.
 
         Raises:
             SystemExit: If there is an error loading the config file.
@@ -1094,7 +1155,7 @@ class Config(GenomicFile):
 
 
 class VariantCallerPlugin(GenomicFile):
-    """A variant caller plugin"""
+    """A variant caller plugin (Python file)"""
 
     # Maximum size of plugin in MB
     MAX_SIZE = 0.01
@@ -1160,7 +1221,12 @@ class VariantCallerPlugin(GenomicFile):
                         self.source.exists()
                     ):
 
-                        hash = utils.hash_file(self.source)
+                        try:
+                            hash: str = utils.hash_file(self.source)
+                        except FileNotFoundError as e:
+                            raise exceptions.CheckSumFileError(
+                                f"File {self.source} not found."
+                            ) from e
 
                         # Check if the plugin file is consistent with the cached plugin file
                         if (f"{config.params["caller"]["name"]}.py" == pfile) and (
@@ -1484,7 +1550,7 @@ class GenomicReader:
 
         self.process: int = process
 
-    def read(self, file: GenomicFile | list[GenomicFile]):
+    def read(self, file: GenomicFile | list[GenomicFile]) -> Iterator[str]:
         """Read genomic files.
 
         Args:

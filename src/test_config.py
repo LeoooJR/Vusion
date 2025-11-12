@@ -1,3 +1,7 @@
+"""
+A module to test program functionalities.
+"""
+
 import tempfile
 
 import pytest
